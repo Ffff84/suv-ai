@@ -1,0 +1,31 @@
+{
+  "_": "Яблоневый сад Фарруха. Красные контуры на снимке, два участка.",
+  "field_id": "FAR-OLMA",
+  "name": "Olmazor",
+  "hectares": 2.0,
+  "lat": 39.558108,
+  "lon": 66.996099,
+  "elevation_m": 700,
+  "station": "samarkand",
+  "crop": "apple",
+  "planting_date": "2018-03-20",
+  "soil": "sandy_loam",
+  "water_table_depth_m": 40.0,
+  "irrigation_method": "drip",
+  "_полив": "Расход системы 24 м³/час. Сеансы по 24 часа = 576 м³ за сеанс.",
+  "last_irrigation_date": "2026-08-06",
+  "forecast_days": 14,
+  "field_size_m": 200,
+  "polygon": null,
+  "baseline_m3_per_ha": null,
+  "baseline_interval_days": 4,
+  "water_source": "pump",
+  "pump": {
+    "kwh_per_hour": 30.0,
+    "m3_per_hour": 60.0,
+    "cost_per_hour_uzs": 45000.0,
+    "lift_m": 40.0,
+    "_": "Замер Фарруха: 1 час = 30 кВт·ч = 60 м³ = 45 000 сум"
+  },
+  "_расход_капли": "24 м³/ч на выходе системы. Насос даёт 60 м³/ч — вероятно через накопитель. Требует подтверждения."
+}

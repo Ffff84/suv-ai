@@ -1,0 +1,30 @@
+{
+  "_комментарий": "Поле брата в Самарканде. Замените ВСЕ значения на реальные.",
+
+  "field_id": "SAM-001",
+  "name": "Akaning dalasi",
+  "hectares": 3.0,
+  "lat": 39.6547,
+  "lon": 66.9597,
+  "elevation_m": 705,
+  "station": "samarkand",
+
+  "crop": "cotton",
+  "planting_date": "2026-04-15",
+
+  "soil": "loam",
+  "water_table_depth_m": 3.5,
+
+  "irrigation_method": "furrow",
+
+  "_поле_size": "Размер квадрата вокруг точки, метры. Если Фаррух обойдёт участок по углам и пришлёт 4 точки — впишите polygon, будет точнее.",
+  "field_size_m": 200,
+  "polygon": null,
+
+  "last_irrigation_date": "2026-07-28",
+  "current_depletion_mm": 0,
+  "forecast_days": 14,
+
+  "baseline_m3_per_ha": null,
+  "baseline_interval_days": 30
+}
