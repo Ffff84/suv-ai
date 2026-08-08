@@ -18,9 +18,12 @@ import logging
 import os
 from datetime import date
 
-from telegram import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import (Application, CommandHandler, ContextTypes,
-                          ConversationHandler, MessageHandler, filters)
+from telegram import (InlineKeyboardButton, InlineKeyboardMarkup,
+                      KeyboardButton, ReplyKeyboardMarkup,
+                      ReplyKeyboardRemove, Update)
+from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
+                          ContextTypes, ConversationHandler, MessageHandler,
+                          filters)
 
 from suv.config import load_env
 
@@ -42,9 +45,33 @@ log = logging.getLogger("suv.bot")
 CROP, HECTARES, METHOD, LOCATION = range(4)
 LEDGER = Ledger(os.environ.get("SUV_DB", "suv.db"))
 
+CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅", "tomato": "🍅"}
+CROP_ORDER = ("cotton", "winter_wheat", "onion", "tomato")
+
+
+def _crop_label(key: str) -> str:
+    return f"{CROP_EMOJI[key]} {CROPS[key].name_uz}"
+
+
+METHOD_LABELS = {"furrow": "🚜 Egat (furrow)", "sprinkler": "🌧 Yomg'irlatib",
+                 "drip": "💧 Tomchilatib"}
+LOCATION_LABEL = "📍 Joylashuvni yuborish"
+
+BTN_SUV = "💧 Suv holati"
+BTN_BAJARDIM = "✅ Suv berdim"
+BTN_TEJALDI = "📊 Tejaldi"
+BTN_YORDAM = "❓ Yordam"
+
+MAIN_MENU = ReplyKeyboardMarkup(
+    [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]],
+    resize_keyboard=True)
+
+HOUR_OPTIONS = (6, 8, 9, 10, 12)
+
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    kb = [[CROPS[k].name_uz] for k in ("cotton", "winter_wheat", "onion", "tomato")]
+    kb = [[_crop_label(CROP_ORDER[0]), _crop_label(CROP_ORDER[1])],
+          [_crop_label(CROP_ORDER[2]), _crop_label(CROP_ORDER[3])]]
     await update.message.reply_text(
         "Assalomu alaykum!\n\n"
         "Men sizga qachon va qancha sug'orish kerakligini aytaman.\n\n"
@@ -56,7 +83,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def got_crop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     name = update.message.text.strip()
-    key = next((k for k, c in CROPS.items() if c.name_uz == name), None)
+    key = next((k for k in CROP_ORDER if _crop_label(k) == name), None)
     if key is None:
         await update.message.reply_text("Iltimos, ro'yxatdan tanlang.")
         return CROP
@@ -75,7 +102,8 @@ async def got_hectares(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text("Raqam kiriting. Masalan: 4 yoki 2.5")
         return HECTARES
     ctx.user_data["hectares"] = ha
-    kb = [["Egat (furrow)"], ["Yomg'irlatib"], ["Tomchilatib"]]
+    kb = [[METHOD_LABELS["furrow"]], [METHOD_LABELS["sprinkler"]],
+          [METHOD_LABELS["drip"]]]
     await update.message.reply_text(
         "Qanday sug'orasiz?",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True,
@@ -90,7 +118,7 @@ async def got_method(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Oxirgi qadam: dalangiz joylashuvini yuboring.",
         reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("Joylashuvni yuborish", request_location=True)]],
+            [[KeyboardButton(LOCATION_LABEL, request_location=True)]],
             one_time_keyboard=True, resize_keyboard=True))
     return LOCATION
 
@@ -112,8 +140,8 @@ async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Dala saqlandi.\n\n"
         "Har 3 kunda sizga sug'orish bo'yicha xabar yuboraman.\n"
-        "Hozir tekshirish uchun: /suv",
-        reply_markup=ReplyKeyboardRemove())
+        f"Hozir tekshirish uchun pastdagi “{BTN_SUV}” tugmasini bosing.",
+        reply_markup=MAIN_MENU)
     return ConversationHandler.END
 
 
@@ -173,23 +201,55 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", "uz")
         if warn:
             msg += "\n\n" + warn
-        await update.message.reply_text(msg)
+        await update.message.reply_text(msg, reply_markup=MAIN_MENU)
 
 
 async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """/tejaldi — how much has been saved. The KPI, farmer-facing."""
     fid = f"TG-{update.effective_chat.id}"
     try:
-        await update.message.reply_text(savings_text(LEDGER.savings(fid), "uz"))
+        await update.message.reply_text(savings_text(LEDGER.savings(fid), "uz"),
+                                        reply_markup=MAIN_MENU)
     except KeyError:
         await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+
+
+async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        f"{BTN_SUV} — bugungi sug'orish tavsiyasi\n"
+        f"{BTN_BAJARDIM} — suv berganingizni belgilash\n"
+        f"{BTN_TEJALDI} — mavsum davomida tejalgan suv\n\n"
+        "Yangi dala qo'shish uchun: /start",
+        reply_markup=MAIN_MENU)
+
+
+def _hour_keyboard() -> InlineKeyboardMarkup:
+    row = [InlineKeyboardButton(f"{h} soat", callback_data=f"bajardim:{h}")
+           for h in HOUR_OPTIONS]
+    return InlineKeyboardMarkup([row[:3], row[3:]])
+
+
+def _log_bajardim(ids: dict, hours: float) -> str:
+    import sqlite3
+    for field_id, rid in ids.items():
+        m3 = None
+        with sqlite3.connect(LEDGER.path) as c:
+            c.row_factory = sqlite3.Row
+            r = c.execute("SELECT pump_m3_per_hour FROM fields WHERE field_id=?",
+                          (field_id,)).fetchone()
+        if r and r["pump_m3_per_hour"]:
+            m3 = hours * r["pump_m3_per_hour"]
+        LEDGER.log_action(rid, followed=True, actual_day=date.today(),
+                          actual_m3=m3, source="farmer", note=f"{hours:.0f} soat")
+    return f"Yozib oldim: {hours:.0f} soat. Rahmat!"
 
 
 async def bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     /bajardim — «я полил». Замыкает петлю, из которой берётся KPI.
 
-    Можно указать часы работы насоса: /bajardim 9
+    Можно указать часы сразу: /bajardim 9. Без аргумента — показывает
+    кнопки с частыми значениями, чтобы не набирать вручную с телефона.
     Часы — единица, которой фермер реально управляет, и из них считается
     и объём, и счёт за электричество.
     """
@@ -198,34 +258,29 @@ async def bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Avval /suv buyrug'ini yuboring.")
         return
 
-    hours = None
     if ctx.args:
         try:
             hours = float(ctx.args[0].replace(",", "."))
         except ValueError:
             await update.message.reply_text("Soatni raqam bilan yozing: /bajardim 9")
             return
+        await update.message.reply_text(_log_bajardim(ids, hours),
+                                        reply_markup=MAIN_MENU)
+        return
 
-    import sqlite3
-    for field_id, rid in ids.items():
-        m3 = None
-        if hours is not None:
-            with sqlite3.connect(LEDGER.path) as c:
-                c.row_factory = sqlite3.Row
-                r = c.execute("SELECT pump_m3_per_hour FROM fields WHERE field_id=?",
-                              (field_id,)).fetchone()
-            if r and r["pump_m3_per_hour"]:
-                m3 = hours * r["pump_m3_per_hour"]
-        LEDGER.log_action(rid, followed=True, actual_day=date.today(),
-                          actual_m3=m3, source="farmer",
-                          note=f"{hours} soat" if hours is not None else None)
+    await update.message.reply_text("Nasos necha soat ishladi?",
+                                    reply_markup=_hour_keyboard())
 
-    if hours is None:
-        await update.message.reply_text(
-            "Yozib oldim. Rahmat!\n\n"
-            "Nasos necha soat ishladi? Shunday yozing: /bajardim 9")
-    else:
-        await update.message.reply_text(f"Yozib oldim: {hours:.0f} soat. Rahmat!")
+
+async def bajardim_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    ids = ctx.user_data.get("last_rec_ids") or {}
+    if not ids:
+        await query.edit_message_text("Avval /suv buyrug'ini yuboring.")
+        return
+    hours = float(query.data.split(":")[1])
+    await query.edit_message_text(_log_bajardim(ids, hours))
 
 
 def main() -> None:
@@ -244,6 +299,12 @@ def main() -> None:
     app.add_handler(CommandHandler("suv", suv))
     app.add_handler(CommandHandler("tejaldi", tejaldi))
     app.add_handler(CommandHandler("bajardim", bajardim))
+    app.add_handler(CommandHandler("yordam", yordam))
+    app.add_handler(MessageHandler(filters.Regex(f"^{BTN_SUV}$"), suv))
+    app.add_handler(MessageHandler(filters.Regex(f"^{BTN_TEJALDI}$"), tejaldi))
+    app.add_handler(MessageHandler(filters.Regex(f"^{BTN_BAJARDIM}$"), bajardim))
+    app.add_handler(MessageHandler(filters.Regex(f"^{BTN_YORDAM}$"), yordam))
+    app.add_handler(CallbackQueryHandler(bajardim_callback, pattern=r"^bajardim:"))
     log.info("SUV AI bot v%s starting", __version__)
     app.run_polling()
 
