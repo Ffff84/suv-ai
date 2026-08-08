@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import date
 
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup,
@@ -67,6 +68,12 @@ MAIN_MENU = ReplyKeyboardMarkup(
     resize_keyboard=True)
 
 HOUR_OPTIONS = (6, 8, 9, 10, 12)
+
+# Bosib qoldirsa ham — ro'yxatdan o'tish savoliga javob bermay, menyu
+# tugmasini bossa, vizard shu yerda to'xtab qolmasligi kerak.
+_MENU_PATTERN = "|".join(re.escape(b) for b in
+                         (BTN_SUV, BTN_BAJARDIM, BTN_TEJALDI, BTN_YORDAM))
+MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$")
 
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -283,18 +290,48 @@ async def bajardim_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     await query.edit_message_text(_log_bajardim(ids, hours))
 
 
+async def _escape_to_suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    await suv(update, ctx)
+    return ConversationHandler.END
+
+
+async def _escape_to_tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    await tejaldi(update, ctx)
+    return ConversationHandler.END
+
+
+async def _escape_to_bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    await bajardim(update, ctx)
+    return ConversationHandler.END
+
+
+async def _escape_to_yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    await yordam(update, ctx)
+    return ConversationHandler.END
+
+
 def main() -> None:
     token = os.environ["TELEGRAM_TOKEN"]
     app = Application.builder().token(token).build()
+    # Ro'yxatdan o'tish savollariga JAVOB bo'lishi mumkin bo'lgan matnni
+    # menyu tugmalaridan ajratamiz — bo'lmasa, foydalanuvchi savolga
+    # javob bermay tugma bossa, vizard uni cheksiz ushlab qoladi.
+    not_menu = filters.TEXT & ~filters.COMMAND & ~MENU_FILTER
     app.add_handler(ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            CROP: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_crop)],
-            HECTARES: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_hectares)],
-            METHOD: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_method)],
+            CROP: [MessageHandler(not_menu, got_crop)],
+            HECTARES: [MessageHandler(not_menu, got_hectares)],
+            METHOD: [MessageHandler(not_menu, got_method)],
             LOCATION: [MessageHandler(filters.LOCATION, got_location)],
         },
-        fallbacks=[CommandHandler("start", start)],
+        fallbacks=[
+            CommandHandler("start", start),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_SUV)}$"), _escape_to_suv),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_TEJALDI)}$"), _escape_to_tejaldi),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_BAJARDIM)}$"), _escape_to_bajardim),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_YORDAM)}$"), _escape_to_yordam),
+        ],
     ))
     app.add_handler(CommandHandler("suv", suv))
     app.add_handler(CommandHandler("tejaldi", tejaldi))
