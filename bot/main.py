@@ -51,13 +51,21 @@ log = logging.getLogger("suv.bot")
 CROP, PLANTING, HECTARES, METHOD, LOCATION = range(5)
 LEDGER = Ledger(os.environ.get("SUV_DB", "suv.db"))
 
+def _ids_from_env(name: str) -> set[int]:
+    return {int(x) for x in
+            os.environ.get(name, "").replace(";", ",").split(",")
+            if x.strip().lstrip("-").isdigit()}
+
+
 # Пустой список = бот открыт всем (демо-режим). На пилоте сюда вписать
 # chat_id Фарруха и наблюдателей: ALLOWED_CHAT_IDS=1724124721,123456
-_ALLOWED: set[int] = {
-    int(x) for x in
-    os.environ.get("ALLOWED_CHAT_IDS", "").replace(";", ",").split(",")
-    if x.strip().lstrip("-").isdigit()
-}
+_ALLOWED: set[int] = _ids_from_env("ALLOWED_CHAT_IDS")
+
+# Наблюдатель видит /suv и /tejaldi по ВСЕМ полям, но по-русски (язык
+# агронома, см. messages.py) и без следа в KPI-журнале: его любопытство
+# не должно плодить строки recommendations, по которым потом считается
+# дисциплина фермера. Отмечать поливы наблюдатель тоже не может.
+_OBSERVERS: set[int] = _ids_from_env("OBSERVER_CHAT_IDS")
 
 CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅", "tomato": "🍅"}
 CROP_ORDER = ("cotton", "winter_wheat", "onion", "tomato")
@@ -112,6 +120,24 @@ def _owner_fields(chat_id: int) -> list:
         c.row_factory = sqlite3.Row
         return c.execute("SELECT * FROM fields WHERE owner_chat_id=? "
                          "ORDER BY field_id", (chat_id,)).fetchall()
+
+
+def _all_fields() -> list:
+    import sqlite3
+    with sqlite3.connect(LEDGER.path) as c:
+        c.row_factory = sqlite3.Row
+        return c.execute("SELECT * FROM fields ORDER BY field_id").fetchall()
+
+
+def _fields_for_view(chat_id: int) -> tuple[list, bool]:
+    """Поля для показа: свои — как владелец; чужие — только наблюдателю.
+    Возвращает (строки, наблюдатель_ли)."""
+    rows = _owner_fields(chat_id)
+    if rows:
+        return rows, False
+    if chat_id in _OBSERVERS:
+        return _all_fields(), True
+    return [], False
 
 
 # ---------------------------------------------------------------- wizard
@@ -307,10 +333,14 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         await _reject(update)
         return
-    rows = _owner_fields(update.effective_chat.id)
+    rows, observer = _fields_for_view(update.effective_chat.id)
     if not rows:
         await update.message.reply_text("Avval /start buyrug'ini yuboring.")
         return
+    lang = "ru" if observer else "uz"
+    if observer:
+        await update.message.reply_text(
+            "👁 Режим наблюдателя: показываю все поля, в журнал не пишу.")
 
     today = date.today()
     ctx.user_data.setdefault("last_rec_ids", {})
@@ -329,8 +359,9 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             forecast = season(STATIONS["samarkand"], today, 14)
 
         rec = recommend(fld, forecast, state, today)
-        rid = LEDGER.log_recommendation(rec, __version__)
-        ctx.user_data["last_rec_ids"][fld.field_id] = rid
+        if not observer:
+            rid = LEDGER.log_recommendation(rec, __version__)
+            ctx.user_data["last_rec_ids"][fld.field_id] = rid
 
         pump = None
         if row["pump_kwh_per_hour"] and row["pump_m3_per_hour"]:
@@ -339,8 +370,8 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                                row["pump_cost_per_hour_uzs"] or 0.0,
                                row["pump_lift_m"] or 0.0)
 
-        msg = recommendation_text(rec, "uz", pump=pump)
-        warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", "uz")
+        msg = recommendation_text(rec, lang, pump=pump)
+        warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
         if warn:
             msg += "\n\n" + warn
         await update.message.reply_text(msg, reply_markup=MAIN_MENU)
@@ -357,17 +388,18 @@ async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         await _reject(update)
         return
-    rows = _owner_fields(update.effective_chat.id)
+    rows, observer = _fields_for_view(update.effective_chat.id)
     if not rows:
         await update.message.reply_text("Avval /start buyrug'ini yuboring.")
         return
+    lang = "ru" if observer else "uz"
     parts = []
     for row in rows:
         try:
             s = LEDGER.savings(row["field_id"])
         except KeyError:
             continue
-        parts.append(f"{row['name']}\n{savings_text(s, 'uz')}")
+        parts.append(f"{row['name']}\n{savings_text(s, lang)}")
     await update.message.reply_text("\n\n".join(parts), reply_markup=MAIN_MENU)
 
 
@@ -473,6 +505,11 @@ async def bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     if not _authorized(update):
         await _reject(update)
+        return
+    chat = update.effective_chat.id
+    if chat in _OBSERVERS and not _owner_fields(chat):
+        await update.message.reply_text(
+            "Наблюдатель не отмечает поливы — это делает хозяин поля.")
         return
     ids = _rec_ids(update, ctx)
     if not ids:
