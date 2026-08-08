@@ -18,8 +18,6 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
-from .crop import CROPS, season_start
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS fields (
     field_id TEXT PRIMARY KEY,
@@ -43,6 +41,7 @@ CREATE TABLE IF NOT EXISTS fields (
     pump_m3_per_hour REAL,
     pump_cost_per_hour_uzs REAL,
     pump_lift_m REAL,
+    last_irrigation_date TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -88,11 +87,29 @@ class SavingsSummary:
     verified: bool  # true only when every actual_m3 came from a meter
 
 
+# Единственные колонки, которые upsert_field согласен принять. Имена
+# kwargs попадают в текст SQL, поэтому список закрыт: конфиг из JSON,
+# просочившийся сюда напрямую, не должен уметь дописывать SQL.
+_FIELD_COLUMNS = frozenset({
+    "field_id", "name", "owner_chat_id", "hectares", "lat", "lon",
+    "elevation_m", "crop_key", "soil_key", "planting_date",
+    "irrigation_method", "water_table_depth_m", "baseline_m3_per_ha",
+    "baseline_interval_days", "pump_kwh_per_hour", "pump_m3_per_hour",
+    "pump_cost_per_hour_uzs", "pump_lift_m", "last_irrigation_date",
+    "created_at",
+})
+
+
 class Ledger:
     def __init__(self, path: str | Path = "suv.db"):
         self.path = str(path)
         with closing(sqlite3.connect(self.path)) as c:
             c.executescript(SCHEMA)
+            # Миграция старых баз: CREATE IF NOT EXISTS не добавляет
+            # колонки в уже существующую таблицу.
+            have = {r[1] for r in c.execute("PRAGMA table_info(fields)")}
+            if "last_irrigation_date" not in have:
+                c.execute("ALTER TABLE fields ADD COLUMN last_irrigation_date TEXT")
             c.commit()
 
     def _conn(self):
@@ -101,6 +118,9 @@ class Ledger:
         return c
 
     def upsert_field(self, **kw) -> None:
+        unknown = set(kw) - _FIELD_COLUMNS
+        if unknown:
+            raise ValueError(f"unknown field columns: {sorted(unknown)}")
         kw.setdefault("created_at", datetime.utcnow().isoformat())
         cols = ",".join(kw)
         marks = ",".join("?" * len(kw))
@@ -149,8 +169,19 @@ class Ledger:
 
     def savings(self, field_id: str) -> SavingsSummary:
         """
-        Derive the saving. Baseline comes from what THIS farmer did last
-        season, stored on the field row — never from a national average.
+        Derive the saving. Two honesty rules, both learned the hard way:
+
+        1. The baseline window starts at the FIRST RECOMMENDATION, not at
+           the start of the season. The bot cannot claim credit for weeks
+           it was not running — and the June "twice a week" cadence never
+           applied in March anyway.
+        2. No confirmed action — no claim. Until the farmer has logged at
+           least one /bajardim, the saving is exactly zero, because there
+           is no actual usage to subtract from the baseline.
+
+        A followed action without a metered volume counts as the
+        recommended volume: "he did what we told him" is the defensible
+        assumption; zero is not — zero inflates the saving.
         """
         with closing(self._conn()) as c:
             f = c.execute("SELECT * FROM fields WHERE field_id=?",
@@ -158,30 +189,35 @@ class Ledger:
             if f is None:
                 raise KeyError(field_id)
             rows = c.execute(
-                """SELECT r.id, a.followed, a.actual_m3, a.source
+                """SELECT r.id, r.generated_on, r.gross_m3,
+                          a.followed, a.actual_m3, a.source
                    FROM recommendations r LEFT JOIN actions a
                      ON a.recommendation_id = r.id
                    WHERE r.field_id = ?""", (field_id,)).fetchall()
 
         n = len({r["id"] for r in rows})
         followed = sum(1 for r in rows if r["followed"] == 1)
-        metered = sum(r["actual_m3"] or 0.0 for r in rows)
+        metered = sum((r["actual_m3"] if r["actual_m3"] is not None
+                       else r["gross_m3"] or 0.0)
+                      for r in rows if r["followed"] == 1)
         sources = {r["source"] for r in rows if r["source"]}
 
         base_per_ha = f["baseline_m3_per_ha"] or 0.0
         interval = f["baseline_interval_days"] or 30
-        planting = datetime.strptime(f["planting_date"], "%Y-%m-%d").date()
-        # Ko'p yillik ekin (olma, uzum) har yili qaytadan boshlanadi — bazani
-        # 2018-yildagi ekish sanasidan emas, shu yilgi uyg'onishdan hisoblaymiz.
-        # Aks holda daraxt necha yoshda bo'lsa, "tejaldi" shuncha oshib ketadi.
-        crop = CROPS.get(f["crop_key"])
-        origin = season_start(crop, planting, date.today()) if crop else planting
-        elapsed = (date.today() - origin).days
+
+        if rows:
+            first_rec = min(datetime.strptime(r["generated_on"], "%Y-%m-%d").date()
+                            for r in rows)
+            elapsed = (date.today() - first_rec).days
+        else:
+            elapsed = 0
         baseline = base_per_ha * f["hectares"] * max(0, elapsed // interval)
+
+        saved = (baseline - metered) if followed else 0.0
 
         return SavingsSummary(
             field_id=field_id, recommendations=n, followed=followed,
             metered_m3=round(metered, 1), baseline_m3=round(baseline, 1),
-            saved_m3=round(baseline - metered, 1),
+            saved_m3=round(saved, 1),
             verified=bool(sources) and sources <= {"meter", "wca"},
         )

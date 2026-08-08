@@ -73,6 +73,9 @@ def main() -> int:
         pump_m3_per_hour=pump.get("m3_per_hour"),
         pump_cost_per_hour_uzs=pump.get("cost_per_hour_uzs"),
         pump_lift_m=pump.get("lift_m"),
+        # Точка отсчёта водного баланса: без неё бот считает поле
+        # «только что политым» и откладывает первый совет.
+        last_irrigation_date=cfg.get("last_irrigation_date"),
     )
 
     src = "насос" if pump else "самотёк"
@@ -82,6 +85,11 @@ def main() -> int:
     print(f"  {SOILS[cfg['soil']].name_ru} · {cfg['irrigation_method']} · {src}")
     print(f"  грунтовые воды {cfg.get('water_table_depth_m') or 0} м")
     print(f"  владелец: chat_id {args.chat}")
+    if cfg.get("last_irrigation_date"):
+        print(f"  последний полив: {cfg['last_irrigation_date']}")
+    else:
+        print("  ! last_irrigation_date не задан — первый расчёт будет")
+        print("    считать поле только что политым.")
     if not cfg.get("baseline_m3_per_ha"):
         print()
         print("  ! baseline_m3_per_ha не задан — экономию считать не с чем.")

@@ -42,6 +42,9 @@ function evaluatePixel(s) {
 }
 """
 
+CATALOG_URL = ("https://sh.dataspace.copernicus.eu/api/v1/"
+               "catalog/1.0.0/search")
+
 
 @dataclass
 class NdviReading:
@@ -100,7 +103,41 @@ def fetch_ndvi(polygon: list[list[float]], token: str,
     r = requests.post(PROCESS_URL, json=body, timeout=60,
                       headers={"Authorization": f"Bearer {token}"})
     r.raise_for_status()
-    return _reduce_tiff(r.content, today)
+    observed = _latest_scene_date(polygon, token, start, today) or today
+    return _reduce_tiff(r.content, observed)
+
+
+def _latest_scene_date(polygon: list[list[float]], token: str,
+                       start: date, end: date,
+                       max_cloud: int = 60) -> date | None:
+    """
+    Дата последней сцены Sentinel-2 над полем в окне запроса.
+
+    Раньше снимок датировался днём ЗАПРОСА (observed_on=today), из-за
+    чего blended_kc давал десятидневному NDVI вес свежего — ровно та
+    ошибка, от которой распад веса по возрасту и должен защищать.
+    mostRecent-мозаика кладёт сверху самую свежую сцену, прошедшую фильтр
+    облачности, — её дату и берём. Любой сбой каталога -> None: расчёт
+    не падает, просто датируем днём запроса, как раньше.
+    """
+    body = {
+        "collections": ["sentinel-2-l2a"],
+        "datetime": f"{start.isoformat()}T00:00:00Z/{end.isoformat()}T23:59:59Z",
+        "intersects": {"type": "Polygon", "coordinates": [polygon]},
+        "limit": 50,
+        "filter": {"op": "<=", "args": [{"property": "eo:cloud_cover"},
+                                        max_cloud]},
+        "filter-lang": "cql2-json",
+    }
+    try:
+        r = requests.post(CATALOG_URL, json=body, timeout=30,
+                          headers={"Authorization": f"Bearer {token}"})
+        r.raise_for_status()
+        dates = [f["properties"]["datetime"][:10]
+                 for f in r.json().get("features", [])]
+        return date.fromisoformat(max(dates)) if dates else None
+    except Exception:  # noqa: BLE001 — деградация, не отказ
+        return None
 
 
 def _reduce_tiff(content: bytes, observed_on: date) -> NdviReading | None:
