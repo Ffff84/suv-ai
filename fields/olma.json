@@ -17,7 +17,8 @@
   "forecast_days": 14,
   "field_size_m": 200,
   "polygon": null,
-  "baseline_m3_per_ha": null,
+  "_baseline": "Июнь 2026 со слов Фарруха: 8 сеансов по 24 ч, расход 24 м3/ч -> 576 м3 за сеанс = 288 м3/га на 2 га. Реальный интервал 3.75 дня, округлён до 4.",
+  "baseline_m3_per_ha": 288.0,
   "baseline_interval_days": 4,
   "water_source": "pump",
   "pump": {

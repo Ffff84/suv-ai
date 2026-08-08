@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
+from .crop import CROPS, season_start
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS fields (
     field_id TEXT PRIMARY KEY,
@@ -169,7 +171,12 @@ class Ledger:
         base_per_ha = f["baseline_m3_per_ha"] or 0.0
         interval = f["baseline_interval_days"] or 30
         planting = datetime.strptime(f["planting_date"], "%Y-%m-%d").date()
-        elapsed = (date.today() - planting).days
+        # Ko'p yillik ekin (olma, uzum) har yili qaytadan boshlanadi — bazani
+        # 2018-yildagi ekish sanasidan emas, shu yilgi uyg'onishdan hisoblaymiz.
+        # Aks holda daraxt necha yoshda bo'lsa, "tejaldi" shuncha oshib ketadi.
+        crop = CROPS.get(f["crop_key"])
+        origin = season_start(crop, planting, date.today()) if crop else planting
+        elapsed = (date.today() - origin).days
         baseline = base_per_ha * f["hectares"] * max(0, elapsed // interval)
 
         return SavingsSummary(
