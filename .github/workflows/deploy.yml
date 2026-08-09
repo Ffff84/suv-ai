@@ -31,7 +31,7 @@ jobs:
       - name: Deploy over SSH
         env:
           HOST: ${{ secrets.VPS_HOST }}
-          USER: ${{ secrets.VPS_USER }}
+          SSH_USER: ${{ secrets.VPS_USER }}
           KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           if [ -z "$HOST" ] || [ -z "$KEY" ]; then
@@ -41,8 +41,30 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/deploy_key "${USER:-root}@$HOST" '
+
+          # Три проверки по очереди. Без них падение выглядит как
+          # безымянная ошибка ssh, и непонятно, что чинить: ключ, адрес
+          # сервера или сам сервер. Значения секретов GitHub скрывает
+          # в логах звёздочками, поэтому их тут и не печатаем.
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
+            echo "::error::VPS_SSH_KEY не читается как приватный ключ."
+            echo "Обычно это значит: вставлен deploy_key.pub вместо deploy_key,"
+            echo "или ключ скопирован не целиком — нужны и строка BEGIN, и END."
+            exit 1
+          fi
+          echo "1/3 ключ: формат в порядке"
+
+          if ! timeout 15 bash -c "cat < /dev/null > /dev/tcp/$HOST/22" 2>/dev/null; then
+            echo "::error::Сервер не отвечает на порту 22."
+            echo "Проверьте VPS_HOST: это должен быть IP или домен —"
+            echo "без http://, без порта, без пробелов. И что сервер включён."
+            exit 1
+          fi
+          echo "2/3 сеть: порт 22 отвечает"
+
+          ssh-keyscan -T 10 -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=15 \
+              "${SSH_USER:-root}@$HOST" '
             set -e
             cd /root/suv-ai
             git fetch origin main
@@ -51,4 +73,12 @@ jobs:
             systemctl restart suv-ai
             sleep 3
             systemctl is-active suv-ai
-          '
+          ' || {
+            echo "::error::Вход по SSH или сам деплой не прошли."
+            echo "Permission denied (publickey) — публичный ключ не добавлен"
+            echo "  в /root/.ssh/authorized_keys на сервере (ДЕПЛОЙ.md, шаг B)."
+            echo "cd: /root/suv-ai: No such file — сервер ещё не настроен,"
+            echo "  сделайте первичную настройку (ДЕПЛОЙ.md, раздел 3)."
+            exit 1
+          }
+          echo "3/3 деплой: бот перезапущен"
