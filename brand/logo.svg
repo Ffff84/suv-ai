@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" width="340" height="80">
+  <!-- SUV AI: горизонтальный локап. Канонический шрифт — Inter/Manrope;
+       здесь системный sans, чтобы файл был самодостаточным. -->
+  <defs>
+    <linearGradient id="suv-water-l" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3987e5"/>
+      <stop offset="1" stop-color="#1c5cab"/>
+    </linearGradient>
+    <clipPath id="suv-drop-clip-l">
+      <path d="M36 12 C36 12 17 34 17 48 A19 19 0 0 0 55 48 C55 34 36 12 36 12 Z"/>
+    </clipPath>
+  </defs>
+
+  <path d="M36 12 C36 12 17 34 17 48 A19 19 0 0 0 55 48 C55 34 36 12 36 12 Z"
+        fill="url(#suv-water-l)"/>
+  <g clip-path="url(#suv-drop-clip-l)" stroke="#ffffff" stroke-width="3"
+     stroke-linecap="round" fill="none">
+    <path d="M27 38.5 Q36 35.2 45 38.5"/>
+    <path d="M22.5 47 Q36 43.2 49.5 47"/>
+    <path d="M25 55.5 Q36 52 47 55.5"/>
+  </g>
+  <path d="M56 8 L57.9 13.1 L63 15 L57.9 16.9 L56 22 L54.1 16.9 L49 15 L54.1 13.1 Z"
+        fill="#1baf7a"/>
+
+  <text x="78" y="52" font-family="Inter, 'Segoe UI', Arial, sans-serif"
+        font-size="34" font-weight="800" letter-spacing="1">
+    <tspan fill="#0b1f33">SUV</tspan><tspan fill="#2a78d6" dx="8">AI</tspan>
+  </text>
+  <text x="79" y="70" font-family="Inter, 'Segoe UI', Arial, sans-serif"
+        font-size="12" font-weight="500" fill="#52514e" letter-spacing="0.3">Har bir dala uchun aqlli sug'orish</text>
+</svg>

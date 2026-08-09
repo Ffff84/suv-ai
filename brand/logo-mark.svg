@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- SUV AI: капля воды, внутри — борозды поля, сверху — искра сигнала -->
+  <defs>
+    <linearGradient id="suv-water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3987e5"/>
+      <stop offset="1" stop-color="#1c5cab"/>
+    </linearGradient>
+    <clipPath id="suv-drop-clip">
+      <path d="M30 6 C30 6 11 28 11 42 A19 19 0 0 0 49 42 C49 28 30 6 30 6 Z"/>
+    </clipPath>
+  </defs>
+
+  <path d="M30 6 C30 6 11 28 11 42 A19 19 0 0 0 49 42 C49 28 30 6 30 6 Z"
+        fill="url(#suv-water)"/>
+
+  <g clip-path="url(#suv-drop-clip)" stroke="#ffffff" stroke-width="3"
+     stroke-linecap="round" fill="none">
+    <path d="M21 32.5 Q30 29.2 39 32.5"/>
+    <path d="M16.5 41 Q30 37.2 43.5 41"/>
+    <path d="M19 49.5 Q30 46 41 49.5"/>
+  </g>
+
+  <path d="M50 2 L51.9 7.1 L57 9 L51.9 10.9 L50 16 L48.1 10.9 L43 9 L48.1 7.1 Z"
+        fill="#1baf7a"/>
+</svg>
