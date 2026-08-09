@@ -82,22 +82,36 @@ jobs:
           fi
           echo "3/4 вход по ключу: работает"
 
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=15 \
-              "${SSH_USER:-root}@$HOST" '
+          # Вывод с сервера печатаем целиком и всегда: без него падение
+          # внутри удалённого скрипта выглядит просто как «exit 1».
+          FAILED=""
+          OUT=$(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=15 \
+                "${SSH_USER:-root}@$HOST" '
             set -e
+            test -d /root/suv-ai || { echo "НЕТ ПАПКИ /root/suv-ai"; exit 10; }
             cd /root/suv-ai
             git fetch origin main
             git reset --hard origin/main
             pip install -r requirements.txt --break-system-packages -q
+            systemctl list-unit-files suv-ai.service >/dev/null 2>&1 \
+              || { echo "НЕТ СЛУЖБЫ suv-ai.service"; exit 11; }
             systemctl restart suv-ai
             sleep 3
             systemctl is-active suv-ai
-          ' || {
-            echo "::error::Вход прошёл, но деплой на сервере не отработал."
-            echo "cd: /root/suv-ai: No such file — код на сервер ещё не клонирован,"
-            echo "  сделайте первичную настройку (ДЕПЛОЙ.md, раздел 3)."
-            echo "Failed to restart suv-ai.service — не создана служба systemd,"
-            echo "  она тоже в разделе 3."
+          ' 2>&1) || FAILED=1
+          echo "--- ответ сервера ---"
+          echo "$OUT"
+          echo "---------------------"
+          if [ -n "$FAILED" ]; then
+            if echo "$OUT" | grep -q "НЕТ ПАПКИ"; then
+              echo "::error::На сервере нет /root/suv-ai — код не клонирован."
+              echo "Выполните первичную настройку: ДЕПЛОЙ.md, раздел 3."
+            elif echo "$OUT" | grep -q "НЕТ СЛУЖБЫ"; then
+              echo "::error::Код на месте, но служба suv-ai не создана."
+              echo "Создайте юнит systemd: ДЕПЛОЙ.md, раздел 3, блок с systemctl."
+            else
+              echo "::error::Деплой на сервере не отработал, текст ошибки выше."
+            fi
             exit 1
-          }
+          fi
           echo "4/4 деплой: бот перезапущен"
