@@ -77,10 +77,16 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
         hours = rec.gross_m3 / pump.m3_per_hour
 
     day = rec.action_day
+    # Дата в скобках обязательна: в 14-дневном окне прогноза каждый день
+    # недели встречается дважды, и «в четверг» без даты не отличает
+    # «через 4 дня» от «через 11». Нашлось, когда фермер сравнил ответы
+    # за два дня подряд и решил, что бот противоречит сам себе.
     when_uz = "Bugun" if rec.days_until == 0 else (
-        "Ertaga" if rec.days_until == 1 else f"{_wd(day, 'uz')} kuni")
+        "Ertaga" if rec.days_until == 1
+        else f"{_wd(day, 'uz')} kuni ({day.day:02d}.{day.month:02d})")
     when_ru = "Сегодня" if rec.days_until == 0 else (
-        "Завтра" if rec.days_until == 1 else f"В {_wd(day, 'ru')}")
+        "Завтра" if rec.days_until == 1
+        else f"В {_wd(day, 'ru')} ({day.day:02d}.{day.month:02d})")
 
     if lang == "uz":
         head = (f"{when_uz} nasosni {hours:.0f} soat ishlating."
