@@ -21,13 +21,14 @@ it get blurred in a pitch.
 | Soil water balance | **Verified** | TAW/RAW/percolation tested against FAO-56 tables |
 | Capillary rise from shallow water table | **Working** | Added after the model demanded ~2× real water use; season total now lands inside Uzbek agronomic norms |
 | Irrigation scheduling | **Verified** | Season run = 5,455 m³/ha for cotton in Fergana, inside the 5,000–7,000 norm |
-| Savings ledger | **Working** | Schema + derivation tested |
+| Savings ledger | **Working** | Schema + derivation tested; baseline window and no-action rule locked by tests |
 | Weather feed (Open-Meteo) | **Verified live** | Real forecast pulled on a Samarkand point, ET0 8.9 mm |
-| Sentinel-2 NDVI (Copernicus) | **Verified live** | Real reading: NDVI 0.412, 100% cloud-free pixels |
+| Sentinel-2 NDVI (Copernicus) | **Verified live** | Real reading: NDVI 0.428, 100% cloud-free pixels, scene date from the catalog |
 | NDVI wired into the recommendation | **Working** | `enrich.py`; degrades to calendar Kc on any failure |
-| Telegram bot | **Connects** | @suv_ai_bot responds to getMe; conversation flow not yet run with a farmer |
+| Telegram bot | **Runs live** | Registration, menu buttons, `/suv` on two real fields, allowlist. Not yet used by the pilot farmer himself |
+| Savings actually measured | **Not yet** | No `/bajardim` logged by a farmer, so every KPI figure to date is a back-test, not a result |
 
-40 tests, all passing: `python -m pytest tests/ -q`
+69 tests, all passing: `python -m pytest tests/ -q`
 
 ---
 
@@ -62,13 +63,15 @@ correction also produced the salinity warning the bot now sends.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q            # 30 tests, no network needed
+python -m pytest tests/ -q            # 69 tests, no network needed
 
-export TELEGRAM_TOKEN=...             # @BotFather
-export CDSE_CLIENT_ID=...             # dataspace.copernicus.eu, optional
-export CDSE_CLIENT_SECRET=...
+cp .env.example .env                  # then fill it in — .env is gitignored
 python -m bot.main
 ```
+
+`.env` holds `TELEGRAM_TOKEN` (@BotFather), the optional Copernicus pair,
+and `ALLOWED_CHAT_IDS` — leave that last one empty and the bot answers
+anyone who finds it. Deploying to a server: [ДЕПЛОЙ.md](ДЕПЛОЙ.md).
 
 Run one season offline, no credentials required:
 
@@ -128,8 +131,10 @@ competition pays tranches against a verified KPI.
 
 1. **Replace Kc defaults** with values from the regional extension service.
    Currently FAO table defaults, flagged in `crop.py`.
-2. **Get each pilot farmer's last-season water use** — without it there is
-   no honest baseline and no honest saving.
+2. **Get each pilot farmer's last-season water use.** Done for the apple
+   orchard (June: 8 sessions × 24 h at 24 m³/h = 288 m³/ha per session).
+   Still missing for the vineyard — until it arrives, that field has no
+   honest baseline and therefore no saving figure.
 3. **Soil type per field.** Currently defaults to loam at registration.
    One question to the farmer, or a lookup against the soil map.
 4. **Water table depth per field.** The single most influential input, and
