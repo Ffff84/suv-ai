@@ -63,6 +63,25 @@ jobs:
           echo "2/3 сеть: порт 22 отвечает"
 
           ssh-keyscan -T 10 -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          # Вход проверяем отдельно от деплоя: иначе «не пустил ключ» и
+          # «на сервере нет кода» дают одну и ту же безымянную ошибку.
+          # Текст ssh печатаем как есть — GitHub сам скрывает значения
+          # секретов звёздочками, адрес сервера в лог не утечёт.
+          AUTH=$(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=15 \
+                 "${SSH_USER:-root}@$HOST" 'echo AUTH_OK' 2>&1) || true
+          if ! echo "$AUTH" | grep -q AUTH_OK; then
+            echo "--- что ответил ssh ---"
+            echo "$AUTH"
+            echo "-----------------------"
+            echo "::error::Сервер не пустил по ключу."
+            echo "Permission denied (publickey) — публичный ключ deploy_key.pub"
+            echo "  не добавлен в ~/.ssh/authorized_keys на сервере (ДЕПЛОЙ.md, шаг B)."
+            echo "Или VPS_USER не тот пользователь, под которым заведён ключ."
+            exit 1
+          fi
+          echo "3/4 вход по ключу: работает"
+
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=15 \
               "${SSH_USER:-root}@$HOST" '
             set -e
@@ -74,11 +93,11 @@ jobs:
             sleep 3
             systemctl is-active suv-ai
           ' || {
-            echo "::error::Вход по SSH или сам деплой не прошли."
-            echo "Permission denied (publickey) — публичный ключ не добавлен"
-            echo "  в /root/.ssh/authorized_keys на сервере (ДЕПЛОЙ.md, шаг B)."
-            echo "cd: /root/suv-ai: No such file — сервер ещё не настроен,"
+            echo "::error::Вход прошёл, но деплой на сервере не отработал."
+            echo "cd: /root/suv-ai: No such file — код на сервер ещё не клонирован,"
             echo "  сделайте первичную настройку (ДЕПЛОЙ.md, раздел 3)."
+            echo "Failed to restart suv-ai.service — не создана служба systemd,"
+            echo "  она тоже в разделе 3."
             exit 1
           }
-          echo "3/3 деплой: бот перезапущен"
+          echo "4/4 деплой: бот перезапущен"
