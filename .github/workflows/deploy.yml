@@ -1,0 +1,54 @@
+# push в main -> тесты -> SSH на VPS -> git reset --hard -> restart службы.
+# Спит, пока в Settings -> Secrets -> Actions не заданы VPS_HOST,
+# VPS_USER, VPS_SSH_KEY (инструкция: ДЕПЛОЙ.md, раздел 4).
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Run tests
+        run: python -m pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$KEY" ]; then
+            echo "VPS secrets not set - skipping deploy (see ДЕПЛОЙ.md)"
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key "${USER:-root}@$HOST" '
+            set -e
+            cd /root/suv-ai
+            git fetch origin main
+            git reset --hard origin/main
+            pip install -r requirements.txt --break-system-packages -q
+            systemctl restart suv-ai
+            sleep 3
+            systemctl is-active suv-ai
+          '
