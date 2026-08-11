@@ -4,3 +4,11 @@ __pycache__/
 .pytest_cache/
 .env
 field.json
+
+# Материалы заявок и презентаций: живут на диске, в репозитории им не место.
+# Здесь только то, из чего собирается и работает продукт.
+ЗАЯВКА.md
+*.pdf
+*.pptx
+brand/logo_kvadrat.png
+brand/logo_gorizontalniy.png

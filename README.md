@@ -25,10 +25,17 @@ it get blurred in a pitch.
 | Weather feed (Open-Meteo) | **Verified live** | Real forecast pulled on a Samarkand point, ET0 8.9 mm |
 | Sentinel-2 NDVI (Copernicus) | **Verified live** | Real reading: NDVI 0.428, 100% cloud-free pixels, scene date from the catalog |
 | NDVI wired into the recommendation | **Working** | `enrich.py`; degrades to calendar Kc on any failure |
-| Telegram bot | **Runs live** | Registration, menu buttons, `/suv` on two real fields, allowlist. Not yet used by the pilot farmer himself |
-| Savings actually measured | **Not yet** | No `/bajardim` logged by a farmer, so every KPI figure to date is a back-test, not a result |
+| Telegram bot | **In use by a farmer** | Farrukh, the pilot farmer, runs it on his own two fields and confirms the advice arrives and reads correctly |
+| Savings actually measured | **Not yet** | Until `/bajardim` confirmations accumulate, every saving figure is a back-test, not a measured result |
 
-69 tests, all passing: `python -m pytest tests/ -q`
+71 tests, all passing: `python -m pytest tests/ -q`
+
+**Pilot status, August 2026.** The bot runs 24/7 on a VPS and serves one
+real farm in Samarkand province: an apple orchard (2 ha, drip, pumped)
+and a vineyard (3 ha, gravity-fed from a canal). The farmer has it on his
+own phone and has confirmed it works on his fields. What is still missing
+is the other half of the loop — his irrigation confirmations, without
+which the ledger has nothing real to compare against.
 
 ---
 
