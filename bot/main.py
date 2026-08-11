@@ -486,20 +486,34 @@ def _field_row(field_id: str):
                          (field_id,)).fetchone()
 
 
-def _log_one(field_id: str, rid: int, hours: float | None) -> str:
+def _log_one(field_id: str, rid: int, hours: float | None,
+             days_ago: int = 0) -> str:
     """Записать подтверждение по ОДНОМУ полю. Часы имеют смысл только
-    там, где есть насос; самотёку хватает факта «полил»."""
+    там, где есть насос; самотёку хватает факта «полил».
+
+    days_ago — фермер подтверждает вчерашний полив: якорь водного
+    баланса должен встать на день полива, а не на день нажатия.
+    """
     row = _field_row(field_id)
     m3 = None
     if hours is not None and row and row["pump_m3_per_hour"]:
         m3 = hours * row["pump_m3_per_hour"]
-    LEDGER.log_action(rid, followed=True, actual_day=date.today(),
+    actual = date.today() - timedelta(days=days_ago)
+    LEDGER.log_action(rid, followed=True, actual_day=actual,
                       actual_m3=m3, source="farmer",
                       note=f"{hours:g} soat" if hours is not None else None)
     name = row["name"] if row else field_id
+    when = " (kecha)" if days_ago else ""
     if hours is not None:
-        return f"{name}: yozib oldim, {hours:g} soat. Rahmat!"
-    return f"{name}: yozib oldim. Rahmat!"
+        return f"{name}: yozib oldim{when}, {hours:g} soat. Rahmat!"
+    return f"{name}: yozib oldim{when}. Rahmat!"
+
+
+def _day_keyboard(field_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("Bugun", callback_data=f"bajday:{field_id}:0"),
+        InlineKeyboardButton("Kecha", callback_data=f"bajday:{field_id}:1"),
+    ]])
 
 
 def _hour_keyboard(field_id: str) -> InlineKeyboardMarkup:
@@ -569,12 +583,18 @@ async def bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     fid, rid = next(iter(ids.items()))
     row = _field_row(fid)
     has_pump = bool(row and row["pump_m3_per_hour"])
-    if hours is None and has_pump:
-        await update.message.reply_text("Nasos necha soat ishladi?",
-                                        reply_markup=_hour_keyboard(fid))
+    if has_pump:
+        if hours is None:
+            await update.message.reply_text("Nasos necha soat ishladi?",
+                                            reply_markup=_hour_keyboard(fid))
+            return
+        await update.message.reply_text(_log_one(fid, rid, hours),
+                                        reply_markup=MAIN_MENU)
         return
-    await update.message.reply_text(_log_one(fid, rid, hours),
-                                    reply_markup=MAIN_MENU)
+    # Самотёк: часов нет, но день полива важен для якоря баланса —
+    # фермер нередко отмечает вчерашний залив.
+    await update.message.reply_text("Qachon sug'ordingiz?",
+                                    reply_markup=_day_keyboard(fid))
 
 
 async def bajardim_field_callback(update: Update,
@@ -589,11 +609,34 @@ async def bajardim_field_callback(update: Update,
     hours = ctx.user_data.pop("bajardim_hours", None)
     row = _field_row(fid)
     has_pump = bool(row and row["pump_m3_per_hour"])
-    if hours is None and has_pump:
-        await query.edit_message_text("Nasos necha soat ishladi?",
-                                      reply_markup=_hour_keyboard(fid))
+    if has_pump:
+        if hours is None:
+            await query.edit_message_text("Nasos necha soat ishladi?",
+                                          reply_markup=_hour_keyboard(fid))
+        else:
+            await query.edit_message_text(_log_one(fid, ids[fid], hours))
         return
-    await query.edit_message_text(_log_one(fid, ids[fid], hours))
+    await query.edit_message_text("Qachon sug'ordingiz?",
+                                  reply_markup=_day_keyboard(fid))
+
+
+async def bajardim_day_callback(update: Update,
+                                ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Bugun/Kecha для самотёчных полей: якорь встаёт на день полива."""
+    query = update.callback_query
+    await query.answer()
+    ids = _rec_ids(update, ctx)
+    try:
+        _, fid, off = query.data.split(":", 2)
+        days_ago = int(off)
+    except ValueError:
+        await query.edit_message_text(
+            "Tushunarsiz javob. /bajardim ni qayta bosing.")
+        return
+    if fid not in ids or days_ago not in (0, 1):
+        await query.edit_message_text("Avval /suv buyrug'ini yuboring.")
+        return
+    await query.edit_message_text(_log_one(fid, ids[fid], None, days_ago))
 
 
 async def bajardim_hours_callback(update: Update,
@@ -761,6 +804,7 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_YORDAM)}$"), yordam))
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))
+    app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
     app.add_error_handler(on_error)
     if _ALLOWED:
         log.info("allowlist active: %s", sorted(_ALLOWED))
