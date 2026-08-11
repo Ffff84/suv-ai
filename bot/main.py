@@ -328,11 +328,23 @@ def _warm_state(fld: Field, last_irr: date | None,
     return state, future
 
 
+# Поле без даты последнего полива считается «только что политым» — это
+# документированный компромисс, но молчать о нём нельзя: оптимистичный
+# «полив не требуется» на пустых данных — прямой путь засушить поле.
+NO_ANCHOR_UZ = ("⚠️ Oxirgi sug'orish sanasi noma'lum — hisob taxminiy.\n"
+                "Sug'organingizdan keyin «✅ Suv berdim» tugmasini bosing, "
+                "hisob aniqlashadi.")
+NO_ANCHOR_RU = ("⚠️ Дата последнего полива неизвестна — расчёт приблизительный "
+                "и может недооценивать потребность в воде.")
+
+
 def _compute_rec(row, today: date):
     """Полный расчёт по одному полю: спутник, warm-start, рекомендация.
 
     Общий путь для кнопки «Suv holati» и утреннего автопуша — совет
     обязан быть одинаковым, каким бы способом фермер его ни получил.
+    Возвращает (rec, pump, anchored): anchored=False — расчёту не от
+    чего отталкиваться, полю приписана полная влагоёмкость.
     """
     fld = _build_field(row)
 
@@ -355,14 +367,16 @@ def _compute_rec(row, today: date):
         pump = PumpProfile(row["pump_kwh_per_hour"], row["pump_m3_per_hour"],
                            row["pump_cost_per_hour_uzs"] or 0.0,
                            row["pump_lift_m"] or 0.0)
-    return rec, pump
+    return rec, pump, last_irr is not None
 
 
-def _rec_message(rec, pump, lang: str) -> str:
+def _rec_message(rec, pump, lang: str, anchored: bool = True) -> str:
     msg = recommendation_text(rec, lang, pump=pump)
     warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
     if warn:
         msg += "\n\n" + warn
+    if not anchored:
+        msg += "\n\n" + (NO_ANCHOR_UZ if lang == "uz" else NO_ANCHOR_RU)
     return msg
 
 
@@ -389,12 +403,13 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     today = date.today()
     ctx.user_data.setdefault("last_rec_ids", {})
     for row in rows:
-        rec, pump = _compute_rec(row, today)
+        rec, pump, anchored = _compute_rec(row, today)
         if not observer:
             rid = LEDGER.log_recommendation(rec, __version__)
             ctx.user_data["last_rec_ids"][rec.field.field_id] = rid
-        await update.message.reply_text(_rec_message(rec, pump, lang),
-                                        reply_markup=MAIN_MENU)
+        await update.message.reply_text(
+            _rec_message(rec, pump, lang, anchored=anchored),
+            reply_markup=MAIN_MENU)
 
 
 async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -656,17 +671,18 @@ async def daily_push(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             continue
 
         urgent = any(rec.action_day is not None and rec.days_until <= 1
-                     for rec, _ in recs)
+                     for rec, _p, _a in recs)
         if not push_due(urgent, _last_rec_date(chat), today):
             log.info("push: %s — спокойный день, молчим", chat)
             continue
 
         ud = ctx.application.user_data[chat]
         ud.setdefault("last_rec_ids", {})
-        for rec, pump in recs:
+        for rec, pump, anchored in recs:
             try:
-                await ctx.bot.send_message(chat, _rec_message(rec, pump, "uz"),
-                                           reply_markup=MAIN_MENU)
+                await ctx.bot.send_message(
+                    chat, _rec_message(rec, pump, "uz", anchored=anchored),
+                    reply_markup=MAIN_MENU)
             except Exception as exc:  # noqa: BLE001
                 log.warning("push: отправка %s не удалась: %s", chat, exc)
                 continue
