@@ -58,7 +58,7 @@ def _ids_from_env(name: str) -> set[int]:
 
 
 # Пустой список = бот открыт всем (демо-режим). На пилоте сюда вписать
-# chat_id Фарруха и наблюдателей: ALLOWED_CHAT_IDS=1724124721,123456
+# chat_id фермера и наблюдателей: ALLOWED_CHAT_IDS=111111111,222222222
 _ALLOWED: set[int] = _ids_from_env("ALLOWED_CHAT_IDS")
 
 # Наблюдатель видит /suv и /tejaldi по ВСЕМ полям, но по-русски (язык

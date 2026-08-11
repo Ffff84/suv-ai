@@ -10,7 +10,10 @@ set -euo pipefail
 
 DIR=/root/suv-ai
 REPO=https://github.com/Ffff84/suv-ai.git
-FARRUKH=43348525
+# chat_id фермера-владельца полей. Задаётся при запуске:
+#   curl -fsSL .../setup_server.sh | FARMER_CHAT_ID=123456789 bash
+# Не задан — скрипт всё настроит, но поля к чату не привяжет.
+FARMER_CHAT_ID="${FARMER_CHAT_ID:-}"
 
 echo "== 1/5 пакеты =="
 apt-get update -qq
@@ -33,8 +36,9 @@ else
 TELEGRAM_TOKEN=
 CDSE_CLIENT_ID=
 CDSE_CLIENT_SECRET=
-ALLOWED_CHAT_IDS=43348525,1724124721
-OBSERVER_CHAT_IDS=1724124721
+# Пусто = бот открыт всем (демо). Для пилота впишите chat_id через запятую.
+ALLOWED_CHAT_IDS=
+OBSERVER_CHAT_IDS=
 EOF
   chmod 600 "$DIR/.env"
   echo "   создан шаблон $DIR/.env"
@@ -42,9 +46,14 @@ fi
 
 echo "== 4/5 поля =="
 cd "$DIR"
-python3 scripts/seed_field.py fields/olma.json --chat "$FARRUKH" >/dev/null
-python3 scripts/seed_field.py fields/uzum.json --chat "$FARRUKH" >/dev/null
-echo "   Olmazor и Uzumzor записаны на chat_id $FARRUKH"
+if [ -n "$FARMER_CHAT_ID" ]; then
+  python3 scripts/seed_field.py fields/olma.json --chat "$FARMER_CHAT_ID" >/dev/null
+  python3 scripts/seed_field.py fields/uzum.json --chat "$FARMER_CHAT_ID" >/dev/null
+  echo "   Olmazor и Uzumzor записаны на chat_id $FARMER_CHAT_ID"
+else
+  echo "   FARMER_CHAT_ID не задан — поля не привязаны. Позже:"
+  echo "   FARMER_CHAT_ID=123456789 bash $DIR/scripts/setup_server.sh"
+fi
 
 echo "== 5/5 служба =="
 cat > /etc/systemd/system/suv-ai.service <<'EOF'
