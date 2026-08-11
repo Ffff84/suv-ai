@@ -39,6 +39,17 @@ def test_far_day_carries_the_date():
     assert stamp in recommendation_text(rec, "ru")
 
 
+def test_far_date_carries_refinement_note():
+    """За неделю и дальше — честное «дата уточнится»; вблизи — нет."""
+    far = _Rec(action_day=date.today() + timedelta(days=9), days_until=9)
+    assert "aniqlashadi" in recommendation_text(far, "uz")
+    assert "уточнится" in recommendation_text(far, "ru")
+
+    near = _Rec(action_day=date.today() + timedelta(days=3), days_until=3)
+    assert "aniqlashadi" not in recommendation_text(near, "uz")
+    assert "уточнится" not in recommendation_text(near, "ru")
+
+
 def test_today_and_tomorrow_stay_plain():
     rec = _Rec(action_day=date.today(), days_until=0)
     assert "Bugun" in recommendation_text(rec, "uz")

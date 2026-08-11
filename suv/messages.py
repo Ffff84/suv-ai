@@ -88,6 +88,13 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
         "Завтра" if rec.days_until == 1
         else f"В {_wd(day, 'ru')} ({day.day:02d}.{day.month:02d})")
 
+    # Дата дальше недели — планирующая оценка: прогноз и снимки
+    # обновляются ежедневно, и она законно уточняется на ±1 день.
+    # Говорим об этом прямо — иначе вчерашняя «суббота» против
+    # сегодняшнего «воскресенья» читается как противоречие бота.
+    far_uz = "\nSana yaqinlashganda aniqlashadi." if rec.days_until >= 7 else ""
+    far_ru = "\nДата уточнится по мере приближения." if rec.days_until >= 7 else ""
+
     if lang == "uz":
         head = (f"{when_uz} nasosni {hours:.0f} soat ishlating."
                 if hours is not None
@@ -97,7 +104,8 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
         if hours is not None and getattr(pump, "cost_per_hour_uzs", 0):
             tail += (f"\nElektr uchun taxminan "
                      f"{_num(hours * pump.cost_per_hour_uzs)} so'm.")
-        return f"{f.name}\n\n{head}\n{REASON_UZ.get(rec.reason_key, '')}\n\n{tail}"
+        return (f"{f.name}\n\n{head}\n{REASON_UZ.get(rec.reason_key, '')}"
+                f"{far_uz}\n\n{tail}")
 
     head = (f"{when_ru} включите насос на {hours:.0f} ч."
             if hours is not None
@@ -107,7 +115,8 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     if hours is not None and getattr(pump, "cost_per_hour_uzs", 0):
         tail += (f"\nЭлектричество — около "
                  f"{_num(hours * pump.cost_per_hour_uzs)} сум.")
-    return f"{f.name}\n\n{head}\n{REASON_RU.get(rec.reason_key, '')}\n\n{tail}"
+    return (f"{f.name}\n\n{head}\n{REASON_RU.get(rec.reason_key, '')}"
+            f"{far_ru}\n\n{tail}")
 
 
 def salinity_warning(level: str, lang: str = "uz") -> str | None:
