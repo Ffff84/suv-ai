@@ -98,6 +98,12 @@ MAX_HOURS = 48.0  # опечатка вида /bajardim 999 не должна п
 # отметка против прошлонедельной — шум, а не данные.
 REC_MAX_AGE_DAYS = 7
 
+# Утренний автопуш: фермер читает до выхода в поле.
+PUSH_HOUR_TASHKENT = 6
+# В спокойные дни бот молчит, если совет уходил недавно: ежедневный
+# «поливать не надо» превращается в спам, и его перестают читать.
+PUSH_QUIET_DAYS = 3
+
 # Bosib qoldirsa ham — ro'yxatdan o'tish savoliga javob bermay, menyu
 # tugmasini bossa, vizard shu yerda to'xtab qolmasligi kerak.
 _MENU_PATTERN = "|".join(re.escape(b) for b in
@@ -322,6 +328,44 @@ def _warm_state(fld: Field, last_irr: date | None,
     return state, future
 
 
+def _compute_rec(row, today: date):
+    """Полный расчёт по одному полю: спутник, warm-start, рекомендация.
+
+    Общий путь для кнопки «Suv holati» и утреннего автопуша — совет
+    обязан быть одинаковым, каким бы способом фермер его ни получил.
+    """
+    fld = _build_field(row)
+
+    from suv.enrich import attach_ndvi
+    log.info("%s: %s", fld.field_id, attach_ndvi(fld))
+
+    last_irr = _last_irrigation(fld.field_id, row["last_irrigation_date"])
+    try:
+        state, forecast = _warm_state(fld, last_irr, today)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("weather feed failed for %s: %s", fld.field_id, exc)
+        state = WaterBalanceState(0.0, 0.20)
+        forecast = season(STATIONS["samarkand"], today, 14)
+
+    rec = recommend(fld, forecast, state, today)
+
+    pump = None
+    if row["pump_kwh_per_hour"] and row["pump_m3_per_hour"]:
+        from suv.economics import PumpProfile
+        pump = PumpProfile(row["pump_kwh_per_hour"], row["pump_m3_per_hour"],
+                           row["pump_cost_per_hour_uzs"] or 0.0,
+                           row["pump_lift_m"] or 0.0)
+    return rec, pump
+
+
+def _rec_message(rec, pump, lang: str) -> str:
+    msg = recommendation_text(rec, lang, pump=pump)
+    warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
+    if warn:
+        msg += "\n\n" + warn
+    return msg
+
+
 async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Главная команда. Отвечает по КАЖДОМУ полю владельца.
@@ -345,36 +389,12 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     today = date.today()
     ctx.user_data.setdefault("last_rec_ids", {})
     for row in rows:
-        fld = _build_field(row)
-
-        from suv.enrich import attach_ndvi
-        log.info("%s: %s", fld.field_id, attach_ndvi(fld))
-
-        last_irr = _last_irrigation(fld.field_id, row["last_irrigation_date"])
-        try:
-            state, forecast = _warm_state(fld, last_irr, today)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("weather feed failed for %s: %s", fld.field_id, exc)
-            state = WaterBalanceState(0.0, 0.20)
-            forecast = season(STATIONS["samarkand"], today, 14)
-
-        rec = recommend(fld, forecast, state, today)
+        rec, pump = _compute_rec(row, today)
         if not observer:
             rid = LEDGER.log_recommendation(rec, __version__)
-            ctx.user_data["last_rec_ids"][fld.field_id] = rid
-
-        pump = None
-        if row["pump_kwh_per_hour"] and row["pump_m3_per_hour"]:
-            from suv.economics import PumpProfile
-            pump = PumpProfile(row["pump_kwh_per_hour"], row["pump_m3_per_hour"],
-                               row["pump_cost_per_hour_uzs"] or 0.0,
-                               row["pump_lift_m"] or 0.0)
-
-        msg = recommendation_text(rec, lang, pump=pump)
-        warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
-        if warn:
-            msg += "\n\n" + warn
-        await update.message.reply_text(msg, reply_markup=MAIN_MENU)
+            ctx.user_data["last_rec_ids"][rec.field.field_id] = rid
+        await update.message.reply_text(_rec_message(rec, pump, lang),
+                                        reply_markup=MAIN_MENU)
 
 
 async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -580,6 +600,84 @@ async def bajardim_hours_callback(update: Update,
     await query.edit_message_text(_log_one(fid, ids[fid], hours))
 
 
+# ---------------------------------------------------------------- автопуш
+
+def push_due(urgent: bool, last_rec: date | None, today: date) -> bool:
+    """
+    Слать ли фермеру утреннюю рекомендацию.
+
+    Срочное («поливать сегодня или завтра») уходит всегда — ради этого
+    автопуш и существует: поле не должно сохнуть из-за того, что фермер
+    забыл нажать кнопку. Спокойное — не чаще, чем раз в PUSH_QUIET_DAYS.
+    """
+    if urgent:
+        return True
+    if last_rec is None:
+        return True
+    return (today - last_rec).days >= PUSH_QUIET_DAYS
+
+
+def _last_rec_date(chat_id: int) -> date | None:
+    """Когда владелец в последний раз получал рекомендацию (кнопкой или
+    пушем) — по журналу, чтобы пережить рестарты."""
+    import sqlite3
+    with sqlite3.connect(LEDGER.path) as c:
+        row = c.execute(
+            """SELECT MAX(r.generated_on) FROM recommendations r
+               JOIN fields f ON f.field_id = r.field_id
+               WHERE f.owner_chat_id=?""", (chat_id,)).fetchone()
+    return date.fromisoformat(row[0]) if row and row[0] else None
+
+
+async def daily_push(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Утренний обход всех владельцев полей."""
+    today = date.today()
+    import sqlite3
+    with sqlite3.connect(LEDGER.path) as c:
+        owners = [r[0] for r in c.execute(
+            "SELECT DISTINCT owner_chat_id FROM fields "
+            "WHERE owner_chat_id IS NOT NULL")]
+
+    for chat in owners:
+        if _ALLOWED and chat not in _ALLOWED:
+            continue  # поле в базе есть, а доступа у владельца больше нет
+        rows = _owner_fields(chat)
+        if not rows:
+            continue
+
+        recs = []
+        for row in rows:
+            try:
+                recs.append(_compute_rec(row, today))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("push: расчёт %s не удался: %s",
+                            row["field_id"], exc)
+        if not recs:
+            continue
+
+        urgent = any(rec.action_day is not None and rec.days_until <= 1
+                     for rec, _ in recs)
+        if not push_due(urgent, _last_rec_date(chat), today):
+            log.info("push: %s — спокойный день, молчим", chat)
+            continue
+
+        ud = ctx.application.user_data[chat]
+        ud.setdefault("last_rec_ids", {})
+        for rec, pump in recs:
+            try:
+                await ctx.bot.send_message(chat, _rec_message(rec, pump, "uz"),
+                                           reply_markup=MAIN_MENU)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("push: отправка %s не удалась: %s", chat, exc)
+                continue
+            # В журнал — только доставленное: недоставленный совет не
+            # должен ни считаться «мы сказали», ни глушить завтрашний пуш.
+            rid = LEDGER.log_recommendation(rec, __version__)
+            ud["last_rec_ids"][rec.field.field_id] = rid
+        log.info("push: %s — отправлено (%d полей, срочно=%s)",
+                 chat, len(recs), urgent)
+
+
 # ---------------------------------------------------------------- wiring
 
 async def _escape_to_suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -650,6 +748,22 @@ def main() -> None:
     app.add_error_handler(on_error)
     if _ALLOWED:
         log.info("allowlist active: %s", sorted(_ALLOWED))
+
+    if app.job_queue:
+        import datetime as _dt
+        from zoneinfo import ZoneInfo
+        app.job_queue.run_daily(
+            daily_push,
+            time=_dt.time(PUSH_HOUR_TASHKENT, 0,
+                          tzinfo=ZoneInfo("Asia/Tashkent")))
+        log.info("автопуш включён: ежедневно %02d:00 Asia/Tashkent",
+                 PUSH_HOUR_TASHKENT)
+    else:
+        # Без extra job-queue бот обязан работать, но обещание «сам
+        # напишу» в этом случае ложь — говорим об этом в лог явно.
+        log.warning("JobQueue недоступен (нужен python-telegram-bot"
+                    "[job-queue]) — автопуш ВЫКЛЮЧЕН")
+
     log.info("SUV AI bot v%s starting", __version__)
     app.run_polling()
 
