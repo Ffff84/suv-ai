@@ -227,9 +227,26 @@ class Ledger:
             # Два знака — предел осмысленного: обход с телефонным GPS даёт
             # угол с ошибкой в метры, третий знак (10 м²) обещал бы
             # точность, которой нет.
+            # inlet_vertices сбрасывается вместе с контуром: индексы
+            # вершин старой границы на новой указывают куда попало, и
+            # «вода заходит с севера» стало бы тихой неправдой.
             c.execute("UPDATE fields SET polygon_geojson=?, area_ha=?, "
-                      "polygon_source=? WHERE field_id=?",
+                      "polygon_source=?, inlet_vertices=NULL "
+                      "WHERE field_id=?",
                       (json.dumps(ring), round(area_ha, 2), source, field_id))
+            c.commit()
+
+    def save_inlet(self, field_id: str, i: int, j: int) -> None:
+        """Ребро, с которого вода заходит на поле, — два индекса вершин.
+
+        Индексы, а не координаты: контур могут перечертить, и тогда
+        сторона входа обязана слететь вместе с ним, а не указывать на
+        межу, которой больше нет. save_polygon это и делает.
+        """
+        import json
+        with closing(self._conn()) as c:
+            c.execute("UPDATE fields SET inlet_vertices=? WHERE field_id=?",
+                      (json.dumps([int(i), int(j)]), field_id))
             c.commit()
 
     def log_field_status_view(self, field_id: str,

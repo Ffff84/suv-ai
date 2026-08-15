@@ -164,16 +164,31 @@ def test_uniformity_without_contour_offers_to_draw():
     assert "chegara" in (s.line + s.hint).lower()
 
 
-def test_uniformity_with_contour_shows_area_and_asks_for_a_measurement():
-    """Контур есть, замера нет: карту рисовать запрещено (§1.1), поэтому
-    секция называет площадь и честно просит недостающий шаг."""
+def test_uniformity_with_contour_asks_for_the_inlet_side():
+    """Контур есть — следующий недостающий шаг сторона входа воды:
+    без неё не от чего строить ось борозды."""
     s = uniformity_section("furrow", 9.4)
     assert s.status is Status.NO_DATA
     assert "9,4 ga" in s.line
+    assert "qaysi tomondan" in s.hint
+    assert s.action is not None and s.action.callback == "fs:inlet"
+
+
+def test_uniformity_with_inlet_asks_for_a_measurement():
+    """Контур и сторона входа есть, замера нет: карту рисовать запрещено
+    (§1.1), поэтому секция честно просит недостающий шаг."""
+    s = uniformity_section("furrow", 9.4, inlet_side="shimol")
+    assert s.status is Status.NO_DATA
+    assert "9,4 ga" in s.line
+    assert "shimol tomondan kiradi" in s.line
     assert "yetganini" in s.hint       # «докуда дошла вода»
-    # Перечертить контур можно всегда: угол, отмеченный не там, иначе
-    # остаётся в базе навсегда.
-    assert s.action is not None and s.action.callback == "fs:draw"
+    # Сторону входа можно переназначить: ошибиться в списке легко, а
+    # обходить ради этого поле заново фермер не должен.
+    assert s.action is not None and s.action.callback == "fs:inlet"
+    assert "o'zgartirish" in s.action.label
+
+    ru = uniformity_section("furrow", 9.4, inlet_side="север", lang="ru")
+    assert "Вода заходит с севера" in ru.line
 
 
 def test_uniformity_area_is_shown_to_one_decimal():

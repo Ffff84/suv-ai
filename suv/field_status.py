@@ -218,6 +218,10 @@ DRAW_ACTION_UZ = "🗺 Dalani chizish"
 DRAW_ACTION_RU = "🗺 Обвести поле"
 REDRAW_ACTION_UZ = "🗺 Qayta chizish"
 REDRAW_ACTION_RU = "🗺 Обвести заново"
+INLET_ACTION_UZ = "💧 Suv qaysi tomondan?"
+INLET_ACTION_RU = "💧 Откуда заходит вода?"
+INLET_CHANGE_UZ = "💧 Suv tomonini o'zgartirish"
+INLET_CHANGE_RU = "💧 Изменить сторону входа"
 
 # Заявленная и обмеренная площади всегда расходятся немного: фермер
 # помнит по документам, обмер идёт по телефонному GPS. Молчать стоит,
@@ -235,7 +239,8 @@ def _ha1(value: float) -> str:
 def uniformity_section(irrigation_method: str, area_ha: float | None,
                        has_reach: bool = False,
                        lang: str = "uz",
-                       declared_ha: float | None = None) -> Section | None:
+                       declared_ha: float | None = None,
+                       inlet_side: str | None = None) -> Section | None:
     """Равномерность полива. None = секция неприменима и не рисуется.
 
     Расчёт движения воды по борозде (модуль Egat) осмыслен только для
@@ -281,12 +286,33 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
                   f"В анкете {_ha1(declared_ha)} га — есть расхождение"),
             action=redraw)
 
-    if not has_reach:
-        # Контур есть, замера нет: честно говорим, чего не хватает,
-        # и не показываем ни карты, ни оценки.
+    if inlet_side is None:
+        # Следующий недостающий шаг — сторона входа воды. Без неё ось
+        # борозды не построить: заливка растёт от того края, где вода
+        # заходит, и «откуда» тут не деталь, а начало отсчёта.
         return Section(
             key="uniformity", order=20, title=title, status=Status.NO_DATA,
             line=drawn,
+            hint=("Suv dalaga qaysi tomondan kiradi?" if uz
+                  else "С какой стороны вода заходит на поле?"),
+            action=Action(INLET_ACTION_UZ if uz else INLET_ACTION_RU,
+                          "fs:inlet"))
+
+    entered = (f"Suv {inlet_side} tomondan kiradi" if uz
+               else f"Вода заходит с {inlet_side}а")
+    # Сторону можно переназначить: ошибиться в списке легко, а обходить
+    # ради этого поле заново — цена, которой фермер платить не должен.
+    # Перечертить контур предлагается уже на самом экране выбора, чтобы
+    # под карточкой не разрасталась клавиатура.
+    redraw = Action(INLET_CHANGE_UZ if uz else INLET_CHANGE_RU, "fs:inlet")
+
+    if not has_reach:
+        # Контур и сторона входа есть, замера нет. Карту рисовать
+        # запрещено (§1.1): пока не измерено, докуда вода дошла,
+        # любая заливка — догадка, а догадка убедительнее данных.
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=f"{drawn} · {entered}",
             hint=("Suv qayergacha yetganini belgilasang, tekislikni ko'rsataman"
                   if uz else
                   "Отметьте, докуда дошла вода — покажу равномерность"),
@@ -294,7 +320,7 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
 
     return Section(
         key="uniformity", order=20, title=title, status=Status.NO_DATA,
-        line=drawn, action=redraw)
+        line=f"{drawn} · {entered}", action=redraw)
 
 
 def cost_section(season_m3: float, pump: PumpProfile | None,

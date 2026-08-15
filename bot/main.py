@@ -41,6 +41,9 @@ from suv.climate import STATIONS, season
 from suv.crop import CROPS
 from suv.field_shape import MAX_VERTICES
 from suv.field_shape import area_ha as polygon_area_ha
+from suv.field_shape import from_geojson_ring
+from suv.field_shape import inlet_edge as polygon_inlet_edge
+from suv.field_shape import side_labels as polygon_side_labels
 from suv.field_shape import to_geojson_ring
 from suv.field_shape import validate as validate_shape
 from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, Status, assemble,
@@ -775,7 +778,8 @@ def _fs_sections(row, ctx, lang: str) -> list:
         water_section(rec, last_irr, date.today(), pump, lang),
         uniformity_section(row["irrigation_method"], row["area_ha"],
                            has_reach=False, lang=lang,
-                           declared_ha=row["hectares"]),
+                           declared_ha=row["hectares"],
+                           inlet_side=_inlet_side(row, lang)),
         weather_section(forecast, lang),
         cost_section(season_m3, pump, lang),
     )
@@ -972,6 +976,14 @@ async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             return
         await query.answer()
         await _draw_start(update, ctx, row)
+        return
+
+    if verb == "inlet" and row is not None:
+        if row["owner_chat_id"] != chat:
+            await query.answer("Это указывает хозяин поля.", show_alert=True)
+            return
+        await query.answer()
+        await _inlet_ask(query, row, lang)
         return
 
     # Подделанный или устаревший callback — молча гасим «часики».
@@ -1261,6 +1273,144 @@ async def draw_webapp(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await _draw_confirm(update, ctx, fid, check, "miniapp")
 
 
+# --------------------------------------------------- сторона входа воды
+#
+# ТЗ §2.3, день 3. Короткий шаг после контура: без него не построить ось
+# борозды, а значит и заливку. Храним индексами вершин, а не румбом:
+# «с севера» на вытянутом поле может означать два разных ребра.
+
+# Больше восьми кнопок — это уже не выбор, а список. Длинные рёбра идут
+# первыми: вода заходит с канала, а он тянется вдоль длинной межи.
+INLET_MAX_CHOICES = 8
+
+
+def _contour_fingerprint(row) -> str:
+    """Короткая метка текущего контура.
+
+    Индексы вершин сами по себе от устаревшей карточки не защищают: пара
+    (0,1) есть у ЛЮБОГО контура. Фермер, перечертивший поле и нажавший
+    кнопку на старом сообщении, записал бы совсем другую межу — с той же
+    уверенной формулировкой «записал: вода заходит с севера».
+    """
+    import hashlib
+    raw = row["polygon_geojson"] if "polygon_geojson" in row.keys() else None
+    if not raw:
+        return "0"
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:6]
+
+
+def _inlet_choices(row, lang: str):
+    """Стороны поля с уникальными подписями, самые длинные первыми."""
+    ring = _field_polygon(row)
+    if not ring:
+        return [], 0
+    all_sides = polygon_side_labels(from_geojson_ring(ring), lang)
+    return all_sides[:INLET_MAX_CHOICES], len(all_sides)
+
+
+def _inlet_side(row, lang: str) -> str | None:
+    """Название стороны входа для карточки, или None если не выбрана.
+
+    Эта функция на общем пути карточки: любой мусор в колонке не должен
+    ронять весь экран, поэтому ловим не только ошибку разбора JSON, но и
+    всё, во что он может развернуться.
+    """
+    raw = row["inlet_vertices"] if "inlet_vertices" in row.keys() else None
+    ring = _field_polygon(row)
+    if not raw or not ring:
+        return None
+    import json
+    try:
+        i, j = (int(v) for v in json.loads(raw))
+    except Exception:  # noqa: BLE001 — колонку мог испортить кто угодно
+        log.warning("сторона входа %s не читается: %r", row["field_id"], raw)
+        return None
+    edge = polygon_inlet_edge(from_geojson_ring(ring), (i, j))
+    return edge.name(lang) if edge else None
+
+
+async def _inlet_ask(query, row, lang: str) -> None:
+    fid = row["field_id"]
+    choices, total = _inlet_choices(row, lang)
+    if not choices:
+        await _fs_edit(query, "Avval dala chegarasini chizing." if lang == "uz"
+                       else "Сначала обведите поле.",
+                       InlineKeyboardMarkup([[InlineKeyboardButton(
+                           "⬅️ Orqaga" if lang == "uz" else "⬅️ Назад",
+                           callback_data=f"fs:card:{fid}")]]))
+        return
+    fp = _contour_fingerprint(row)
+    kb = [[InlineKeyboardButton(
+        label, callback_data=f"fsin:{fid}:{e.i}:{e.j}:{fp}")]
+        for e, label in choices]
+    # Если в списке нет той межи, с которой заходит вода, единственный
+    # честный выход — перечертить контур: значит, он обведён неточно.
+    kb.append([InlineKeyboardButton(
+        "🗺 Qayta chizish" if lang == "uz" else "🗺 Обвести заново",
+        callback_data=f"fs:draw:{fid}")])
+    kb.append([InlineKeyboardButton(
+        "⬅️ Orqaga" if lang == "uz" else "⬅️ Назад",
+        callback_data=f"fs:card:{fid}")])
+    text = ("Suv dalaga qaysi tomondan kiradi?" if lang == "uz"
+            else "С какой стороны вода заходит на поле?")
+    if total > len(choices):
+        # Молча обрезать список нельзя: фермер решит, что его межи тут
+        # нет вообще, вместо того чтобы уточнить контур.
+        text += (f"\n\nEng uzun {len(choices)} tasi ko'rsatildi "
+                 f"({total} tadan). Kerakli tomon yo'q bo'lsa — "
+                 f"chegarani qaytadan chizing."
+                 if lang == "uz" else
+                 f"\n\nПоказаны {len(choices)} самых длинных из {total}. "
+                 f"Нужной стороны нет — обведите контур заново.")
+    await _fs_edit(query, text, InlineKeyboardMarkup(kb))
+
+
+async def inlet_callback(update: Update,
+                         ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    chat = update.effective_chat.id
+    if not _authorized(update) or chat not in _FIELD_STATUS:
+        await query.answer()
+        return
+    try:
+        _, fid, raw_i, raw_j, fp = query.data.split(":", 4)
+        i, j = int(raw_i), int(raw_j)
+    except ValueError:
+        await query.answer()
+        return
+
+    row = _field_row(fid)
+    if row is None or row["owner_chat_id"] != chat:
+        await query.answer()
+        return
+
+    rows, observer = _fields_for_view(chat)
+    lang = "ru" if observer else "uz"
+    many = len(rows) > 1
+
+    stale = fp != _contour_fingerprint(row)
+    edge = next((e for e, _l in _inlet_choices(row, lang)[0]
+                 if (e.i, e.j) == (i, j)), None)
+    if stale or edge is None:
+        # Контур с тех пор перечертили: показываем список заново по
+        # нынешней границе, а не записываем межу, которой уже нет.
+        await query.answer("Chegara o'zgargan." if lang == "uz"
+                           else "Контур изменился.", show_alert=True)
+        await _inlet_ask(query, row, lang)
+        return
+
+    await query.answer()
+    LEDGER.save_inlet(fid, i, j)
+    ctx.user_data.get("fs_cache", {}).pop(fid, None)
+    log.info("сторона входа воды: %s -> вершины %d,%d (%s)",
+             fid, i, j, edge.name("ru"))
+    # Возвращаемся на карточку: экран правит одно сообщение, и оставить
+    # его без кнопок значит завести фермера в тупик.
+    row = _field_row(fid)
+    text, kb = await asyncio.to_thread(_fs_card, row, chat, ctx, lang, many)
+    await _fs_edit(query, text, kb)
+
+
 async def draw_confirm_callback(update: Update,
                                 ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -1496,6 +1646,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))
     app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
     app.add_handler(CallbackQueryHandler(draw_confirm_callback, pattern=r"^fsdraw:"))
+    app.add_handler(CallbackQueryHandler(inlet_callback, pattern=r"^fsin:"))
     app.add_handler(CallbackQueryHandler(fs_callback, pattern=r"^fs:"))
     app.add_error_handler(on_error)
     if _ALLOWED:

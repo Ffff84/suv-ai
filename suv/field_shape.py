@@ -253,6 +253,222 @@ def validate(points: list[tuple[float, float]],
 
 # ---------------------------------------------------------------- хранение
 
+# ---------------------------------------------------------------- стороны
+
+# Румбы, как их называет фермер. Восьми хватает: «вода заходит с
+# северо-северо-востока» — не та точность, которой кто-нибудь оперирует
+# на поле.
+COMPASS_UZ = ("shimol", "shimoli-sharq", "sharq", "janubi-sharq",
+              "janub", "janubi-g'arb", "g'arb", "shimoli-g'arb")
+COMPASS_RU = ("север", "северо-восток", "восток", "юго-восток",
+              "юг", "юго-запад", "запад", "северо-запад")
+
+
+def compass_index(bearing_deg: float) -> int:
+    """Румб по азимуту: 0 — север, дальше по часовой стрелке."""
+    return int((bearing_deg % 360.0 + 22.5) // 45.0) % 8
+
+
+def compass_name(bearing_deg: float, lang: str = "uz") -> str:
+    names = COMPASS_UZ if lang == "uz" else COMPASS_RU
+    return names[compass_index(bearing_deg)]
+
+
+@dataclass(frozen=True)
+class Edge:
+    """Сторона поля: цепочка меж от вершины i до вершины j.
+
+    i и j — индексы вершин контура, как требует ТЗ §2.3. j не обязан
+    быть следующим за i: настоящая межа редко бывает одним отрезком, и
+    северную сторону, обойденную семью точками вдоль кривой границы,
+    фермер всё равно называет северной.
+    """
+
+    i: int
+    j: int
+    bearing: float     # азимут ВНЕШНЕЙ нормали: куда сторона смотрит из поля
+    length_m: float    # длина по прямой от вершины i до вершины j
+
+    def name(self, lang: str = "uz") -> str:
+        return compass_name(self.bearing, lang)
+
+
+def _signed_area_m2(xy: list[tuple[float, float]]) -> float:
+    """Площадь со знаком: положительная — обход против часовой стрелки."""
+    s = 0.0
+    for i in range(len(xy)):
+        x1, y1 = xy[i]
+        x2, y2 = xy[(i + 1) % len(xy)]
+        s += x1 * y2 - x2 * y1
+    return s / 2.0
+
+
+# Насколько межа вправе вилять, оставаясь одной стороной поля: предел
+# отклонения её точек от прямой, доля длины этой стороны.
+#
+# Углы для этого не годятся, хотя так и напрашивается. Граница, идущая
+# зигзагом вдоль соседской межи, состоит из отрезков, смотрящих на
+# северо-запад и северо-восток — между ними 109°, больше прямого угла,
+# хотя это одна северная сторона. А настоящий угол поля — ровно 90°.
+# По углу между отрезками эти два случая неразличимы; по отклонению от
+# прямой — да: у виляющей межи оно около 9% длины, у завёрнутого угла 45%.
+#
+# Доля берётся от РАЗМЕРА ПОЛЯ (четверти периметра — это примерно одна
+# его сторона), а не от длины уже собранного куска. Иначе цепочка не
+# успевает начаться: на первых двух отрезках хорда коротка, допуск с неё
+# — считанные метры, и виляющая межа рвётся, не начав склеиваться.
+SIDE_DEVIATION_FRAC = 0.25
+# Поле бывает маленьким, а телефон врёт на метры: на короткой стороне
+# доля превращается в сантиметры, и любое дрожание рвёт её на куски.
+SIDE_DEVIATION_MIN_M = 8.0
+
+
+def _angle_gap(a: float, b: float) -> float:
+    """Разница двух азимутов, 0..180."""
+    d = abs(a - b) % 360.0
+    return min(d, 360.0 - d)
+
+
+def edges(points: list[tuple[float, float]]) -> list[Edge]:
+    """Стороны поля со сторонами света, от самой длинной к короткой.
+
+    Сторона — это направление ВНЕШНЕЙ НОРМАЛИ: куда межа смотрит наружу
+    поля. Азимут от центра к середине ребра для этого не годится: на
+    Г-образном участке вдоль канала центр лежит в вырезе, и нижняя межа
+    получает имя «юго-восточная», хотя она южная.
+
+    Соседние отрезки, смотрящие примерно в одну сторону, склеиваются в
+    ОДНУ сторону. Без этого северная граница, обойденная семью точками
+    вдоль кривой межи, рассыпается на «северо-западные» и
+    «северо-восточные» куски, и севера в списке нет вообще — фермер его
+    ищет и не находит. А поле, обведённое двадцатью точками, давало
+    двадцать почти одинаковых кнопок.
+
+    Направление обхода фермер выбирает сам, поэтому его определяем по
+    знаку площади и разворачиваем нормаль куда надо.
+
+    Длинные стороны идут первыми: вода заходит с канала или дороги, а
+    они тянутся вдоль длинной межи, а не упираются в угол.
+    """
+    n = len(points)
+    if n < 3:
+        return []
+    xy = to_local_m(points)
+    ccw = _signed_area_m2(xy) > 0
+
+    def outward(ax: int, bx: int) -> tuple[float, float]:
+        """(азимут внешней нормали, длина) для хорды от вершины ax к bx."""
+        dx = xy[bx][0] - xy[ax][0]
+        dy = xy[bx][1] - xy[ax][1]
+        # При обходе против часовой стрелки поле слева от направления
+        # движения, значит наружу смотрит (dy, -dx). По часовой — наоборот.
+        nx, ny = (dy, -dx) if ccw else (-dy, dx)
+        return math.degrees(math.atan2(nx, ny)) % 360.0, math.hypot(dx, dy)
+
+    seg = [outward(i, (i + 1) % n)[0] for i in range(n)]
+
+    # Начинаем с настоящего угла — там, где направление меняется резче
+    # всего. Иначе цепочка разорвётся посреди ровной межи только потому,
+    # что фермер начал обход именно с неё.
+    start = max(range(n), key=lambda i: _angle_gap(seg[i], seg[i - 1]))
+
+    def deviation(a: int, b: int, count: int) -> float:
+        """Насколько промежуточные вершины отходят от прямой a-b."""
+        ax, ay = xy[a]
+        bx, by = xy[b]
+        dx, dy = bx - ax, by - ay
+        span = math.hypot(dx, dy)
+        if span < 1e-9:
+            return float("inf")   # цепочка вернулась в начало — не сторона
+        worst = 0.0
+        for t in range(1, count):
+            px, py = xy[(a + t) % n]
+            worst = max(worst, abs(dx * (py - ay) - dy * (px - ax)) / span)
+        return worst
+
+    perimeter = sum(math.hypot(xy[(i + 1) % n][0] - xy[i][0],
+                               xy[(i + 1) % n][1] - xy[i][1]) for i in range(n))
+    allowed = max(SIDE_DEVIATION_MIN_M, SIDE_DEVIATION_FRAC * perimeter / 4.0)
+
+    out: list[Edge] = []
+    k = 0
+    while k < n:
+        i = (start + k) % n
+        run_end = (i + 1) % n
+        length = 1
+        while length < n - k:
+            cand_end = (i + length + 1) % n
+            if deviation(i, cand_end, length + 1) > allowed:
+                break
+            run_end = cand_end
+            length += 1
+        bearing, span = outward(i, run_end)
+        out.append(Edge(i=i, j=run_end, bearing=bearing, length_m=span))
+        k += length
+    return sorted(out, key=lambda e: -e.length_m)
+
+
+def side_labels(points: list[tuple[float, float]],
+                lang: str = "uz") -> list[tuple[Edge, str]]:
+    """Стороны поля с ПОДПИСЯМИ, различимыми между собой.
+
+    У поля с вырезом две северные межи бывают одинаковой длины, и обе
+    подписи получаются буквально одинаковыми — фермер выбирает наугад, а
+    ошибку потом не видно: карточка в обоих случаях скажет «вода заходит
+    с севера». Поэтому совпавшие подписи уточняются положением стороны
+    на поле: «shimol · 200 m (g'arbroq)».
+    """
+    uz = lang == "uz"
+    sides = edges(points)
+    if not sides:
+        return []
+    xy = to_local_m(points)
+
+    def base(e: Edge) -> str:
+        return (f"{e.name(lang)} tomondan · {e.length_m:.0f} m" if uz
+                else f"с {e.name(lang)}а · {e.length_m:.0f} м")
+
+    def where(e: Edge) -> str:
+        """Куда смещена середина стороны относительно центра поля."""
+        n = len(points)
+        mx = (xy[e.i][0] + xy[e.j % n][0]) / 2.0
+        my = (xy[e.i][1] + xy[e.j % n][1]) / 2.0
+        bearing = math.degrees(math.atan2(mx, my)) % 360.0
+        name = compass_name(bearing, lang)
+        return f"{name}roq" if uz else f"{name} часть"
+
+    labels = [base(e) for e in sides]
+    seen: dict[str, int] = {}
+    for lbl in labels:
+        seen[lbl] = seen.get(lbl, 0) + 1
+    out: list[tuple[Edge, str]] = []
+    used: set[str] = set()
+    for e, lbl in zip(sides, labels):
+        if seen[lbl] > 1:
+            lbl = f"{lbl} ({where(e)})"
+        if lbl in used:  # осталось совпадение — доводим номером
+            k = 2
+            while f"{lbl} ({k})" in used:
+                k += 1
+            lbl = f"{lbl} ({k})"
+        used.add(lbl)
+        out.append((e, lbl))
+    return out
+
+
+def inlet_edge(points: list[tuple[float, float]],
+               inlet: tuple[int, int] | None) -> Edge | None:
+    """Ребро входа воды по сохранённым индексам вершин."""
+    if not inlet:
+        return None
+    i, j = inlet
+    if not (0 <= i < len(points) and 0 <= j < len(points)):
+        return None
+    return next((e for e in edges(points) if (e.i, e.j) == (i, j)), None)
+
+
+# ---------------------------------------------------------------- хранение
+
 def to_geojson_ring(points: list[tuple[float, float]]) -> list[list[float]]:
     """(lat, lon) -> замкнутое кольцо [[lon, lat], ...].
 

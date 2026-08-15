@@ -132,3 +132,65 @@ def test_old_db_gets_last_irrigation_column(tmp_path):
         irrigation_method="drip", water_table_depth_m=0.0,
         baseline_m3_per_ha=None, baseline_interval_days=30,
         last_irrigation_date="2026-08-01")
+
+
+# ---------------------------------------------------------------- контур
+
+def _seeded(tmp_path, **extra):
+    """Поле в свежей базе — как его заводит агроном из конфига."""
+    led = Ledger(tmp_path / "shape.db")
+    led.upsert_field(
+        field_id="F-1", name="Guliston", owner_chat_id=1, hectares=10.0,
+        lat=39.6, lon=66.9, elevation_m=700.0, crop_key="cotton",
+        soil_key="loam", planting_date="2026-04-10",
+        irrigation_method="furrow", water_table_depth_m=0.0,
+        baseline_m3_per_ha=1100.0, baseline_interval_days=30, **extra)
+    return led
+
+
+RING = [[66.9, 39.6], [66.91, 39.6], [66.91, 39.61], [66.9, 39.6]]
+
+
+def _field(led):
+    import sqlite3
+    with sqlite3.connect(led.path) as c:
+        c.row_factory = sqlite3.Row
+        return c.execute("SELECT * FROM fields WHERE field_id='F-1'").fetchone()
+
+
+def test_reseeding_a_field_keeps_the_drawn_contour(tmp_path):
+    """Повторный запуск scripts/seed_field.py — документированный шаг
+    деплоя. Он не смеет стирать границу, которую фермер обошёл ногами:
+    INSERT OR REPLACE обнулял все не переданные колонки."""
+    led = _seeded(tmp_path)
+    led.save_polygon("F-1", RING, 8.4, "pins")
+    led.save_inlet("F-1", 0, 1)
+
+    _seeded(tmp_path)          # тот же конфиг заливают ещё раз
+    row = _field(led)
+    assert row["polygon_geojson"], "контур стёрт повторным seed"
+    assert row["area_ha"] == 8.4
+    assert row["polygon_source"] == "pins"
+    assert row["inlet_vertices"] == "[0, 1]"
+
+
+def test_redrawing_the_contour_forgets_the_inlet_side(tmp_path):
+    """Сторона входа хранится индексами вершин. На новой границе они
+    указывают куда попало, и «вода заходит с севера» стало бы тихой
+    неправдой — поэтому сбрасывается вместе с контуром."""
+    led = _seeded(tmp_path)
+    led.save_polygon("F-1", RING, 8.4, "pins")
+    led.save_inlet("F-1", 0, 1)
+    assert _field(led)["inlet_vertices"] == "[0, 1]"
+
+    led.save_polygon("F-1", RING, 9.1, "miniapp")
+    assert _field(led)["inlet_vertices"] is None
+
+
+def test_area_from_the_contour_never_overwrites_the_declared_one(tmp_path):
+    """Заявленная площадь остаётся как есть: расхождение с обмеренной
+    видно только пока целы обе цифры."""
+    led = _seeded(tmp_path)
+    led.save_polygon("F-1", RING, 8.4, "pins")
+    row = _field(led)
+    assert row["hectares"] == 10.0 and row["area_ha"] == 8.4

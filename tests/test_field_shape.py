@@ -276,6 +276,131 @@ def test_valid_field_reports_its_area():
     assert res.area == pytest.approx(10.0, rel=1e-3)
 
 
+# ---------------------------------------------------------- стороны света
+
+def test_edges_of_a_rectangle_get_the_right_compass_sides():
+    """Поле 400 м по долготе и 200 м по широте: длинные межи — северная
+    и южная, короткие — восточная и западная."""
+    from suv.field_shape import edges, meters_per_degree
+    m_lat, m_lon = meters_per_degree(LAT0)
+    def P(x, y): return (LAT0 + y / m_lat, LON0 + x / m_lon)
+    rect = [P(0, 0), P(400, 0), P(400, 200), P(0, 200)]
+
+    got = {e.name("uz"): round(e.length_m) for e in edges(rect)}
+    assert got == {"janub": 400, "shimol": 400, "sharq": 200, "g'arb": 200}
+
+
+def test_sides_of_a_concave_field_are_named_by_the_outward_normal():
+    """Г-образный участок вдоль канала. Азимут от центра тут врёт: центр
+    лежит в вырезе, и нижняя межа получает название «юго-восточная»,
+    хотя она южная — фермер ищет в списке юг и не находит. Сторона
+    определяется тем, куда межа смотрит наружу поля."""
+    from suv.field_shape import edges
+    got = {e.name("uz") for e in edges(_l_shaped())}
+    assert got == {"janub", "shimol", "sharq", "g'arb"}
+
+
+def test_sides_do_not_depend_on_the_walking_direction():
+    """Фермер обходит поле по часовой или против — стороны света от
+    этого не меняются.
+
+    Длины сравнивать нельзя: цепочки при обратном обходе могут
+    захватить короткий отвод на метр-другой иначе. Фермер видит стороны
+    света, и они обязаны совпадать.
+    """
+    from suv.field_shape import edges
+    field = _l_shaped()
+    forward = sorted(e.name("uz") for e in edges(field))
+    backward = sorted(e.name("uz") for e in edges(list(reversed(field))))
+    assert forward == backward
+
+
+def test_a_side_is_a_run_of_segments_not_a_single_edge():
+    """Северная граница, обойденная семью точками вдоль кривой межи, —
+    это одна северная сторона, а не шесть «северо-западных» и
+    «северо-восточных» кусков, среди которых севера нет вовсе."""
+    from suv.field_shape import edges, meters_per_degree
+    m_lat, m_lon = meters_per_degree(LAT0)
+    def P(x, y): return (LAT0 + y / m_lat, LON0 + x / m_lon)
+    jagged = ([P(0, 0), P(400, 0), P(400, 250)]
+              + [P(400 * k / 8, 250 + (35 if k % 2 else -35))
+                 for k in range(7, 0, -1)]
+              + [P(0, 250)])
+    sides = edges(jagged)
+    assert any(e.name("uz") == "shimol" for e in sides), \
+        "северной стороны нет в списке — фермер её не найдёт"
+    assert len(sides) < 8, f"граница рассыпалась на {len(sides)} кусков"
+
+
+def test_sides_cover_the_whole_boundary_exactly_once():
+    """Цепочки идут подряд и замыкают контур: ни дыр, ни нахлёстов."""
+    from suv.field_shape import edges, meters_per_degree
+    import math
+    m_lat, m_lon = meters_per_degree(LAT0)
+    def P(x, y): return (LAT0 + y / m_lat, LON0 + x / m_lon)
+    shapes = [
+        rectangle(400, 250),
+        _l_shaped(),
+        [P(200 * math.cos(math.radians(a * 18)),
+           200 * math.sin(math.radians(a * 18))) for a in range(20)],
+    ]
+    for pts in shapes:
+        n = len(pts)
+        covered = sum((e.j - e.i) % n for e in edges(pts))
+        assert covered == n, f"покрытие {covered} из {n}"
+
+
+def test_side_labels_are_always_distinguishable():
+    """У поля с вырезом две северные межи бывают одной длины: подписи
+    совпадали буквально, фермер выбирал наугад, а ошибку потом не
+    видно — карточка в обоих случаях говорит «вода заходит с севера»."""
+    from suv.field_shape import meters_per_degree, side_labels
+    m_lat, m_lon = meters_per_degree(LAT0)
+    def P(x, y): return (LAT0 + y / m_lat, LON0 + x / m_lon)
+    notched = [P(0, 0), P(400, 0), P(400, 200), P(200, 200),
+               P(200, 500), P(0, 500)]
+    labels = [lbl for _e, lbl in side_labels(notched)]
+    assert len(labels) == len(set(labels)), labels
+    assert sum(1 for l in labels if l.startswith("shimol")) == 2
+
+    ru = [lbl for _e, lbl in side_labels(notched, "ru")]
+    assert len(ru) == len(set(ru))
+
+
+def test_edges_are_sorted_longest_first():
+    """Вода заходит с канала, а он тянется вдоль длинной межи — её и
+    показываем фермеру первой."""
+    from suv.field_shape import edges, meters_per_degree
+    m_lat, m_lon = meters_per_degree(LAT0)
+    def P(x, y): return (LAT0 + y / m_lat, LON0 + x / m_lon)
+    lengths = [e.length_m for e in edges([P(0, 0), P(600, 0), P(600, 60),
+                                          P(0, 60)])]
+    assert lengths == sorted(lengths, reverse=True)
+
+
+def test_compass_sectors_split_at_the_half_rumb():
+    from suv.field_shape import compass_name
+    assert compass_name(0) == "shimol" and compass_name(359) == "shimol"
+    assert compass_name(22) == "shimol"          # ещё север
+    assert compass_name(23) == "shimoli-sharq"   # уже северо-восток
+    assert compass_name(90) == "sharq"
+    assert compass_name(180) == "janub"
+    assert compass_name(270) == "g'arb"
+    assert compass_name(270, "ru") == "запад"
+
+
+def test_inlet_edge_is_found_by_vertex_indices():
+    """Сторона входа хранится индексами вершин: на вытянутом поле «с
+    севера» может означать два разных ребра, и румба мало."""
+    from suv.field_shape import edges, inlet_edge
+    rect = rectangle(400, 200)
+    first = edges(rect)[0]
+    found = inlet_edge(rect, (first.i, first.j))
+    assert found is not None and found.name("uz") == first.name("uz")
+    assert inlet_edge(rect, None) is None
+    assert inlet_edge(rect, (99, 100)) is None   # мусор не роняет расчёт
+
+
 # ---------------------------------------------------------------- geojson
 
 def test_geojson_ring_is_lon_lat_and_closed():
