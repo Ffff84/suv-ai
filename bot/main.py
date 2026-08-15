@@ -39,9 +39,14 @@ load_env()
 from suv import __version__
 from suv.climate import STATIONS, season
 from suv.crop import CROPS
-from suv.field_status import (LIST_HEADER, Status, assemble, cost_section,
-                              field_list_label, overall_status, render_card,
-                              water_section, weather_section)
+from suv.field_shape import MAX_VERTICES
+from suv.field_shape import area_ha as polygon_area_ha
+from suv.field_shape import to_geojson_ring
+from suv.field_shape import validate as validate_shape
+from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, Status, assemble,
+                              cost_section, field_list_label, overall_status,
+                              render_card, uniformity_section, water_section,
+                              weather_section)
 from suv.ledger import Ledger
 from suv.messages import recommendation_text, salinity_warning, savings_text
 from suv.schedule import Field, recommend, simulate
@@ -182,6 +187,10 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
 
     chat = update.effective_chat.id
+    # Мастер регистрации перехватывает текстовые кнопки обводки как
+    # ответы на свои вопросы. Раз начали заново — режим обводки закрыт.
+    ctx.user_data.pop("draw", None)
+    ctx.user_data.pop("draw_pending", None)
     seeded = [r for r in _owner_fields(chat) if r["field_id"] != f"TG-{chat}"]
     if seeded:
         # Поля этого хозяйства заведены агрономом из конфига. Повторная
@@ -366,6 +375,24 @@ NO_ANCHOR_RU = ("⚠️ Дата последнего полива неизве�
                 "и может недооценивать потребность в воде.")
 
 
+def _field_polygon(row) -> list[list[float]] | None:
+    """Контур поля как кольцо GeoJSON, если фермер его обвёл.
+
+    Битый JSON не должен ронять рекомендацию: без контура расчёт просто
+    возвращается к квадрату вокруг точки, как было до дня 2.
+    """
+    raw = row["polygon_geojson"] if "polygon_geojson" in row.keys() else None
+    if not raw:
+        return None
+    import json
+    try:
+        ring = json.loads(raw)
+    except (ValueError, TypeError):
+        log.warning("контур %s не читается как JSON", row["field_id"])
+        return None
+    return ring if isinstance(ring, list) and len(ring) >= 4 else None
+
+
 def _compute_rec(row, today: date):
     """Полный расчёт по одному полю: спутник, warm-start, рекомендация.
 
@@ -377,7 +404,11 @@ def _compute_rec(row, today: date):
     fld = _build_field(row)
 
     from suv.enrich import attach_ndvi
-    log.info("%s: %s", fld.field_id, attach_ndvi(fld))
+    # Обведённый контур сразу идёт в дело: без него спутник усредняет
+    # NDVI по квадрату 400x400 м вокруг точки и захватывает соседнюю
+    # культуру и дорогу. С контуром замер идёт ровно по полю.
+    log.info("%s: %s", fld.field_id,
+             attach_ndvi(fld, polygon=_field_polygon(row)))
 
     last_irr = _last_irrigation(fld.field_id, row["last_irrigation_date"])
     try:
@@ -742,6 +773,9 @@ def _fs_sections(row, ctx, lang: str) -> list:
         season_m3 = 0.0
     return assemble(
         water_section(rec, last_irr, date.today(), pump, lang),
+        uniformity_section(row["irrigation_method"], row["area_ha"],
+                           has_reach=False, lang=lang,
+                           declared_ha=row["hectares"]),
         weather_section(forecast, lang),
         cost_section(season_m3, pump, lang),
     )
@@ -768,9 +802,19 @@ def _fs_card(row, chat: int, ctx, lang: str,
 
     fid = row["field_id"]
     kb: list[list[InlineKeyboardButton]] = []
+    actions: list[InlineKeyboardButton] = []
     if owner:
+        # Кнопки секций — только хозяину: наблюдатель не обводит чужое
+        # поле и не отмечает по нему полив.
+        for s in sections:
+            if s.action is not None:
+                actions.append(InlineKeyboardButton(
+                    s.action.label, callback_data=f"{s.action.callback}:{fid}"))
         label = "🚿 Bugun sug'ordim" if lang == "uz" else "🚿 Полил сегодня"
-        kb.append([InlineKeyboardButton(label, callback_data=f"fs:baj:{fid}")])
+        actions.append(InlineKeyboardButton(label,
+                                            callback_data=f"fs:baj:{fid}"))
+    if actions:
+        kb.append(actions)
     nav = [InlineKeyboardButton("🔄 Yangilash" if lang == "uz" else "🔄 Обновить",
                                 callback_data=f"fs:re:{fid}")]
     if many:
@@ -922,8 +966,356 @@ async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                                           reply_markup=_day_keyboard(fid))
         return
 
+    if verb == "draw" and row is not None:
+        if row["owner_chat_id"] != chat:
+            await query.answer("Контур обводит хозяин поля.", show_alert=True)
+            return
+        await query.answer()
+        await _draw_start(update, ctx, row)
+        return
+
     # Подделанный или устаревший callback — молча гасим «часики».
     await query.answer()
+
+
+# ---------------------------------------------------------------- контур поля
+#
+# ТЗ FieldStatus §2, день 2. Два пути к контуру: Mini App (нужен
+# HTTPS-домен) и обход углов с геолокацией (не нужно ничего). Второй —
+# основной для пилота, потому что работает уже сегодня.
+#
+# Геометрия и проверки живут в suv/field_shape.py; здесь только диалог.
+
+# Адрес страницы рисования. Пусто — кнопки карты нет, остаётся обход
+# углов. Telegram не откроет веб-вид по http, поэтому только https.
+MINIAPP_URL = os.environ.get("MINIAPP_URL", "").strip()
+
+BTN_CORNER = "📍 Burchakni yuborish"
+BTN_DRAW_DONE = "✅ Tayyor"
+BTN_DRAW_CANCEL = "❌ Bekor qilish"
+BTN_DRAW_UNDO = "↩️ Oxirgisini o'chirish"
+BTN_DRAW_MAP = "🗺 Xaritada chizish"
+
+# Обход поля занимает минуты, а не часы. Забытый режим обводки не должен
+# однажды подхватить геолокацию, отправленную совсем по другому поводу.
+DRAW_TTL_S = 3 * 3600.0
+
+SHAPE_ERRORS_UZ = {
+    "too_few": "Kamida 3 ta burchak kerak.",
+    "too_many": f"{MAX_VERTICES} tadan ko'p burchak bo'lmaydi.",
+    "duplicate_point": "Bu burchak allaqachon belgilangan. "
+                       "Keyingi burchakka o'tib yuboring.",
+    "self_intersects": "Chegara o'zi bilan kesishdi. "
+                       "Burchaklarni dala bo'ylab ketma-ket belgilang.",
+    # Отдельно от самопересечения: тут контур не пересёкся, а собрать
+    # его из этих точек однозначно нельзя. Догадываться мы не будем.
+    "order_unclear": "Burchaklar tartibi tushunarsiz bo'ldi — dala shakli "
+                     "bir nechta xil chiqishi mumkin.\nDala bo'ylab yurib, "
+                     "burchaklarni KETMA-KET qaytadan belgilang.",
+    "too_far": "Bu nuqtalar dalangizdan juda uzoqda. Dalada turib yuboring.",
+    "too_small": "Juda kichik maydon chiqdi — burchaklarni tekshiring.",
+    "too_big": "Juda katta maydon chiqdi — burchaklarni tekshiring.",
+}
+
+DRAW_LOST_UZ = ("Chegara chizish bekor bo'lgan (bot qayta ishga tushgan "
+                "bo'lishi mumkin).\n"
+                f"“{BTN_DALA}” → dala → “{DRAW_ACTION_UZ}” bilan qaytadan "
+                "boshlang.")
+
+
+def _ha1(value: float) -> str:
+    """Гектары с одним знаком. Больше — ложная точность: телефонный GPS
+    ставит угол с ошибкой в метры, и третий знак после запятой (10 м²)
+    сообщает о точности, которой нет. Фермер подтверждает одно число и
+    в карточке обязан видеть его же."""
+    return f"{value:.1f}".replace(".", ",")
+
+
+def _draw_keyboard(row) -> ReplyKeyboardMarkup:
+    """Клавиатура режима обводки. Кнопка карты появляется, только если
+    домен задан: web_app без https Telegram не откроет, а мёртвая
+    кнопка хуже отсутствующей."""
+    rows = [[KeyboardButton(BTN_CORNER, request_location=True)]]
+    if MINIAPP_URL:
+        from telegram import WebAppInfo
+        url = (f"{MINIAPP_URL}?field={row['field_id']}"
+               f"&lat={row['lat']:.6f}&lon={row['lon']:.6f}")
+        rows.insert(0, [KeyboardButton(BTN_DRAW_MAP, web_app=WebAppInfo(url))])
+    rows.append([KeyboardButton(BTN_DRAW_DONE), KeyboardButton(BTN_DRAW_UNDO)])
+    rows.append([KeyboardButton(BTN_DRAW_CANCEL)])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
+
+def _draw_state(ctx: ContextTypes.DEFAULT_TYPE) -> dict | None:
+    """Текущая обводка, если она ещё жива. Протухшую забываем сами."""
+    draw = ctx.user_data.get("draw")
+    if not draw:
+        return None
+    if time.monotonic() - draw.get("started", 0.0) > DRAW_TTL_S:
+        ctx.user_data.pop("draw", None)
+        return None
+    return draw
+
+
+async def _draw_lost(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Кнопка обводки нажата, а режима нет.
+
+    Клавиатура живёт на телефоне фермера и переживает перезапуск бота, а
+    состояние диалога — нет. Молчать в этом месте нельзя: тишина читается
+    как «бот умер». Возвращаем меню и говорим, что делать.
+    """
+    await update.effective_message.reply_text(
+        DRAW_LOST_UZ, reply_markup=_menu(update.effective_chat.id))
+
+
+async def _draw_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+                      row) -> None:
+    """Включить режим обводки. Уже собранные углы этого поля сохраняем:
+    карточка с кнопкой висит в чате, и повторное нажатие (например,
+    чтобы перечитать инструкцию, или после того как утренний пуш заменил
+    клавиатуру) не должно стирать половину обойдённого поля."""
+    chat = update.effective_chat.id
+    fid = row["field_id"]
+    draw = _draw_state(ctx)
+    resumed = 0
+    if draw and draw["fid"] == fid:
+        resumed = len(draw["pts"])
+        draw["started"] = time.monotonic()
+    else:
+        if draw and draw["pts"]:
+            other = _field_row(draw["fid"])
+            await ctx.bot.send_message(
+                chat, f"“{other['name'] if other else draw['fid']}” "
+                      f"bo'yicha {len(draw['pts'])} ta burchak saqlanmadi.")
+        ctx.user_data["draw"] = {"fid": fid, "pts": [],
+                                 "started": time.monotonic()}
+    # Незавершённое подтверждение по другому поводу больше не действует.
+    ctx.user_data.pop("draw_pending", None)
+
+    if resumed:
+        text = (f"“{row['name']}” bo'yicha {resumed} ta burchak bor.\n"
+                f"Davom eting yoki “{BTN_DRAW_DONE}” ni bosing.")
+    else:
+        text = ("Dala chegarasini belgilaymiz.\n\n"
+                "Dalaning burchaklariga borib, har birida joylashuvni yubor. "
+                "Kamida 3 ta burchak kerak.\n\n"
+                "Muhim: burchaklarni dala bo'ylab KETMA-KET belgilang — "
+                "qanday yursangiz, dala shakli shunday chiqadi.\n"
+                f"Tugagach “{BTN_DRAW_DONE}” ni bos.")
+        if MINIAPP_URL:
+            text += (f"\n\nDalada emasmisan? “{BTN_DRAW_MAP}” bilan "
+                     f"xaritada barmoq bilan chizsang ham bo'ladi.")
+    await ctx.bot.send_message(chat, text, reply_markup=_draw_keyboard(row))
+
+
+def _draw_anchor(fid: str) -> tuple[float, float] | None:
+    row = _field_row(fid)
+    return (row["lat"], row["lon"]) if row else None
+
+
+async def _draw_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
+                        fid: str, check, source: str) -> None:
+    """Показать посчитанную площадь и спросить подтверждение.
+
+    Площадь фермер знает по документам и ошибку заметит сразу — это
+    единственная проверка того, что обведено именно его поле, и стоит
+    она одного вопроса.
+
+    Метка (nonce) в callback_data привязывает кнопку к КОНКРЕТНОМУ
+    обмеру: без неё «✅ To'g'ri», нажатое на старом сообщении, сохранило
+    бы новый, ещё не подтверждённый контур.
+    """
+    token = f"{int(time.monotonic() * 1000) % 1_000_000:06d}"
+    ctx.user_data["draw_pending"] = {
+        "fid": fid, "pts": [list(p) for p in check.points],
+        "source": source, "token": token, "area": check.area}
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ To'g'ri",
+                             callback_data=f"fsdraw:ok:{token}"),
+        InlineKeyboardButton("❌ Noto'g'ri",
+                             callback_data=f"fsdraw:no:{token}"),
+    ]])
+    await update.effective_message.reply_text(
+        f"Dalangiz {_ha1(check.area)} gektar chiqdi. To'g'rimi?",
+        reply_markup=kb)
+
+
+async def draw_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Геолокация угла. Вне режима обводки — молчим, как и раньше."""
+    if not _authorized(update):
+        return
+    draw = _draw_state(ctx)
+    if not draw or update.effective_chat.id not in _FIELD_STATUS:
+        return
+    # effective_message, а не message: живая геолокация приходит
+    # обновлениями edited_message, где update.message пустой.
+    msg = update.effective_message
+    loc = getattr(msg, "location", None)
+    if loc is None:
+        return
+    if len(draw["pts"]) >= MAX_VERTICES:
+        await msg.reply_text(
+            f"{MAX_VERTICES} ta burchak — eng ko'pi. "
+            f"“{BTN_DRAW_DONE}” ni bosing yoki “{BTN_DRAW_UNDO}” bilan "
+            f"ortiqchasini o'chiring.")
+        return
+    draw["pts"].append((loc.latitude, loc.longitude))
+    draw["started"] = time.monotonic()
+    n = len(draw["pts"])
+    left = max(0, 3 - n)
+    tail = (f" Yana kamida {left} ta kerak." if left
+            else f" “{BTN_DRAW_DONE}” ni bosishing mumkin.")
+    await msg.reply_text(f"{n}-burchak qabul qilindi.{tail}")
+
+
+async def draw_undo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Убрать последний угол. Без этого одна ошибка на восьмом углу
+    означает заново обойти всё поле."""
+    if not _authorized(update):
+        return
+    draw = _draw_state(ctx)
+    if not draw:
+        await _draw_lost(update, ctx)
+        return
+    if not draw["pts"]:
+        await update.effective_message.reply_text("Hali burchak yo'q.")
+        return
+    draw["pts"].pop()
+    n = len(draw["pts"])
+    await update.effective_message.reply_text(
+        f"O'chirdim. Hozir {n} ta burchak bor." if n
+        else "O'chirdim. Burchaklar qolmadi.")
+
+
+async def draw_done(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        return
+    draw = _draw_state(ctx)
+    if not draw:
+        await _draw_lost(update, ctx)
+        return
+    fid = draw["fid"]
+    # Углы приходят в порядке обхода — это данные, а не шум. Развернуть
+    # их бот вправе только когда ответ единственный (см. field_shape).
+    check = validate_shape(draw["pts"], _draw_anchor(fid), reorder=True)
+    if not check.ok:
+        await update.effective_message.reply_text(
+            SHAPE_ERRORS_UZ.get(check.error, "Chegara chiqmadi.")
+            + f"\n\nHozircha {len(draw['pts'])} ta burchak bor. "
+              f"“{BTN_DRAW_UNDO}” yoki “{BTN_DRAW_CANCEL}”.")
+        return
+    ctx.user_data.pop("draw", None)
+    await update.effective_message.reply_text(
+        "Hisobladim.", reply_markup=_menu(update.effective_chat.id))
+    await _draw_confirm(update, ctx, fid, check, "pins")
+
+
+async def draw_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        return
+    had = ctx.user_data.pop("draw", None)
+    ctx.user_data.pop("draw_pending", None)
+    await update.effective_message.reply_text(
+        "Bekor qilindi." if had else DRAW_LOST_UZ,
+        reply_markup=_menu(update.effective_chat.id))
+
+
+async def draw_webapp(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Контур из Mini App: фермер обвёл поле пальцем на карте."""
+    if not _authorized(update):
+        return
+    chat = update.effective_chat.id
+    if chat not in _FIELD_STATUS:
+        return
+    msg = update.effective_message
+    draw = _draw_state(ctx) or {}
+    try:
+        import json
+        data = json.loads(msg.web_app_data.data)
+        pts = [(float(a), float(b)) for a, b in data["polygon"]]
+        fid = str(data.get("field") or draw.get("fid") or "")
+    except Exception as exc:  # noqa: BLE001 — данные приходят от клиента
+        log.warning("draw: web_app_data не разобрались: %s", exc)
+        await msg.reply_text("Chegara kelmadi. Qayta urinib ko'ring.")
+        return
+
+    row = _field_row(fid)
+    if row is None or row["owner_chat_id"] != chat:
+        await msg.reply_text("Dala topilmadi.", reply_markup=_menu(chat))
+        ctx.user_data.pop("draw", None)
+        return
+
+    # Нарисованный контур НЕ пересортировываем: порядок вершин там
+    # осмысленный, и «бабочку» надо показать фермеру, а не выпрямить.
+    check = validate_shape(pts, (row["lat"], row["lon"]), reorder=False)
+    if not check.ok:
+        # Режим обводки НЕ выключаем: кнопка карты остаётся под рукой,
+        # иначе «нарисуйте заново» некуда нажать.
+        await msg.reply_text(
+            SHAPE_ERRORS_UZ.get(check.error, "Chegara chiqmadi.")
+            + f"\n\n“{BTN_DRAW_MAP}” bilan qaytadan chizib ko'ring.",
+            reply_markup=_draw_keyboard(row))
+        return
+    ctx.user_data.pop("draw", None)
+    await msg.reply_text("Qabul qilindi.", reply_markup=_menu(chat))
+    await _draw_confirm(update, ctx, fid, check, "miniapp")
+
+
+async def draw_confirm_callback(update: Update,
+                                ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    chat = update.effective_chat.id
+    if not _authorized(update) or chat not in _FIELD_STATUS:
+        await query.answer()
+        return
+    try:
+        _, verb, token = query.data.split(":", 2)
+    except ValueError:
+        await query.answer()
+        return
+
+    # Забираем подтверждение ДО долгих операций: на 2G фермер успевает
+    # нажать «✅» дважды, и второй обработчик не должен переписать
+    # сообщение об успехе отказом.
+    pending = ctx.user_data.get("draw_pending")
+    if not pending or pending["token"] != token:
+        await query.answer()
+        await query.edit_message_text(
+            "Bu o'lchov eskirgan. Chegarani qaytadan belgilang.")
+        return
+    ctx.user_data.pop("draw_pending", None)
+    await query.answer()
+
+    if verb != "ok":
+        await query.edit_message_text(
+            "Yaxshi, chegarani saqlamadim. Qaytadan chizsak bo'ladi.")
+        return
+
+    fid = pending["fid"]
+    pts = [(p[0], p[1]) for p in pending["pts"]]
+    ring = to_geojson_ring(pts)
+    ha = polygon_area_ha(pts)
+    LEDGER.save_polygon(fid, ring, ha, pending["source"])
+    # Карточка обязана перестать говорить «чегара чизилмаган» сразу,
+    # а не через десять минут TTL.
+    ctx.user_data.get("fs_cache", {}).pop(fid, None)
+    log.info("контур сохранён: %s, %.2f га, источник %s",
+             fid, ha, pending["source"])
+
+    text = f"Chegara saqlandi: {_ha1(ha)} gektar."
+    if os.environ.get("CDSE_CLIENT_ID") and os.environ.get("CDSE_CLIENT_SECRET"):
+        # Обещать спутник без ключей нельзя: §6 требует, чтобы бот
+        # работал и без Copernicus, а обещание — чтобы оно было правдой.
+        text += "\nEndi sun'iy yo'ldosh dalangizni aniq chegara bo'yicha ko'radi."
+    row = _field_row(fid)
+    if row and row["hectares"]:
+        # Две площади — заявленная и обмеренная — не должны молча
+        # разойтись: расхождение и есть повод перепроверить контур.
+        diff = abs(ha - row["hectares"]) / row["hectares"]
+        if diff >= 0.10:
+            text += (f"\n\n⚠️ Ro'yxatda {_ha1(row['hectares'])} ga edi, "
+                     f"o'lchov {_ha1(ha)} ga berdi. Qaysi biri to'g'ri?")
+    await query.edit_message_text(text)
 
 
 # ---------------------------------------------------------------- автопуш
@@ -1084,9 +1476,26 @@ def main() -> None:
     # текст обрывал бы регистрацию.
     app.add_handler(CommandHandler("dala", dala_holati))
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_DALA)}$"), dala_holati))
+    # Обводка контура. Все три текстовые кнопки живут только в режиме
+    # рисования: их хендлеры молча выходят, если режим не включён, —
+    # поэтому в MENU_FILTER они не добавляются и мастер не задевают.
+    draw_only = filters.Chat(_FIELD_STATUS)
+    app.add_handler(MessageHandler(
+        filters.Regex(f"^{re.escape(BTN_DRAW_DONE)}$") & draw_only, draw_done))
+    app.add_handler(MessageHandler(
+        filters.Regex(f"^{re.escape(BTN_DRAW_UNDO)}$") & draw_only, draw_undo))
+    app.add_handler(MessageHandler(
+        filters.Regex(f"^{re.escape(BTN_DRAW_CANCEL)}$") & draw_only, draw_cancel))
+    app.add_handler(MessageHandler(
+        filters.StatusUpdate.WEB_APP_DATA & draw_only, draw_webapp))
+    # Локация вне мастера регистрации: ConversationHandler зарегистрирован
+    # выше и в состоянии LOCATION забирает её себе, сюда доходит только
+    # то, что мастеру не предназначалось.
+    app.add_handler(MessageHandler(filters.LOCATION & draw_only, draw_location))
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))
     app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
+    app.add_handler(CallbackQueryHandler(draw_confirm_callback, pattern=r"^fsdraw:"))
     app.add_handler(CallbackQueryHandler(fs_callback, pattern=r"^fs:"))
     app.add_error_handler(on_error)
     if _ALLOWED:

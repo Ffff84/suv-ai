@@ -17,7 +17,8 @@ from suv.economics import PumpProfile
 from suv.et0 import DailyWeather
 from suv.field_status import (Section, Status, assemble, cost_section,
                               field_list_label, overall_status, render_card,
-                              water_section, weather_section)
+                              uniformity_section, water_section,
+                              weather_section)
 
 
 def _section(status: Status, key: str = "x", order: int = 10) -> Section:
@@ -142,6 +143,70 @@ def test_weather_without_forecast_is_honest_no_data():
     s = weather_section([])
     assert s.status is Status.NO_DATA
     assert "yo'q" in s.line
+
+
+# ---------------------------------------------------------------- контур
+
+def test_uniformity_is_not_drawn_for_drip():
+    """ТЗ §3.2: секция неприменима — возвращает None и не рисуется совсем.
+    Пустой слот «нет данных» у капельного поля был бы мусором, а не
+    честностью: там вопрос «докуда добежала вода» не стоит."""
+    assert uniformity_section("drip", None) is None
+    assert uniformity_section("drip", 9.4) is None
+    assert uniformity_section("sprinkler", 9.4) is None
+    assert uniformity_section("furrow", None) is not None
+
+
+def test_uniformity_without_contour_offers_to_draw():
+    s = uniformity_section("furrow", None)
+    assert s.status is Status.NO_DATA
+    assert s.action is not None and s.action.callback == "fs:draw"
+    assert "chegara" in (s.line + s.hint).lower()
+
+
+def test_uniformity_with_contour_shows_area_and_asks_for_a_measurement():
+    """Контур есть, замера нет: карту рисовать запрещено (§1.1), поэтому
+    секция называет площадь и честно просит недостающий шаг."""
+    s = uniformity_section("furrow", 9.4)
+    assert s.status is Status.NO_DATA
+    assert "9,4 ga" in s.line
+    assert "yetganini" in s.hint       # «докуда дошла вода»
+    # Перечертить контур можно всегда: угол, отмеченный не там, иначе
+    # остаётся в базе навсегда.
+    assert s.action is not None and s.action.callback == "fs:draw"
+
+
+def test_uniformity_area_is_shown_to_one_decimal():
+    """Три знака после запятой — это 10 м². Такой точности у обхода с
+    телефоном нет, и фермер подтверждал другое число."""
+    assert "8,7 ga" in uniformity_section("furrow", 8.707).line
+
+
+def test_uniformity_flags_a_mismatch_with_the_declared_area():
+    """Расчёт воды идёт по заявленной площади. Если обмер разошёлся с
+    ней сильнее погрешности обхода, молчать нельзя: либо контур не тот,
+    либо фермер годами поливает не тем объёмом."""
+    s = uniformity_section("furrow", 9.4, declared_ha=6.0)
+    assert "6,0 ga" in s.hint and "farq" in s.hint
+    ru = uniformity_section("furrow", 9.4, declared_ha=6.0, lang="ru")
+    assert "расхождение" in ru.hint
+
+    # Небольшая разница — обычная погрешность GPS, о ней не кричим.
+    quiet = uniformity_section("furrow", 9.4, declared_ha=9.0)
+    assert "farq" not in (quiet.hint or "")
+
+
+def test_uniformity_never_alarms_on_guesswork():
+    """Пока нет замера, секция не имеет права красить поле в жёлтый или
+    красный — иначе фермер пойдёт перекапывать поле по догадке."""
+    for area in (None, 3.0, 50.0):
+        assert uniformity_section("furrow", area).status is Status.NO_DATA
+
+
+def test_uniformity_is_localized():
+    ru = uniformity_section("furrow", 9.4, lang="ru")
+    assert "9,4 га" in ru.line
+    assert "Контур обведён" in ru.line
 
 
 # ---------------------------------------------------------------- расходы

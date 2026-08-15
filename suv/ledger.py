@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS fields (
     water_table_depth_m REAL DEFAULT 0,
     baseline_m3_per_ha REAL,
     baseline_interval_days INTEGER,
+    -- Контур участка: кольцо GeoJSON [[lon,lat],...]. NULL = фермер
+    -- ещё не обвёл поле, и всё, что опирается на границы (снимок по
+    -- полигону, равномерность, фото), молчит вместо того, чтобы
+    -- домысливать квадрат вокруг точки.
+    polygon_geojson TEXT,
+    area_ha REAL,              -- считается из контура, не со слов
+    polygon_source TEXT,       -- 'miniapp' | 'pins'
+    inlet_vertices TEXT,       -- два индекса вершин ребра входа воды
     -- Насосная установка хозяйства. NULL = самотёк: у такого поля вода
     -- фермеру ничего не стоит, и денежную экономию по нему показывать
     -- нельзя, сколько бы кубов мы ни сберегли.
@@ -105,8 +113,20 @@ _FIELD_COLUMNS = frozenset({
     "irrigation_method", "water_table_depth_m", "baseline_m3_per_ha",
     "baseline_interval_days", "pump_kwh_per_hour", "pump_m3_per_hour",
     "pump_cost_per_hour_uzs", "pump_lift_m", "last_irrigation_date",
+    "polygon_geojson", "area_ha", "polygon_source", "inlet_vertices",
     "created_at",
 })
+
+# Колонки, дописанные после того, как база уже работала на пилоте.
+# CREATE TABLE IF NOT EXISTS их в существующую таблицу не добавит, и без
+# явного ALTER первый же upsert_field на боевом сервере падает.
+_ADDED_COLUMNS = (
+    ("last_irrigation_date", "TEXT"),
+    ("polygon_geojson", "TEXT"),
+    ("area_ha", "REAL"),
+    ("polygon_source", "TEXT"),
+    ("inlet_vertices", "TEXT"),
+)
 
 
 class Ledger:
@@ -114,11 +134,10 @@ class Ledger:
         self.path = str(path)
         with closing(sqlite3.connect(self.path)) as c:
             c.executescript(SCHEMA)
-            # Миграция старых баз: CREATE IF NOT EXISTS не добавляет
-            # колонки в уже существующую таблицу.
             have = {r[1] for r in c.execute("PRAGMA table_info(fields)")}
-            if "last_irrigation_date" not in have:
-                c.execute("ALTER TABLE fields ADD COLUMN last_irrigation_date TEXT")
+            for col, sql_type in _ADDED_COLUMNS:
+                if col not in have:
+                    c.execute(f"ALTER TABLE fields ADD COLUMN {col} {sql_type}")
             c.commit()
 
     def _conn(self):
@@ -127,15 +146,33 @@ class Ledger:
         return c
 
     def upsert_field(self, **kw) -> None:
+        """Завести или обновить поле, тронув ТОЛЬКО переданные колонки.
+
+        Здесь был INSERT OR REPLACE, и это тихо стирало данные: SQLite по
+        REPLACE удаляет строку и вставляет новую, поэтому всё, что не
+        передали, обнулялось. Пока в таблице лежала только анкета поля,
+        это было незаметно — заполняли её всегда целиком из конфига. С
+        появлением контура цена выросла: повторный запуск
+        scripts/seed_field.py (документированный шаг деплоя) стирал
+        границу, которую фермер обошёл ногами, и снимок опять начинал
+        усредняться по квадрату вокруг точки.
+        """
         unknown = set(kw) - _FIELD_COLUMNS
         if unknown:
             raise ValueError(f"unknown field columns: {sorted(unknown)}")
         kw.setdefault("created_at", datetime.utcnow().isoformat())
         cols = ",".join(kw)
         marks = ",".join("?" * len(kw))
+        # created_at обновлять нельзя: поле заведено один раз.
+        updates = ",".join(f"{c}=excluded.{c}" for c in kw
+                           if c not in ("field_id", "created_at"))
+        sql = f"INSERT INTO fields ({cols}) VALUES ({marks})"
+        if updates:
+            sql += f" ON CONFLICT(field_id) DO UPDATE SET {updates}"
+        else:
+            sql += " ON CONFLICT(field_id) DO NOTHING"
         with closing(self._conn()) as c:
-            c.execute(f"INSERT OR REPLACE INTO fields ({cols}) VALUES ({marks})",
-                      tuple(kw.values()))
+            c.execute(sql, tuple(kw.values()))
             c.commit()
 
     def log_recommendation(self, rec, engine_version: str) -> int:
@@ -174,6 +211,25 @@ class Ledger:
                 (recommendation_id, int(followed),
                  actual_day.isoformat() if actual_day else None,
                  actual_m3, source, note, datetime.utcnow().isoformat()))
+            c.commit()
+
+    def save_polygon(self, field_id: str, ring: list[list[float]],
+                     area_ha: float, source: str) -> None:
+        """Записать контур поля и посчитанную по нему площадь.
+
+        hectares НЕ трогаем: там площадь со слов фермера, и она нужна
+        как есть — расхождение с обмеренной по контуру видно только
+        пока обе цифры целы. Перезаписать её значит потерять
+        единственную проверку того, что фермер обвёл своё поле.
+        """
+        import json
+        with closing(self._conn()) as c:
+            # Два знака — предел осмысленного: обход с телефонным GPS даёт
+            # угол с ошибкой в метры, третий знак (10 м²) обещал бы
+            # точность, которой нет.
+            c.execute("UPDATE fields SET polygon_geojson=?, area_ha=?, "
+                      "polygon_source=? WHERE field_id=?",
+                      (json.dumps(ring), round(area_ha, 2), source, field_id))
             c.commit()
 
     def log_field_status_view(self, field_id: str,

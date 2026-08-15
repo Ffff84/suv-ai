@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!--
+  Telegram Mini App: обводка контура поля пальцем.
+
+  Один файл, Leaflet с CDN, ничего не собирается. Отдаётся тем же nginx,
+  что и лендинг; HTTPS обязателен — по http Telegram веб-вид не откроет.
+
+  sendData работает ТОЛЬКО когда страница открыта кнопкой reply-клавиатуры
+  (KeyboardButton с web_app). Из inline-кнопки данные обратно не уйдут —
+  это ограничение Telegram, а не недоделка.
+
+  Подложка — Esri World Imagery: без ключа, но требует указания
+  источника, поэтому подпись внизу карты убирать нельзя.
+-->
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dala chegarasi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+  #map { position: absolute; inset: 0 0 132px 0; }
+  #panel {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 132px;
+    box-sizing: border-box; padding: 12px 14px;
+    background: var(--tg-theme-bg-color, #fff);
+    color: var(--tg-theme-text-color, #111);
+    border-top: 1px solid rgba(128,128,128,.3);
+  }
+  #hint { font-size: 14px; line-height: 1.35; min-height: 38px; }
+  #area { font-size: 20px; font-weight: 600; margin: 6px 0 8px; }
+  .row { display: flex; gap: 8px; }
+  button {
+    flex: 1; padding: 12px 8px; font-size: 15px; font-weight: 600;
+    border: 0; border-radius: 10px; cursor: pointer;
+  }
+  #save { background: var(--tg-theme-button-color, #2ea6ff);
+          color: var(--tg-theme-button-text-color, #fff); }
+  #save:disabled { opacity: .45; }
+  #undo { background: rgba(128,128,128,.18); color: inherit; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <div id="hint">Dala burchaklarini navbat bilan bosing. Kamida 3 ta nuqta.</div>
+  <div id="area"></div>
+  <div class="row">
+    <button id="undo">↩︎ Orqaga</button>
+    <button id="save" disabled>✅ Tayyor</button>
+  </div>
+</div>
+<script>
+"use strict";
+var tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) { tg.ready(); tg.expand(); }
+
+var q = new URLSearchParams(location.search);
+var lat = parseFloat(q.get("lat")), lon = parseFloat(q.get("lon"));
+if (!isFinite(lat) || !isFinite(lon)) { lat = 39.6547; lon = 66.9597; }
+
+var map = L.map("map", { zoomControl: true }).setView([lat, lon], 16);
+L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Esri, Maxar, Earthstar Geographics" }
+).addTo(map);
+
+var pts = [];
+var markers = [];
+var ring = L.polygon([], { color: "#2ea6ff", weight: 3, fillOpacity: 0.25 }).addTo(map);
+
+// Площадь считается на сфере (формула Жирара). Дублирует расчёт бота
+// намеренно: фермер должен видеть гектары ещё до отправки, а бот всё
+// равно пересчитывает у себя и его цифра — окончательная.
+function areaHa(p) {
+  if (p.length < 3) return 0;
+  // Радиус равновеликой сферы, а не экваториальный: последний завышает
+  // площадь примерно на 0,2%, и на десяти гектарах это уже заметно.
+  var R = 6371007.2, s = 0;
+  for (var i = 0; i < p.length; i++) {
+    var a = p[i], b = p[(i + 1) % p.length];
+    s += (b[1] - a[1]) * Math.PI / 180 *
+         (2 + Math.sin(a[0] * Math.PI / 180) + Math.sin(b[0] * Math.PI / 180));
+  }
+  return Math.abs(s * R * R / 2) / 10000;
+}
+
+// Самопересечение проверяем здесь же, а не только в боте: у «бабочки»
+// площадь по формуле шнурков — не та фигура, что нарисована, и показать
+// по ней уверенные гектары значит соврать. Те же правила, что в
+// suv/field_shape.py; бот всё равно проверит ещё раз у себя.
+function cross(p1, p2, p3, p4) {
+  function o(a, b, c) {
+    var v = (b[1]-a[1])*(c[0]-b[0]) - (b[0]-a[0])*(c[1]-b[1]);
+    return Math.abs(v) < 1e-12 ? 0 : (v > 0 ? 1 : -1);
+  }
+  function on(a, b, c) {
+    return Math.min(a[0],c[0]) <= b[0] && b[0] <= Math.max(a[0],c[0]) &&
+           Math.min(a[1],c[1]) <= b[1] && b[1] <= Math.max(a[1],c[1]);
+  }
+  var o1=o(p1,p2,p3), o2=o(p1,p2,p4), o3=o(p3,p4,p1), o4=o(p3,p4,p2);
+  if (o1 !== o2 && o3 !== o4) return true;
+  return (o1 === 0 && on(p1,p3,p2)) || (o2 === 0 && on(p1,p4,p2)) ||
+         (o3 === 0 && on(p3,p1,p4)) || (o4 === 0 && on(p3,p2,p4));
+}
+
+function isSimple(p) {
+  var n = p.length;
+  if (n < 3) return false;
+  for (var i = 0; i < n; i++) {
+    for (var j = i + 1; j < n; j++) {
+      if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue;
+      if (cross(p[i], p[(i+1)%n], p[j], p[(j+1)%n])) return false;
+    }
+  }
+  return true;
+}
+
+function redraw() {
+  ring.setLatLngs(pts);
+  var ha = areaHa(pts);
+  var n = pts.length;
+  var simple = n >= 3 && isSimple(pts);
+  var inRange = ha >= 0.1 && ha <= 500;
+  var ok = n >= 3 && n <= 20 && simple && inRange;
+
+  document.getElementById("save").disabled = !ok;
+  ring.setStyle({ color: (n >= 3 && !simple) ? "#ff4d4f" : "#2ea6ff" });
+  // Гектары показываем только у настоящего контура: для пересёкшегося
+  // числа нет, и печатать его нельзя.
+  document.getElementById("area").textContent =
+    (n >= 3 && simple) ? ha.toFixed(1).replace(".", ",") + " gektar" : "";
+  document.getElementById("hint").textContent =
+    n === 0 ? "Dala burchaklarini navbat bilan bosing. Kamida 3 ta nuqta."
+    : n < 3 ? "Yana " + (3 - n) + " ta nuqta kerak."
+    : n > 20 ? "20 tadan ko'p nuqta bo'lmaydi."
+    : !simple ? "Chegara o'zi bilan kesishdi — nuqtalarni dala bo'ylab ketma-ket bosing."
+    : !inRange ? "Maydon 0,1 dan 500 gektargacha bo'lishi kerak."
+    : "Maydon to'g'ri bo'lsa — “Tayyor” ni bos.";
+}
+
+map.on("click", function (e) {
+  if (pts.length >= 20) return;
+  pts.push([e.latlng.lat, e.latlng.lng]);
+  markers.push(L.circleMarker(e.latlng, {
+    radius: 6, color: "#fff", weight: 2, fillColor: "#2ea6ff", fillOpacity: 1
+  }).addTo(map));
+  redraw();
+});
+
+document.getElementById("undo").onclick = function () {
+  pts.pop();
+  var m = markers.pop();
+  if (m) map.removeLayer(m);
+  redraw();
+};
+
+document.getElementById("save").onclick = function () {
+  if (pts.length < 3) return;
+  var payload = { field: q.get("field") || "", polygon: pts };
+  if (tg && tg.sendData) { tg.sendData(JSON.stringify(payload)); }
+  else { alert("Bu sahifa Telegram ichida ochilishi kerak."); }
+};
+
+redraw();
+</script>
+</body>
+</html>

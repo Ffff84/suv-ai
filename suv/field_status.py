@@ -214,6 +214,89 @@ def weather_section(forecast: list[DailyWeather],
                    status=status, line=line, hint=hint)
 
 
+DRAW_ACTION_UZ = "🗺 Dalani chizish"
+DRAW_ACTION_RU = "🗺 Обвести поле"
+REDRAW_ACTION_UZ = "🗺 Qayta chizish"
+REDRAW_ACTION_RU = "🗺 Обвести заново"
+
+# Заявленная и обмеренная площади всегда расходятся немного: фермер
+# помнит по документам, обмер идёт по телефонному GPS. Молчать стоит,
+# пока расхождение в пределах десятой части — дальше это уже не
+# погрешность, а повод перепроверить контур.
+AREA_MISMATCH_FRAC = 0.10
+
+
+def _ha1(value: float) -> str:
+    """Гектары с одним знаком. Третий знак — это 10 м², точность, которой
+    у обхода с телефоном нет, и фермер подтверждал другое число."""
+    return f"{value:.1f}".replace(".", ",")
+
+
+def uniformity_section(irrigation_method: str, area_ha: float | None,
+                       has_reach: bool = False,
+                       lang: str = "uz",
+                       declared_ha: float | None = None) -> Section | None:
+    """Равномерность полива. None = секция неприменима и не рисуется.
+
+    Расчёт движения воды по борозде (модуль Egat) осмыслен только для
+    бороздкового полива: при капельном вода подаётся в каждый куст, при
+    дождевании — сверху, и «докуда добежала» там не вопрос. Пустой слот
+    в таких карточках был бы не честностью, а мусором.
+
+    Пока это только пустые состояния из ТЗ §3.5: сам расчёт приходит с
+    модулем Egat, а карта — с замером. Рисовать «вода не дошла» по
+    нормативам запрещено (§1.1), поэтому статус здесь никогда не хуже
+    NO_DATA — секция не пугает фермера догадкой.
+    """
+    if irrigation_method != "furrow":
+        return None
+
+    uz = lang == "uz"
+    title = "📐 Sug'orish tekisligi" if uz else "📐 Равномерность полива"
+
+    if not area_ha:
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=("Dalangiz chegarasini chizsang, suv" if uz
+                  else "Обведите поле — покажу, куда"),
+            hint=("qayerga yetayotganini ko'rsataman" if uz
+                  else "вода доходит, а куда нет"),
+            action=Action(DRAW_ACTION_UZ if uz else DRAW_ACTION_RU, "fs:draw"))
+
+    drawn = (f"Chegara chizilgan: {_ha1(area_ha)} ga" if uz
+             else f"Контур обведён: {_ha1(area_ha)} га")
+    # Контур можно перечертить: угол, отмеченный не там, иначе остаётся
+    # в базе навсегда, и кнопки исправить его нет нигде.
+    redraw = Action(REDRAW_ACTION_UZ if uz else REDRAW_ACTION_RU, "fs:draw")
+
+    if declared_ha and abs(area_ha - declared_ha) / declared_ha >= AREA_MISMATCH_FRAC:
+        # Две площади разошлись сильнее погрешности обхода. Молча выбрать
+        # одну нельзя: расчёт воды идёт по заявленной, и если верна
+        # обмеренная, фермер поливает не тем объёмом.
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=drawn,
+            hint=(f"Ro'yxatda {_ha1(declared_ha)} ga — farq bor, tekshiring"
+                  if uz else
+                  f"В анкете {_ha1(declared_ha)} га — есть расхождение"),
+            action=redraw)
+
+    if not has_reach:
+        # Контур есть, замера нет: честно говорим, чего не хватает,
+        # и не показываем ни карты, ни оценки.
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=drawn,
+            hint=("Suv qayergacha yetganini belgilasang, tekislikni ko'rsataman"
+                  if uz else
+                  "Отметьте, докуда дошла вода — покажу равномерность"),
+            action=redraw)
+
+    return Section(
+        key="uniformity", order=20, title=title, status=Status.NO_DATA,
+        line=drawn, action=redraw)
+
+
 def cost_section(season_m3: float, pump: PumpProfile | None,
                  lang: str = "uz") -> Section:
     """Расходы сезона: подтверждённый объём × замеренная характеристика
