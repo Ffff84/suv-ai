@@ -16,14 +16,18 @@ Kc_ini and the bot under-waters the whole season.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
+import time
 from datetime import date, timedelta
 
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup,
                       KeyboardButton, ReplyKeyboardMarkup,
                       ReplyKeyboardRemove, Update)
+from telegram.constants import ChatAction
+from telegram.error import BadRequest
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
                           ContextTypes, ConversationHandler, MessageHandler,
                           filters)
@@ -35,6 +39,9 @@ load_env()
 from suv import __version__
 from suv.climate import STATIONS, season
 from suv.crop import CROPS
+from suv.field_status import (LIST_HEADER, Status, assemble, cost_section,
+                              field_list_label, overall_status, render_card,
+                              water_section, weather_section)
 from suv.ledger import Ledger
 from suv.messages import recommendation_text, salinity_warning, savings_text
 from suv.schedule import Field, recommend, simulate
@@ -86,10 +93,26 @@ BTN_SUV = "💧 Suv holati"
 BTN_BAJARDIM = "✅ Suv berdim"
 BTN_TEJALDI = "📊 Tejaldi"
 BTN_YORDAM = "❓ Yordam"
+BTN_DALA = "🌾 Dala holati"
 
 MAIN_MENU = ReplyKeyboardMarkup(
     [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]],
     resize_keyboard=True)
+
+# Экран «Dala holati» обкатывается в закрытом демо: кнопку и хендлеры
+# видят только chat_id из FIELD_STATUS_CHAT_IDS. Пусто = фичи ни у кого
+# нет, и деплой этой ветки ничего не меняет для пилотного фермера.
+_FIELD_STATUS: set[int] = _ids_from_env("FIELD_STATUS_CHAT_IDS")
+
+MAIN_MENU_DALA = ReplyKeyboardMarkup(
+    [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM], [BTN_DALA]],
+    resize_keyboard=True)
+
+
+def _menu(chat_id: int) -> ReplyKeyboardMarkup:
+    """Главное меню чата. Демо-участники видят третью строку с «Dala
+    holati», остальные — ровно прежнюю клавиатуру."""
+    return MAIN_MENU_DALA if chat_id in _FIELD_STATUS else MAIN_MENU
 
 HOUR_OPTIONS = (6, 8, 9, 10, 12)
 MAX_HOURS = 48.0  # опечатка вида /bajardim 999 не должна попадать в KPI
@@ -108,7 +131,12 @@ PUSH_QUIET_DAYS = 3
 # tugmasini bossa, vizard shu yerda to'xtab qolmasligi kerak.
 _MENU_PATTERN = "|".join(re.escape(b) for b in
                          (BTN_SUV, BTN_BAJARDIM, BTN_TEJALDI, BTN_YORDAM))
-MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$")
+# Кнопка демо-экрана вычитается из вопросов мастера ТОЛЬКО у демо-чатов:
+# filters.Chat(пустое множество) не совпадает ни с кем, так что для всех
+# остальных регистрация ведёт себя ровно как до этой ветки.
+DALA_FILTER = (filters.Regex(f"^{re.escape(BTN_DALA)}$")
+               & filters.Chat(_FIELD_STATUS))
+MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$") | DALA_FILTER
 
 
 def _authorized(update: Update) -> bool:
@@ -164,7 +192,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text(
             f"Sizning dalalaringiz allaqachon ro'yxatda: {names}.\n"
             f"Tavsiya olish uchun “{BTN_SUV}” tugmasini bosing.",
-            reply_markup=MAIN_MENU)
+            reply_markup=_menu(chat))
         return ConversationHandler.END
 
     kb = [[_crop_label(CROP_ORDER[0]), _crop_label(CROP_ORDER[1])],
@@ -266,7 +294,7 @@ async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         "Dala saqlandi.\n\n"
         "Har 3 kunda sizga sug'orish bo'yicha xabar yuboraman.\n"
         f"Hozir tekshirish uchun pastdagi “{BTN_SUV}” tugmasini bosing.",
-        reply_markup=MAIN_MENU)
+        reply_markup=_menu(chat))
     return ConversationHandler.END
 
 
@@ -409,7 +437,7 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             ctx.user_data["last_rec_ids"][rec.field.field_id] = rid
         await update.message.reply_text(
             _rec_message(rec, pump, lang, anchored=anchored),
-            reply_markup=MAIN_MENU)
+            reply_markup=_menu(update.effective_chat.id))
 
 
 async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -435,16 +463,21 @@ async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         except KeyError:
             continue
         parts.append(f"{row['name']}\n{savings_text(s, lang)}")
-    await update.message.reply_text("\n\n".join(parts), reply_markup=MAIN_MENU)
+    await update.message.reply_text("\n\n".join(parts),
+                                    reply_markup=_menu(update.effective_chat.id))
 
 
 async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    chat = update.effective_chat.id
+    dala_line = (f"{BTN_DALA} — dala holati bir ekranda\n"
+                 if chat in _FIELD_STATUS else "")
     await update.message.reply_text(
         f"{BTN_SUV} — bugungi sug'orish tavsiyasi\n"
         f"{BTN_BAJARDIM} — suv berganingizni belgilash\n"
-        f"{BTN_TEJALDI} — mavsum davomida tejalgan suv\n\n"
+        f"{BTN_TEJALDI} — mavsum davomida tejalgan suv\n"
+        f"{dala_line}\n"
         "Yangi dala qo'shish uchun: /start",
-        reply_markup=MAIN_MENU)
+        reply_markup=_menu(chat))
 
 
 # ---------------------------------------------------------------- bajardim
@@ -486,14 +519,20 @@ def _field_row(field_id: str):
                          (field_id,)).fetchone()
 
 
-def _log_one(field_id: str, rid: int, hours: float | None,
-             days_ago: int = 0) -> str:
+def _log_one(ctx: ContextTypes.DEFAULT_TYPE, field_id: str, rid: int,
+             hours: float | None, days_ago: int = 0) -> str:
     """Записать подтверждение по ОДНОМУ полю. Часы имеют смысл только
     там, где есть насос; самотёку хватает факта «полил».
 
     days_ago — фермер подтверждает вчерашний полив: якорь водного
     баланса должен встать на день полива, а не на день нажатия.
+
+    ctx нужен, чтобы сбросить кэш экрана «Dala holati»: иначе карточка,
+    открытая до отметки, ещё десять минут советует полить поле, которое
+    фермер только что полил, — и сама себе противоречит строкой
+    «Oxirgi: bugun».
     """
+    ctx.user_data.get("fs_cache", {}).pop(field_id, None)
     row = _field_row(field_id)
     m3 = None
     if hours is not None and row and row["pump_m3_per_hour"]:
@@ -588,8 +627,8 @@ async def bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("Nasos necha soat ishladi?",
                                             reply_markup=_hour_keyboard(fid))
             return
-        await update.message.reply_text(_log_one(fid, rid, hours),
-                                        reply_markup=MAIN_MENU)
+        await update.message.reply_text(_log_one(ctx, fid, rid, hours),
+                                        reply_markup=_menu(chat))
         return
     # Самотёк: часов нет, но день полива важен для якоря баланса —
     # фермер нередко отмечает вчерашний залив.
@@ -614,7 +653,7 @@ async def bajardim_field_callback(update: Update,
             await query.edit_message_text("Nasos necha soat ishladi?",
                                           reply_markup=_hour_keyboard(fid))
         else:
-            await query.edit_message_text(_log_one(fid, ids[fid], hours))
+            await query.edit_message_text(_log_one(ctx, fid, ids[fid], hours))
         return
     await query.edit_message_text("Qachon sug'ordingiz?",
                                   reply_markup=_day_keyboard(fid))
@@ -636,7 +675,7 @@ async def bajardim_day_callback(update: Update,
     if fid not in ids or days_ago not in (0, 1):
         await query.edit_message_text("Avval /suv buyrug'ini yuboring.")
         return
-    await query.edit_message_text(_log_one(fid, ids[fid], None, days_ago))
+    await query.edit_message_text(_log_one(ctx, fid, ids[fid], None, days_ago))
 
 
 async def bajardim_hours_callback(update: Update,
@@ -655,7 +694,236 @@ async def bajardim_hours_callback(update: Update,
     if fid not in ids or not 0.5 <= hours <= MAX_HOURS:
         await query.edit_message_text("Avval /suv buyrug'ini yuboring.")
         return
-    await query.edit_message_text(_log_one(fid, ids[fid], hours))
+    await query.edit_message_text(_log_one(ctx, fid, ids[fid], hours))
+
+
+# ---------------------------------------------------------------- dala holati
+#
+# Экран «Состояние поля» (ТЗ FieldStatus, день 1): реестр секций живёт
+# в suv/field_status.py, здесь только сборка данных и навигация.
+# Вся навигация правит ОДНО сообщение (edit_message_text): одно нажатие
+# кнопки = одно сообщение в истории, утренняя рекомендация не тонет.
+
+# Карточка тянет спутник и погоду; повторный вход из списка в поле не
+# должен ждать сеть заново. Устареть за 10 минут там нечему: снимки
+# дневные, прогноз обновляется реже.
+FS_CACHE_TTL_S = 600.0
+
+
+def _fs_data(row, ctx):
+    """(rec, pump, anchored, forecast) по полю, с TTL-кэшем на чат.
+
+    Прогноз для секции погоды берётся отдельным быстрым запросом, а не
+    протаскивается через _compute_rec: общий путь /suv и автопуша
+    трогать ради новой секции нельзя.
+    """
+    cache = ctx.user_data.setdefault("fs_cache", {})
+    hit = cache.get(row["field_id"])
+    if hit and time.monotonic() - hit[0] < FS_CACHE_TTL_S:
+        return hit[1]
+    rec, pump, anchored = _compute_rec(row, date.today())
+    try:
+        forecast = fetch_forecast(row["lat"], row["lon"], days=3)
+    except Exception as exc:  # noqa: BLE001 — погода не роняет карточку
+        log.warning("dala: прогноз для %s не пришёл: %s",
+                    row["field_id"], exc)
+        forecast = []
+    data = (rec, pump, anchored, forecast)
+    cache[row["field_id"]] = (time.monotonic(), data)
+    return data
+
+
+def _fs_sections(row, ctx, lang: str) -> list:
+    rec, pump, _anchored, forecast = _fs_data(row, ctx)
+    last_irr = _last_irrigation(row["field_id"], row["last_irrigation_date"])
+    try:
+        season_m3 = LEDGER.savings(row["field_id"]).metered_m3
+    except KeyError:
+        season_m3 = 0.0
+    return assemble(
+        water_section(rec, last_irr, date.today(), pump, lang),
+        weather_section(forecast, lang),
+        cost_section(season_m3, pump, lang),
+    )
+
+
+def _crop_name(row, lang: str) -> str:
+    crop = CROPS.get(row["crop_key"])
+    if crop is None:
+        return row["crop_key"]
+    return crop.name_uz if lang == "uz" else crop.name_ru
+
+
+def _fs_card(row, chat: int, ctx, lang: str,
+             many: bool) -> tuple[str, InlineKeyboardMarkup]:
+    sections = _fs_sections(row, ctx, lang)
+    text = render_card(row["name"], row["hectares"], _crop_name(row, lang),
+                       sections, lang)
+    owner = row["owner_chat_id"] == chat
+    if owner:
+        # В KPI-журнал идут только заходы хозяина поля: наблюдатель,
+        # листающий чужие карточки перед питчем, не должен изображать
+        # возвраты фермера — та же граница, что и в /suv.
+        LEDGER.log_field_status_view(row["field_id"], chat)
+
+    fid = row["field_id"]
+    kb: list[list[InlineKeyboardButton]] = []
+    if owner:
+        label = "🚿 Bugun sug'ordim" if lang == "uz" else "🚿 Полил сегодня"
+        kb.append([InlineKeyboardButton(label, callback_data=f"fs:baj:{fid}")])
+    nav = [InlineKeyboardButton("🔄 Yangilash" if lang == "uz" else "🔄 Обновить",
+                                callback_data=f"fs:re:{fid}")]
+    if many:
+        nav.append(InlineKeyboardButton(
+            "⬅️ Orqaga" if lang == "uz" else "⬅️ Назад",
+            callback_data="fs:list"))
+    kb.append(nav)
+    return text, InlineKeyboardMarkup(kb)
+
+
+def _fs_list(rows, ctx, lang: str) -> tuple[str, InlineKeyboardMarkup]:
+    """Список полей: статус считается по тем же секциям, что и карточка,
+    поэтому эмодзи в списке не может разойтись с карточкой внутри."""
+    kb = []
+    for row in rows:
+        try:
+            status = overall_status(_fs_sections(row, ctx, lang))
+        except Exception as exc:  # noqa: BLE001 — одно упавшее поле
+            log.warning("dala: статус %s не посчитался: %s",  # не прячет список
+                        row["field_id"], exc)
+            status = Status.NO_DATA
+        kb.append([InlineKeyboardButton(
+            field_list_label(row["name"], row["hectares"],
+                             _crop_name(row, lang), status, lang),
+            callback_data=f"fs:card:{row['field_id']}")])
+    return LIST_HEADER[lang], InlineKeyboardMarkup(kb)
+
+
+def _fs_screen(rows, chat: int, ctx, lang: str):
+    """Первый экран: одно поле — сразу карточка, несколько — список.
+
+    Синхронная и тяжёлая (спутник, погода, sqlite) — вызывается через
+    asyncio.to_thread, иначе сетевые запросы держат весь event loop и
+    вместе с ним пилотного фермера.
+    """
+    if len(rows) == 1:
+        return _fs_card(rows[0], chat, ctx, lang, many=False)
+    return _fs_list(rows, ctx, lang)
+
+
+# Кнопку «Yangilash» жмут подряд; без паузы каждое нажатие — новый поход
+# в Copernicus и Open-Meteo. Данные всё равно дневные.
+FS_REFRESH_COOLDOWN_S = 30.0
+
+DALA_CLOSED_UZ = ("Bu funksiya hozircha yopiq sinovda.\n"
+                  "Sug'orish tavsiyasi uchun “💧 Suv holati” tugmasini bosing.")
+DALA_CLOSED_RU = ("Эта функция пока в закрытом тестировании.\n"
+                  "Рекомендация по поливу — кнопка «💧 Suv holati».")
+
+
+async def dala_holati(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Вход в экран. Хендлеры уже отфильтрованы по DALA_FILTER, но кнопка
+    залипает в клавиатуре: чат, выведенный из демо, обязан получить
+    внятный ответ, а не тишину («тишина читается как бот умер»)."""
+    if not _authorized(update):
+        await _reject(update)
+        return
+    chat = update.effective_chat.id
+    if chat not in _FIELD_STATUS:
+        await update.message.reply_text(
+            DALA_CLOSED_RU if chat in _OBSERVERS else DALA_CLOSED_UZ,
+            reply_markup=_menu(chat))
+        return
+    rows, observer = _fields_for_view(chat)
+    if not rows:
+        await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+        return
+    lang = "ru" if observer else "uz"
+    await ctx.bot.send_chat_action(chat, ChatAction.TYPING)
+    text, kb = await asyncio.to_thread(_fs_screen, rows, chat, ctx, lang)
+    await update.message.reply_text(text, reply_markup=kb)
+
+
+async def _fs_edit(query, text: str, kb: InlineKeyboardMarkup) -> None:
+    """edit_message_text, переживающий «Message is not modified»: карточка
+    без новых данных законно совпадает со старой, это не ошибка.
+
+    Тост про «изменений нет» здесь не шлётся: колбэк уже отвечен до
+    пересчёта, а второй ответ на тот же query_id Telegram не покажет.
+    """
+    try:
+        await query.edit_message_text(text, reply_markup=kb)
+    except BadRequest as exc:
+        if "not modified" not in str(exc).lower():
+            raise
+        log.info("dala: карточка не изменилась, правка не нужна")
+
+
+async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    chat = update.effective_chat.id
+    if not _authorized(update) or chat not in _FIELD_STATUS:
+        await query.answer()
+        return
+
+    rows, observer = _fields_for_view(chat)
+    by_id = {r["field_id"]: r for r in rows}
+    lang = "ru" if observer else "uz"
+    many = len(rows) > 1
+
+    parts = query.data.split(":", 2)  # fs:list | fs:card:<id> | fs:re:<id> | fs:baj:<id>
+    verb = parts[1] if len(parts) > 1 else ""
+    fid = parts[2] if len(parts) > 2 else None
+    row = by_id.get(fid)
+
+    if verb == "list" and many:
+        await query.answer()
+        text, kb = await asyncio.to_thread(_fs_list, rows, ctx, lang)
+        await _fs_edit(query, text, kb)
+        return
+
+    if verb in ("card", "re") and row is not None:
+        if verb == "re":
+            # Пауза считается по полю: у фермера с двумя полями второе
+            # обновление подряд — законное, а не «жму на кнопку зря».
+            seen = ctx.user_data.setdefault("fs_refresh_at", {})
+            if time.monotonic() - seen.get(fid, 0.0) < FS_REFRESH_COOLDOWN_S:
+                await query.answer("Hozirgina yangilandi" if lang == "uz"
+                                   else "Только что обновлено")
+                return
+            seen[fid] = time.monotonic()
+            ctx.user_data.get("fs_cache", {}).pop(fid, None)
+            await query.answer("Yangilanmoqda…" if lang == "uz"
+                               else "Обновляю…")
+        else:
+            await query.answer()
+        await ctx.bot.send_chat_action(chat, ChatAction.TYPING)
+        text, kb = await asyncio.to_thread(_fs_card, row, chat, ctx, lang, many)
+        await _fs_edit(query, text, kb)
+        return
+
+    if verb == "baj" and row is not None:
+        # Отметка полива из карточки — тот же путь, что /bajardim:
+        # дальше работают существующие клавиатуры и колбэки часов/дня.
+        if row["owner_chat_id"] != chat:
+            await query.answer("Полив отмечает хозяин поля.", show_alert=True)
+            return
+        ids = _rec_ids(update, ctx)
+        if fid not in ids:
+            await query.answer("Avval /suv buyrug'ini yuboring.",
+                               show_alert=True)
+            return
+        await query.answer()
+        if row["pump_m3_per_hour"]:
+            await query.edit_message_text("Nasos necha soat ishladi?",
+                                          reply_markup=_hour_keyboard(fid))
+        else:
+            await query.edit_message_text("Qachon sug'ordingiz?",
+                                          reply_markup=_day_keyboard(fid))
+        return
+
+    # Подделанный или устаревший callback — молча гасим «часики».
+    await query.answer()
 
 
 # ---------------------------------------------------------------- автопуш
@@ -725,7 +993,7 @@ async def daily_push(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 await ctx.bot.send_message(
                     chat, _rec_message(rec, pump, "uz", anchored=anchored),
-                    reply_markup=MAIN_MENU)
+                    reply_markup=_menu(chat))
             except Exception as exc:  # noqa: BLE001
                 log.warning("push: отправка %s не удалась: %s", chat, exc)
                 continue
@@ -756,6 +1024,11 @@ async def _escape_to_bajardim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
 
 async def _escape_to_yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     await yordam(update, ctx)
+    return ConversationHandler.END
+
+
+async def _escape_to_dala(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    await dala_holati(update, ctx)
     return ConversationHandler.END
 
 
@@ -792,6 +1065,9 @@ def main() -> None:
             MessageHandler(filters.Regex(f"^{re.escape(BTN_TEJALDI)}$"), _escape_to_tejaldi),
             MessageHandler(filters.Regex(f"^{re.escape(BTN_BAJARDIM)}$"), _escape_to_bajardim),
             MessageHandler(filters.Regex(f"^{re.escape(BTN_YORDAM)}$"), _escape_to_yordam),
+            # Только демо-чаты: у остальных этот текст остаётся обычным
+            # ответом на вопрос мастера, как и до появления экрана.
+            MessageHandler(DALA_FILTER, _escape_to_dala),
         ],
     ))
     app.add_handler(CommandHandler("suv", suv))
@@ -802,12 +1078,21 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_TEJALDI)}$"), tejaldi))
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_BAJARDIM)}$"), bajardim))
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_YORDAM)}$"), yordam))
+    # Эти два — БЕЗ фильтра по чату: кнопка залипает в клавиатуре, и чат,
+    # выведенный из демо, должен получить внятный отказ, а не тишину.
+    # Гейт по чату критичен только в fallback мастера выше, где чужой
+    # текст обрывал бы регистрацию.
+    app.add_handler(CommandHandler("dala", dala_holati))
+    app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_DALA)}$"), dala_holati))
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))
     app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
+    app.add_handler(CallbackQueryHandler(fs_callback, pattern=r"^fs:"))
     app.add_error_handler(on_error)
     if _ALLOWED:
         log.info("allowlist active: %s", sorted(_ALLOWED))
+    if _FIELD_STATUS:
+        log.info("Dala holati demo: %s", sorted(_FIELD_STATUS))
 
     if app.job_queue:
         import datetime as _dt

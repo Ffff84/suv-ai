@@ -39,6 +39,8 @@ CDSE_CLIENT_SECRET=
 # Пусто = бот открыт всем (демо). Для пилота впишите chat_id через запятую.
 ALLOWED_CHAT_IDS=
 OBSERVER_CHAT_IDS=
+# Закрытое демо экрана «Dala holati». Пусто = экрана нет ни у кого.
+FIELD_STATUS_CHAT_IDS=
 EOF
   chmod 600 "$DIR/.env"
   echo "   создан шаблон $DIR/.env"

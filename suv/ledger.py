@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS actions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rec_field ON recommendations(field_id, generated_on);
+
+-- Метрика экрана «Dala holati»: каждая строка — фермер сам открыл
+-- состояние поля. Для питча это возвраты между пушами, а не рассылка.
+CREATE TABLE IF NOT EXISTS field_status_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    field_id TEXT NOT NULL REFERENCES fields(field_id),
+    chat_id INTEGER,
+    opened_at TEXT NOT NULL
+);
 """
 
 
@@ -165,6 +174,15 @@ class Ledger:
                 (recommendation_id, int(followed),
                  actual_day.isoformat() if actual_day else None,
                  actual_m3, source, note, datetime.utcnow().isoformat()))
+            c.commit()
+
+    def log_field_status_view(self, field_id: str,
+                              chat_id: int | None = None) -> None:
+        with closing(self._conn()) as c:
+            c.execute(
+                "INSERT INTO field_status_views (field_id, chat_id, opened_at) "
+                "VALUES (?,?,?)",
+                (field_id, chat_id, datetime.utcnow().isoformat()))
             c.commit()
 
     def savings(self, field_id: str) -> SavingsSummary:

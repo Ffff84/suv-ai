@@ -1,0 +1,278 @@
+"""
+Экран «Dala holati» — реестр секций и вёрстка карточки.
+
+Карточка собирается не хардкодом, а из секций: заморозки, засоление и
+болезни потом встанут в тот же экран без переделки. Каждая секция — это
+эмодзи, словесный статус (никогда только цвет: часть фермеров не
+различает красный и зелёный) и максимум две строки текста.
+
+Ядро чистое: ноль зависимостей от telegram, вся сборка данных — в боте.
+По ТЗ модуль назывался core/field_status.py; в этом репо роль «core»
+играет пакет suv/, второй пакет для того же — лишняя сущность.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date
+from enum import IntEnum
+from typing import Iterable
+
+from .economics import PumpProfile, cost_of
+from .et0 import DailyWeather
+from .messages import WEEKDAY_RU, WEEKDAY_UZ
+
+
+class Status(IntEnum):
+    NO_DATA = 0  # не влияет на общий статус поля
+    OK = 1
+    WARN = 2
+    ALERT = 3
+
+
+@dataclass(frozen=True)
+class Action:
+    """Кнопка drill-down секции. В первой итерации не используется,
+    но реестр обязан её уметь: пустые слоты (контур, замер) ведут
+    фермера к недостающему шагу именно кнопкой."""
+
+    label: str
+    callback: str
+
+
+@dataclass
+class Section:
+    key: str               # "water" | "uniformity" | "weather" | "cost"
+    order: int             # 10, 20, 30, 40 — фиксированный порядок
+    title: str             # локализованный, с эмодзи
+    status: Status
+    line: str              # одна строка
+    hint: str | None = None       # вторая строка, опционально
+    action: Action | None = None  # кнопка drill-down
+    # Информационная секция (расходы): показывает цифры, а не оценку,
+    # поэтому словесного статуса у неё нет — ср. макет карточки в ТЗ.
+    informational: bool = False
+
+
+STATUS_EMOJI = {Status.NO_DATA: "⚪️", Status.OK: "🟢",
+                Status.WARN: "🟡", Status.ALERT: "🔴"}
+
+STATUS_WORD = {
+    "uz": {Status.NO_DATA: "ma'lumot yo'q", Status.OK: "yaxshi",
+           Status.WARN: "e'tibor bering", Status.ALERT: "muammo"},
+    "ru": {Status.NO_DATA: "нет данных", Status.OK: "хорошо",
+           Status.WARN: "внимание", Status.ALERT: "проблема"},
+}
+
+OVERALL_HEADER = {
+    "uz": {Status.NO_DATA: "⚪️ Ma'lumot hali kam",
+           Status.OK: "🟢 Hammasi yaxshi",
+           Status.WARN: "🟡 E'tibor bering",
+           Status.ALERT: "🔴 E'tibor kerak"},
+    "ru": {Status.NO_DATA: "⚪️ Данных пока мало",
+           Status.OK: "🟢 Всё хорошо",
+           Status.WARN: "🟡 Обратите внимание",
+           Status.ALERT: "🔴 Требует внимания"},
+}
+
+LIST_HEADER = {"uz": "Qaysi dalani ko'ramiz?", "ru": "Какое поле смотрим?"}
+
+
+def _num(v: float) -> str:
+    """Неразрывный пробел как разделитель тысяч — как в messages.py."""
+    return f"{v:,.0f}".replace(",", " ")
+
+
+def _ha(hectares: float) -> str:
+    return f"{hectares:g}".replace(".", ",")
+
+
+def overall_status(sections: Iterable[Section]) -> Status:
+    """Общий статус поля = максимум по секциям. NO_DATA в расчёт не
+    идёт: незаполненный слот не делает поле красным."""
+    known = [s.status for s in sections if s.status != Status.NO_DATA]
+    return max(known) if known else Status.NO_DATA
+
+
+def assemble(*sections: Section | None) -> list[Section]:
+    """Отбросить неприменимые (None) и выстроить по фиксированному
+    порядку. None — штатный ответ модуля: равномерность при капельном
+    поливе не рисуется совсем."""
+    return sorted((s for s in sections if s is not None),
+                  key=lambda s: s.order)
+
+
+# ---------------------------------------------------------------- секции
+
+# Порог «планирующей» даты — тот же, что в messages.py: дальше недели
+# прогноз ещё уточнится, и обещать точный день нечестно.
+FAR_DATE_DAYS = 7
+
+
+def water_section(rec, last_irr: date | None, today: date,
+                  pump: PumpProfile | None = None,
+                  lang: str = "uz") -> Section:
+    """Секция полива поверх готовой рекомендации FAO-56 движка.
+
+    Совет здесь ОБЯЗАН совпадать с тем, что фермер получает по кнопке
+    «Suv holati» — поэтому секция не считает ничего сама, а только
+    переводит Recommendation в строку статуса.
+    """
+    uz = lang == "uz"
+    title = "💧 Sug'orish" if uz else "💧 Полив"
+
+    hours = None
+    if pump is not None and getattr(pump, "m3_per_hour", 0):
+        hours = rec.gross_m3 / pump.m3_per_hour
+
+    if rec.action_day is None:
+        status = Status.OK
+        line = "Bu hafta shart emas." if uz else "На этой неделе не требуется."
+    elif rec.days_until <= 0:
+        stressed = bool(rec.plan) and rec.plan[0].stress
+        status = Status.ALERT if stressed else Status.WARN
+        if uz:
+            line = ("Suv kechikmoqda — bugun sug'oring." if stressed
+                    else "Bugun sug'oring.")
+            if hours is not None:
+                line = line[:-1] + f", nasos ~{hours:.0f} soat."
+        else:
+            line = ("Влага ниже порога — полейте сегодня." if stressed
+                    else "Полейте сегодня.")
+            if hours is not None:
+                line = line[:-1] + f", насос ~{hours:.0f} ч."
+    elif rec.days_until == 1:
+        status = Status.WARN
+        line = "Ertaga sug'oring." if uz else "Полив завтра."
+    else:
+        status = Status.OK
+        d = rec.action_day
+        stamp = f"({d.day:02d}.{d.month:02d})"
+        line = (f"Keyingi: {WEEKDAY_UZ[d.weekday()]} kuni {stamp}" if uz
+                else f"Следующий: в {WEEKDAY_RU[d.weekday()]} {stamp}")
+        # Дальше недели дата — планирующая оценка и законно съезжает на
+        # день. messages.py говорит об этом прямо; карточка обязана
+        # говорить то же, иначе два экрана бота противоречат друг другу.
+        if rec.days_until >= FAR_DATE_DAYS:
+            line += " · taxminiy" if uz else " · ориентировочно"
+
+    if last_irr is None:
+        # Тот же честный компромисс, что и в рекомендации: без якоря
+        # расчёт приблизительный, и молчать об этом нельзя.
+        hint = ("Oxirgi sug'orish sanasi noma'lum — hisob taxminiy." if uz
+                else "Дата последнего полива неизвестна — расчёт приблизительный.")
+    else:
+        ago = (today - last_irr).days
+        if uz:
+            when = "bugun" if ago <= 0 else "kecha" if ago == 1 else f"{ago} kun oldin"
+            hint = f"Oxirgi: {when}"
+        else:
+            when = "сегодня" if ago <= 0 else "вчера" if ago == 1 else f"{ago} дн. назад"
+            hint = f"Последний: {when}"
+
+    return Section(key="water", order=10, title=title,
+                   status=status, line=line, hint=hint)
+
+
+HEAT_WARN_C = 40.0     # выше — жара, испарение резко растёт
+RAIN_MENTION_MM = 5.0  # меньше — для полива несущественно, не упоминаем
+
+
+def weather_section(forecast: list[DailyWeather],
+                    lang: str = "uz") -> Section:
+    """Погода на ближайшие дни. Прогноз может не прийти — тогда честный
+    пустой слот, а не молчание и не вчерашние цифры."""
+    uz = lang == "uz"
+    title = "🌡 Ob-havo" if uz else "🌡 Погода"
+
+    if not forecast:
+        return Section(
+            key="weather", order=30, title=title, status=Status.NO_DATA,
+            line=("Ob-havo ma'lumoti hozircha yo'q." if uz
+                  else "Данных о погоде пока нет."))
+
+    t = round(forecast[0].t_max)
+    t_str = f"+{t}" if t > 0 else str(t)
+    days = min(3, len(forecast))
+    rain = sum(d.rainfall for d in forecast[:days])
+
+    if rain >= RAIN_MENTION_MM:
+        line = (f"Bugun {t_str}°, {days} kun ichida yomg'ir ~{rain:.0f} mm"
+                if uz else
+                f"Сегодня {t_str}°, за {days} дн. дождь ~{rain:.0f} мм")
+    else:
+        line = (f"Bugun {t_str}°, yomg'ir kutilmaydi" if uz
+                else f"Сегодня {t_str}°, дождя не ожидается")
+
+    status, hint = Status.OK, None
+    if forecast[0].t_max >= HEAT_WARN_C:
+        status = Status.WARN
+        hint = ("Jazirama — bug'lanish kuchli." if uz
+                else "Сильная жара — испарение повышено.")
+
+    return Section(key="weather", order=30, title=title,
+                   status=status, line=line, hint=hint)
+
+
+def cost_section(season_m3: float, pump: PumpProfile | None,
+                 lang: str = "uz") -> Section:
+    """Расходы сезона: подтверждённый объём × замеренная характеристика
+    насоса. Самотёку деньги не показываем — вода фермеру ничего не
+    стоит, и «сэкономили сумы» там неправда (см. economics.py).
+
+    Секция информационная: цифры, а не оценка, поэтому она никогда не
+    красит общий статус поля.
+    """
+    uz = lang == "uz"
+    title = "💸 Mavsum xarajati" if uz else "💸 Расходы за сезон"
+
+    if season_m3 <= 0:
+        return Section(
+            key="cost", order=40, title=title, status=Status.NO_DATA,
+            line=("Hali sug'orish qayd etilmagan." if uz
+                  else "Поливов пока не отмечено."),
+            informational=True)
+
+    if pump is None:
+        line = (f"Suv {_num(season_m3)} m³ · kanaldan, elektr sarfi yo'q"
+                if uz else
+                f"Вода {_num(season_m3)} м³ · самотёк, электричество не расходуется")
+    else:
+        c = cost_of(season_m3, pump)
+        line = (f"Suv {_num(c.m3)} m³ · elektr {_num(c.uzs)} so'm" if uz
+                else f"Вода {_num(c.m3)} м³ · электричество {_num(c.uzs)} сум")
+
+    return Section(key="cost", order=40, title=title, status=Status.NO_DATA,
+                   line=line, informational=True)
+
+
+# ---------------------------------------------------------------- вёрстка
+
+def _section_block(s: Section, lang: str) -> str:
+    head = s.title if s.informational else (
+        f"{s.title} · {STATUS_EMOJI[s.status]} {STATUS_WORD[lang][s.status]}")
+    lines = [head, s.line]
+    if s.hint:
+        lines.append(s.hint)
+    return "\n".join(lines)
+
+
+def _ga(lang: str) -> str:
+    return "ga" if lang == "uz" else "га"
+
+
+def render_card(name: str, hectares: float, crop_name: str,
+                sections: list[Section], lang: str = "uz") -> str:
+    """Карточка поля: общий статус первой строкой, секции по порядку."""
+    overall = overall_status(sections)
+    parts = [f"🌾 {name} · {_ha(hectares)} {_ga(lang)} · {crop_name}",
+             OVERALL_HEADER[lang][overall]]
+    parts.extend(_section_block(s, lang) for s in sections)
+    return "\n\n".join(parts)
+
+
+def field_list_label(name: str, hectares: float, crop_name: str,
+                     status: Status, lang: str = "uz") -> str:
+    """Строка поля в списке: статус эмодзи + имя + площадь + культура."""
+    return (f"{STATUS_EMOJI[status]} {name} · "
+            f"{_ha(hectares)} {_ga(lang)} · {crop_name}")
