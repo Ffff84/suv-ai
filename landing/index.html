@@ -8,6 +8,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script>
+(function(){
+  var t = localStorage.getItem("suvai-theme");
+  if(!t) t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  if(t === "light") document.documentElement.setAttribute("data-theme","light");
+})();
+</script>
 <style>
 :root{
   --deep:#0A1A17;        /* ночная вода */
@@ -22,6 +29,29 @@
   --mid:#E8C558;
   --wet:#63C06B;         /*             влажно */
   --ok:#63C06B;
+  --phone:#0d1f1b;
+  --kbd:#16332c;
+  --hdr:rgba(10,26,23,.92);
+  --tagbg:rgba(10,26,23,.8);
+  --hshadow:0 2px 30px rgba(10,26,23,.8);
+}
+/* дневной вариант: солнце над каналом */
+:root[data-theme="light"]{
+  --deep:#F2F5F1;
+  --deep2:#E9EFE9;
+  --panel:#E0E9E1;
+  --ink:#16221E;
+  --mut:#55665F;
+  --line:#C6D3C8;
+  --cyan:#0E7A8A;
+  --dry:#C2551F;
+  --mid:#A87F14;
+  --wet:#2E8B47;
+  --phone:#FFFFFF;
+  --kbd:#D9E7E9;
+  --hdr:rgba(242,245,241,.92);
+  --tagbg:rgba(242,245,241,.85);
+  --hshadow:none;
 }
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth}
@@ -53,7 +83,7 @@ header.top{
   position:fixed;inset:0 0 auto 0;z-index:50;
   display:flex;justify-content:space-between;align-items:center;
   padding:16px 28px;
-  background:linear-gradient(to bottom,rgba(10,26,23,.92),rgba(10,26,23,0));
+  background:linear-gradient(to bottom,var(--hdr),transparent);
 }
 .logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1.05rem;color:var(--ink);text-decoration:none;letter-spacing:.02em}
 .logo b{color:var(--cyan);font-weight:700}
@@ -63,6 +93,13 @@ header.top{
   transition:transform .2s;
 }
 .top a.cta:hover{transform:translateY(-2px)}
+.top .right{display:flex;align-items:center;gap:12px}
+.tbtn{
+  width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer;font-size:1rem;
+  display:flex;align-items:center;justify-content:center;transition:transform .2s;
+}
+.tbtn:hover{transform:rotate(40deg)}
 
 /* прогресс — борозда, наполняющаяся водой */
 #furrow{position:fixed;left:0;top:0;bottom:0;width:4px;background:var(--line);z-index:60}
@@ -74,7 +111,7 @@ header.top{
 .hero .shell{position:relative;z-index:2;padding-top:80px}
 .hero h1{
   font-size:clamp(2rem,6.2vw,4.6rem);font-weight:700;max-width:19ch;
-  text-shadow:0 2px 30px rgba(10,26,23,.8);
+  text-shadow:var(--hshadow);
 }
 .hero h1 em{font-style:normal;color:var(--cyan)}
 .hero .sub{max-width:52ch;margin-top:22px;color:var(--mut);font-size:1.05rem}
@@ -169,7 +206,7 @@ header.top{
 .ba .tag{
   position:absolute;bottom:14px;font-family:"JetBrains Mono",monospace;
   font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;
-  background:rgba(10,26,23,.8);padding:6px 12px;border-radius:6px;
+  background:var(--tagbg);padding:6px 12px;border-radius:6px;
 }
 .ba .tag.l{left:14px}.ba .tag.r{right:14px}
 
@@ -177,7 +214,7 @@ header.top{
 .phone-wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;margin-top:48px}
 @media(max-width:900px){.phone-wrap{grid-template-columns:1fr}}
 .phone{
-  max-width:390px;margin:0 auto;background:#0d1f1b;border:1px solid var(--line);
+  max-width:390px;margin:0 auto;background:var(--phone);border:1px solid var(--line);
   border-radius:34px;padding:18px 14px;box-shadow:0 40px 90px rgba(0,0,0,.55);
 }
 .phone .scr{background:var(--deep2);border-radius:22px;padding:16px 14px;min-height:480px}
@@ -192,7 +229,7 @@ header.top{
 .msg hr{border:0;border-top:1px solid var(--line);margin:9px 0}
 .kb{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .kb i{
-  font-style:normal;font-size:.78rem;background:#16332c;border-radius:8px;
+  font-style:normal;font-size:.78rem;background:var(--kbd);border-radius:8px;
   padding:7px 12px;color:var(--cyan);
 }
 
@@ -244,7 +281,10 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 
 <header class="top">
   <a class="logo" href="#">SUV<b>·AI</b></a>
-  <a class="cta" href="https://t.me/suv_ai_bot">Открыть бота</a>
+  <div class="right">
+    <button class="tbtn" id="themeBtn" aria-label="Переключить тему" title="Тема">◐</button>
+    <a class="cta" href="https://t.me/suv_ai_bot">Открыть бота</a>
+  </div>
 </header>
 
 <!-- ГЕРОЙ -->
@@ -489,6 +529,22 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 (function(){
 "use strict";
 var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+var CPAL = {
+  dark:{ heroBg:"#0A1A17", fade:"rgba(10,26,23,0.09)", trail:function(w){return "rgba("+(79+w*20|0)+","+(190+w*20|0)+","+(200-w*40|0)+",0.5)";},
+         still:"rgba(79,200,212,0.10)", moistBg:"#0E211D", cellRing:"#E9F2EE",
+         terr1:"#22301F", terr2:"#2E3B24", furrow:"#0A1A17", patch:function(sd){return "rgba("+(40+sd()*50|0)+","+(60+sd()*40|0)+","+(30+sd()*25|0)+",0.55)";},
+         road:"rgba(190,180,150,0.5)", canal:"rgba(79,200,212,0.55)",
+         hint:"rgba(233,242,238,0.75)", pulse:function(a){return "rgba(79,200,212,"+a+")";},
+         dot:"#E9F2EE", dotRing:"#0A1A17", poly:"#4FC8D4", fill:"rgba(79,200,212,0.16)" },
+  light:{ heroBg:"#F2F5F1", fade:"rgba(242,245,241,0.12)", trail:function(w){return "rgba("+(14+w*20|0)+","+(116+w*14|0)+","+(132-w*20|0)+",0.42)";},
+         still:"rgba(14,122,138,0.14)", moistBg:"#DDE7DE", cellRing:"#16221E",
+         terr1:"#C4D3B2", terr2:"#B2C6A0", furrow:"#93A688", patch:function(sd){return "rgba("+(120+sd()*60|0)+","+(140+sd()*40|0)+","+(90+sd()*35|0)+",0.5)";},
+         road:"rgba(150,140,110,0.6)", canal:"rgba(14,122,138,0.6)",
+         hint:"rgba(22,34,30,0.7)", pulse:function(a){return "rgba(14,122,138,"+a+")";},
+         dot:"#16221E", dotRing:"#F2F5F1", poly:"#0E7A8A", fill:"rgba(14,122,138,0.15)" }
+};
+function pal(){ return CPAL[document.documentElement.getAttribute("data-theme")==="light" ? "light" : "dark"]; }
+var REDRAW = [];
 
 /* появления */
 var io = new IntersectionObserver(function(es){
@@ -514,10 +570,11 @@ rail.innerHTML += rail.innerHTML;
   function size(){
     W = cv.clientWidth; H = cv.clientHeight;
     cv.width = W*DPR; cv.height = H*DPR; cx.setTransform(DPR,0,0,DPR,0,0);
-    cx.fillStyle="#0A1A17"; cx.fillRect(0,0,W,H);
+    cx.fillStyle=pal().heroBg; cx.fillRect(0,0,W,H);
   }
   size(); addEventListener("resize", size);
   new ResizeObserver(size).observe(cv);
+  REDRAW.push(size);
   var N = Math.min(650, (innerWidth*innerHeight)/2500|0);
   for(var i=0;i<N;i++) pts.push({x:Math.random()*innerWidth, y:Math.random()*innerHeight, s:0.4+Math.random()*1.2});
   function field(x,y,t){
@@ -531,7 +588,7 @@ rail.innerHTML += rail.innerHTML;
   new IntersectionObserver(function(es){ run = es[0].isIntersecting; }).observe(cv);
   if(reduced){
     for(var y=30;y<H;y+=26){
-      cx.strokeStyle="rgba(79,200,212,0.10)"; cx.beginPath();
+      cx.strokeStyle=pal().still; cx.beginPath();
       for(var x=0;x<=W;x+=20){ if(x) cx.lineTo(x,y+Math.sin(x*0.01+y)*6); else cx.moveTo(x,y); }
       cx.stroke();
     }
@@ -540,7 +597,7 @@ rail.innerHTML += rail.innerHTML;
   (function tick(t){
     requestAnimationFrame(tick);
     if(!run) return;
-    cx.fillStyle="rgba(10,26,23,0.09)"; cx.fillRect(0,0,W,H);
+    cx.fillStyle=pal().fade; cx.fillRect(0,0,W,H);
     for(var i=0;i<pts.length;i++){
       var p = pts[i];
       var ang = field(p.x,p.y,t) * 0.9;
@@ -549,7 +606,7 @@ rail.innerHTML += rail.innerHTML;
       var vx = Math.cos(ang)*p.s + 0.55, vy = Math.sin(ang)*p.s*0.6;
       var nx = p.x+vx*1.6, ny = p.y+vy*1.6;
       var wet = 0.5+0.5*Math.sin(p.y*0.012);
-      cx.strokeStyle = "rgba("+(79+wet*20|0)+","+(190+wet*20|0)+","+(200-wet*40|0)+",0.5)";
+      cx.strokeStyle = pal().trail(wet);
       cx.lineWidth = 1.1;
       cx.beginPath(); cx.moveTo(p.x,p.y); cx.lineTo(nx,ny); cx.stroke();
       p.x=nx; p.y=ny;
@@ -582,7 +639,7 @@ rail.innerHTML += rail.innerHTML;
   new ResizeObserver(function(){size();draw();}).observe(cv);
   function draw(){
     var w=cv.clientWidth, h=cv.clientHeight, cw=w/GX, ch=h/GY;
-    cx.fillStyle="#0E211D"; cx.fillRect(0,0,w,h);
+    cx.fillStyle=pal().moistBg; cx.fillRect(0,0,w,h);
     for(var i=0;i<cells.length;i++){
       var gx=i%GX, gy=i/GX|0, c=cells[i];
       var v=Math.min(1,c.b+c.add);
@@ -590,10 +647,11 @@ rail.innerHTML += rail.innerHTML;
       cx.beginPath();
       cx.roundRect(gx*cw+1.5, gy*ch+1.5, cw-3, ch-3, 4);
       cx.fill();
-      if(i===hov){ cx.strokeStyle="#E9F2EE"; cx.lineWidth=2; cx.stroke(); }
+      if(i===hov){ cx.strokeStyle=pal().cellRing; cx.lineWidth=2; cx.stroke(); }
     }
   }
   draw();
+  REDRAW.push(draw);
   cv.addEventListener("pointermove",function(e){
     var r=cv.getBoundingClientRect();
     var gx=Math.floor((e.clientX-r.left)/r.width*GX), gy=Math.floor((e.clientY-r.top)/r.height*GY);
@@ -636,19 +694,19 @@ rail.innerHTML += rail.innerHTML;
   function terrain(){
     var w=cv.clientWidth,h=cv.clientHeight;
     var g=cx.createLinearGradient(0,0,w,h);
-    g.addColorStop(0,"#22301F");g.addColorStop(1,"#2E3B24");
+    g.addColorStop(0,pal().terr1);g.addColorStop(1,pal().terr2);
     cx.fillStyle=g;cx.fillRect(0,0,w,h);
     var rnd=48271, seed=function(){rnd=(rnd*69621)%2147483647;return rnd/2147483647;};
     for(var i=0;i<26;i++){
       var x=seed()*w,y=seed()*h,pw=40+seed()*150,ph=30+seed()*110;
-      cx.fillStyle="rgba("+(40+seed()*50|0)+","+(60+seed()*40|0)+","+(30+seed()*25|0)+",0.55)";
+      cx.fillStyle=pal().patch(seed);
       cx.save();cx.translate(x,y);cx.rotate((seed()-0.5)*0.5);cx.fillRect(-pw/2,-ph/2,pw,ph);cx.restore();
     }
     cx.globalAlpha=0.14;
-    for(var yy=0;yy<h;yy+=7){cx.strokeStyle="#0A1A17";cx.beginPath();cx.moveTo(0,yy);cx.lineTo(w,yy+4);cx.stroke();}
+    for(var yy=0;yy<h;yy+=7){cx.strokeStyle=pal().furrow;cx.beginPath();cx.moveTo(0,yy);cx.lineTo(w,yy+4);cx.stroke();}
     cx.globalAlpha=1;
-    cx.strokeStyle="rgba(190,180,150,0.5)";cx.lineWidth=6;cx.beginPath();cx.moveTo(w*0.08,0);cx.lineTo(w*0.16,h);cx.stroke();
-    cx.strokeStyle="rgba(79,200,212,0.55)";cx.lineWidth=4;cx.beginPath();cx.moveTo(0,h*0.16);cx.bezierCurveTo(w*0.4,h*0.10,w*0.7,h*0.2,w,h*0.14);cx.stroke();
+    cx.strokeStyle=pal().road;cx.lineWidth=6;cx.beginPath();cx.moveTo(w*0.08,0);cx.lineTo(w*0.16,h);cx.stroke();
+    cx.strokeStyle=pal().canal;cx.lineWidth=4;cx.beginPath();cx.moveTo(0,h*0.16);cx.bezierCurveTo(w*0.4,h*0.10,w*0.7,h*0.2,w,h*0.14);cx.stroke();
   }
   function area(){
     if(pts.length<3) return 0;
@@ -663,24 +721,24 @@ rail.innerHTML += rail.innerHTML;
     terrain();
     var w=cv.clientWidth,h=cv.clientHeight;
     if(!pts.length){
-      cx.fillStyle="rgba(233,242,238,0.75)";
+      cx.fillStyle=pal().hint;
       cx.font="13px JetBrains Mono,monospace";cx.textAlign="center";
       cx.fillText("кликайте по углам поля", w/2, h/2);
       var t=performance.now()/600;
-      cx.strokeStyle="rgba(79,200,212,"+(0.4+0.3*Math.sin(t))+")";
+      cx.strokeStyle=pal().pulse(0.4+0.3*Math.sin(t));
       cx.lineWidth=2;cx.beginPath();cx.arc(w/2,h/2+30,10+2*Math.sin(t),0,7);cx.stroke();
     }
     if(pts.length){
       cx.beginPath();cx.moveTo(pts[0].x,pts[0].y);
       pts.forEach(function(p){cx.lineTo(p.x,p.y);});
       if(pts.length>2)cx.closePath();
-      cx.fillStyle="rgba(79,200,212,0.16)";
+      cx.fillStyle=pal().fill;
       if(pts.length>2)cx.fill();
-      cx.strokeStyle="#4FC8D4";cx.lineWidth=2.5;cx.stroke();
+      cx.strokeStyle=pal().poly;cx.lineWidth=2.5;cx.stroke();
       pts.forEach(function(p,i){
-        cx.fillStyle=i?"#E9F2EE":"#4FC8D4";
+        cx.fillStyle=i?pal().dot:pal().poly;
         cx.beginPath();cx.arc(p.x,p.y,5,0,7);cx.fill();
-        cx.strokeStyle="#0A1A17";cx.lineWidth=2;cx.stroke();
+        cx.strokeStyle=pal().dotRing;cx.lineWidth=2;cx.stroke();
       });
     }
     var ha=area();
@@ -694,6 +752,7 @@ rail.innerHTML += rail.innerHTML;
     M_PER_PX = 320/cv.clientWidth; draw(); }
   size(); addEventListener("resize",size);
   new ResizeObserver(size).observe(cv);
+  REDRAW.push(draw);
   if(!reduced) (function pulse(){ if(!pts.length) draw(); requestAnimationFrame(pulse); })();
   cv.addEventListener("pointerdown",function(e){
     var r=cv.getBoundingClientRect();
@@ -722,6 +781,15 @@ rail.innerHTML += rail.innerHTML;
   addEventListener("pointermove",function(e){if(dragging)fromX(e.clientX);});
   addEventListener("pointerup",function(){dragging=false;});
 })();
+
+/* переключатель темы */
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var light = document.documentElement.getAttribute("data-theme") === "light";
+  if(light) document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme","light");
+  localStorage.setItem("suvai-theme", light ? "dark" : "light");
+  REDRAW.forEach(function(f){ f(); });
+});
 
 /* карточка: сообщения по очереди */
 (function(){
