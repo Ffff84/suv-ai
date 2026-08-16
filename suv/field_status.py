@@ -291,22 +291,6 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
     # в базе навсегда, и кнопки исправить его нет нигде.
     redraw = Action(REDRAW_ACTION_UZ if uz else REDRAW_ACTION_RU, "fs:draw")
 
-    if photo is not None and photo.ok:
-        # Снимок есть — он и есть главное, что фермеру тут нужно. Кнопка
-        # карты вытесняет вопрос о стороне входа: замер влажности берётся
-        # по пикселям и в направлении борозды не нуждается.
-        hint = None
-        if inlet_side is None:
-            hint = ("Suv qaysi tomondan kirishini ham belgilasang bo'ladi"
-                    if uz else "Можно ещё указать, откуда заходит вода")
-        return Section(
-            key="uniformity", order=20, title=title, status=Status.NO_DATA,
-            line=drawn if inlet_side is None else
-            (f"{drawn} · Suv {inlet_side} tomondan kiradi" if uz
-             else f"{drawn} · Вода заходит с {inlet_side}а"),
-            hint=hint,
-            action=Action(MAP_ACTION_UZ if uz else MAP_ACTION_RU, "fs:map"))
-
     if photo is not None and photo.reason in PHOTO_BLOCKED:
         # Фото не построить — говорим одной строкой почему (ТЗ §4.6).
         # Кнопки карты при этом нет: мёртвая кнопка хуже её отсутствия.
@@ -330,6 +314,21 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
                   if uz else
                   f"В анкете {_ha1(declared_ha)} га — есть расхождение"),
             action=redraw)
+
+    if photo is not None and photo.ok:
+        # Снимок есть — он и есть главное, что фермеру тут нужно. Кнопка
+        # карты вытесняет вопрос о стороне входа: замер влажности берётся
+        # по пикселям и в направлении борозды не нуждается.
+        #
+        # Про сторону входа тут молчим: подсказка «можно ещё указать»
+        # висела без кнопки, а нажать было негде — шаг становился
+        # недостижимым ровно тогда, когда карточка о нём напоминала.
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=drawn if inlet_side is None else
+            (f"{drawn} · Suv {inlet_side} tomondan kiradi" if uz
+             else f"{drawn} · Вода заходит с {inlet_side}а"),
+            action=Action(MAP_ACTION_UZ if uz else MAP_ACTION_RU, "fs:map"))
 
     if inlet_side is None:
         # Следующий недостающий шаг — сторона входа воды. Без неё ось

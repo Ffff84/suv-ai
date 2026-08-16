@@ -19,6 +19,9 @@ WIDTH = 1080          # ТЗ §4.1
 # блочность от этого только заметнее, а она и есть честный показ того,
 # что один квадрат на снимке равен десяти метрам поля.
 MIN_UPSCALE = 6
+# Telegram отказывается принимать фото с отношением сторон круче 1:20,
+# а на телефоне такая полоса всё равно нечитаема.
+MAX_HEIGHT = 1920
 
 INK = (238, 238, 238)
 DIM = (170, 170, 170)
@@ -50,6 +53,18 @@ def _inside_grid(ring_px, w: int, h: int) -> list[list[bool]]:
     mask = _polygon_mask(ring_px, (w, h))
     px = mask.load()
     return [[px[x, y] > 0 for x in range(w)] for y in range(h)]
+
+
+def measure(scene, ring: list[list[float]]):
+    """Замер влажности внутри контура — без сборки картинки.
+
+    Нужен, чтобы выбрать кадр: годность решается долей чистых пикселей
+    ВНУТРИ поля (ТЗ §4.2), а её видно только когда кадр уже скачан.
+    """
+    w0, h0 = scene.rgb.size
+    ring_px = ring_to_pixels(ring, bbox_of(ring), w0, h0)
+    inside = _inside_grid(ring_px, w0, h0)
+    return stats_over_field(scene.ndmi, inside, scene.valid)
 
 
 def build(scene, ring: list[list[float]], *, field_name: str,
@@ -84,7 +99,11 @@ def build(scene, ring: list[list[float]], *, field_name: str,
                 if scene.valid[y][x]:
                     opx[x, y] = moisture_color(scene.ndmi[y][x], stats)
 
-    scale = max(MIN_UPSCALE, -(-WIDTH // max(1, w0)))
+    # Кратность считаем и по высоте тоже. По одной ширине узкое поле
+    # вдоль канала давало картинку 1080 на четырнадцать тысяч точек —
+    # Telegram такую не примет, а фермер на телефоне не разглядит.
+    scale = max(MIN_UPSCALE, min(-(-WIDTH // max(1, w0)),
+                                 -(-MAX_HEIGHT // max(1, h0))))
     size = (w0 * scale, h0 * scale)
     img = base.resize(size, Image.NEAREST).convert("RGBA")
 
@@ -151,25 +170,40 @@ def _with_legend(img, stats: MoistureStats | None, uz: bool):
     from PIL import Image, ImageDraw
     if stats is None or stats.uniform:
         return img
-    h = 58
+    font, small = _font(19), _font(16)
+    title = ("Rang - o'lchangan namlik" if uz
+             else "Цвет — измеренная влажность")
+    left_word = "quruqroq" if uz else "суше"
+    right_word = "namroq" if uz else "влажнее"
+
+    d0 = ImageDraw.Draw(img)
+    title_w = int(d0.textlength(title, font=font))
+    pad, gap = 20, 24
+    # Ширину шкалы считаем от ширины надписи, а не вычитаем зашитые 300
+    # точек: русская подпись длиннее узбекской и обрезалась на любом кадре.
+    bar_w = max(120, img.width - title_w - 2 * pad - gap)
+    h = 64
     out = Image.new("RGB", (img.width, img.height + h), PANEL)
     out.paste(img, (0, 0))
     d = ImageDraw.Draw(out)
-    font = _font(19)
-    bar_w, bar_h = img.width - 300, 16
-    x0, y0 = 20, img.height + 14
+
+    bar_h = 16
+    x0, y0 = pad, img.height + 14
     for i in range(bar_w):
         t = i / max(1, bar_w - 1)
-        value = stats.low + t * stats.spread
-        r, g, b, _a = moisture_color(value, stats)
-        d.line([(x0 + i, y0), (x0 + i, y0 + bar_h)], fill=(r, g, b))
-    d.text((x0, y0 + bar_h + 6), "quruq" if uz else "сухо", fill=DIM,
-           font=_font(16))
-    right = "nam" if uz else "влажно"
-    d.text((x0 + bar_w - 60, y0 + bar_h + 6), right, fill=DIM, font=_font(16))
-    d.text((x0 + bar_w + 24, y0 - 2),
-           "Rang - o'lchangan namlik" if uz else "Цвет — измеренная влажность",
-           fill=INK, font=font)
+        r, g, b, a = moisture_color(stats.low + t * stats.spread, stats)
+        # Смешиваем с фоном полосы тем же альфа-каналом, что и заливка на
+        # карте. Непрозрачный образец показывал цвет, которого на поле
+        # нет ни одного пикселя, и легенда не сходилась с картинкой.
+        k = a / 255.0
+        mixed = tuple(int(c * k + p * (1 - k)) for c, p in
+                      ((r, PANEL[0]), (g, PANEL[1]), (b, PANEL[2])))
+        d.line([(x0 + i, y0), (x0 + i, y0 + bar_h)], fill=mixed)
+
+    d.text((x0, y0 + bar_h + 6), left_word, fill=DIM, font=small)
+    rw = int(d.textlength(right_word, font=small))
+    d.text((x0 + bar_w - rw, y0 + bar_h + 6), right_word, fill=DIM, font=small)
+    d.text((x0 + bar_w + gap, y0 - 2), title, fill=INK, font=font)
     return out
 
 
@@ -194,10 +228,20 @@ def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
     elif stats.uniform:
         # Ровное поле не красим: растянутая шкала нарисовала бы узор,
         # которого в данных нет.
-        lines.append("Namlik dala bo'ylab bir xil — quruq joy ko'rinmadi."
-                     if uz else
-                     "Влажность по полю ровная — сухих зон не видно.")
+        #
+        # И говорим только про РОВНОСТЬ. Прежняя формулировка добавляла
+        # «сухих зон не видно» — а поле, сплошь пересохшее, тоже ровное,
+        # и фермер получал бы успокоение вместо тревоги. Насколько поле
+        # влажное вообще, по одному снимку сказать нельзя: порог зависит
+        # от культуры и стадии.
+        lines.append("Namlik dala bo'ylab bir xil: quruq va nam joylarga "
+                     "bo'linmagan." if uz else
+                     "Влажность по полю ровная: на сухие и влажные зоны "
+                     "не делится.")
     else:
+        # Цвет всегда со словом, и слово — сравнительное. NDMI падает и
+        # от сухости, и от изреженности растений, поэтому «суше» здесь
+        # честнее, чем «сухо».
         lines.append("Qizil — quruqroq joy" if uz else "Красный — суше")
         lines.append("Yashil — namroq joy" if uz else "Зелёный — влажнее")
 
@@ -207,10 +251,6 @@ def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
             f"📊 {'Tekshirilgan' if uz else 'Измерено'}: "
             f"{stats.valid_fraction * 100:.0f}% "
             f"{'dala yuzasi' if uz else 'площади поля'}")
-        if not stats.uniform:
-            # Границы шкалы, а не крайние клетки: цвет означает именно
-            # этот диапазон, и подписывать надо его.
-            lines.append(f"NDMI {stats.low:+.2f} … {stats.high:+.2f}")
 
     if not contour_is_real:
         lines.append("")

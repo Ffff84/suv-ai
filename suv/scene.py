@@ -72,21 +72,28 @@ class Scene:
 
 
 def _process(token: str, box, width: int, height: int, evalscript: str,
-             fmt: str, days: int, timeout: int = 45) -> bytes:
-    """Один запрос к Process API. Таймаут 45 с по ТЗ §7."""
-    today = date.today()
+             fmt: str, day: date, timeout: int = 45) -> bytes:
+    """Один запрос к Process API за ОДИН конкретный день.
+
+    Окно в двадцать дней с mosaickingOrder=leastCC брать нельзя, хотя
+    так и просит ТЗ. Оно отдаёт самый чистый кадр окна, а дату подписи
+    приходилось узнавать отдельным запросом к каталогу — и тот отвечал
+    про самый СВЕЖИЙ. Даты расходились: на поле Фарруха подпись говорила
+    «снимок от 11 августа», а пиксели были от первого. Разница в две
+    недели и один-два полива, причём собственный порог «старше 14 дней
+    не показываем» не срабатывал — он проверял чужую дату.
+
+    Поэтому день выбирается снаружи и прибивается к запросу намертво:
+    что подписано, то и нарисовано.
+    """
     body = {
         "input": {
             "bounds": {"bbox": list(box), "properties": {"crs": WGS84}},
             "data": [{
                 "type": "sentinel-2-l2a",
                 "dataFilter": {
-                    "timeRange": {
-                        "from": f"{(today - timedelta(days=days)).isoformat()}T00:00:00Z",
-                        "to": f"{today.isoformat()}T23:59:59Z"},
-                    # Самый чистый кадр окна, а не самый свежий: облако
-                    # над полем бесполезнее, чем снимок трёхдневной давности.
-                    "mosaickingOrder": "leastCC"},
+                    "timeRange": {"from": f"{day.isoformat()}T00:00:00Z",
+                                  "to": f"{day.isoformat()}T23:59:59Z"}},
             }],
         },
         "output": {"width": width, "height": height,
@@ -100,12 +107,13 @@ def _process(token: str, box, width: int, height: int, evalscript: str,
     return r.content
 
 
-def latest_scene_day(token: str, box, days: int = 20,
-                     max_cloud: int = 60) -> date | None:
-    """Дата самого свежего кадра над полем.
+def candidate_days(token: str, box, days: int = 20) -> list[date]:
+    """Дни, когда спутник проходил над полем, от свежего к старому.
 
-    Без неё подпись «снимок от такого-то числа» пришлось бы ставить днём
-    запроса — и фермер решил бы, что смотрит на сегодня (ТЗ §1.2).
+    Облачность сцены НЕ фильтруем. ТЗ §4.2 предупреждает прямо: облако в
+    сорока километрах от поля выбраковывает совершенно годный кадр.
+    Годность решается по доле чистых пикселей ВНУТРИ контура, а это
+    видно только когда кадр уже скачан.
     """
     lon0, lat0, lon1, lat1 = box
     today = date.today()
@@ -115,19 +123,13 @@ def latest_scene_day(token: str, box, days: int = 20,
                      f"{today.isoformat()}T23:59:59Z"),
         "bbox": [lon0, lat0, lon1, lat1],
         "limit": 50,
-        "filter": {"op": "<=", "args": [{"property": "eo:cloud_cover"},
-                                        max_cloud]},
-        "filter-lang": "cql2-json",
     }
-    try:
-        r = requests.post(CATALOG_URL, json=body, timeout=30,
-                          headers={"Authorization": f"Bearer {token}"})
-        r.raise_for_status()
-        days_found = [f["properties"]["datetime"][:10]
-                      for f in r.json().get("features", [])]
-        return date.fromisoformat(max(days_found)) if days_found else None
-    except Exception:  # noqa: BLE001 — без даты фото не строим, но и не падаем
-        return None
+    r = requests.post(CATALOG_URL, json=body, timeout=30,
+                      headers={"Authorization": f"Bearer {token}"})
+    r.raise_for_status()
+    found = {f["properties"]["datetime"][:10]
+             for f in r.json().get("features", [])}
+    return sorted((date.fromisoformat(d) for d in found), reverse=True)
 
 
 def native_size(box, metres_per_pixel: float = 10.0) -> tuple[int, int]:
@@ -145,8 +147,9 @@ def native_size(box, metres_per_pixel: float = 10.0) -> tuple[int, int]:
             max(4, round(h_m / metres_per_pixel)))
 
 
-def fetch(box, token: str | None = None, days: int = 20) -> Scene:
-    """Подложка и влажность над полем одним заходом.
+def fetch(box, day: date, token: str | None = None) -> Scene:
+    """Подложка и влажность за ОДИН день. Обе просятся тем же днём —
+    иначе фермер смотрел бы влажность одного кадра поверх снимка другого.
 
     Влажность просится в той же сетке, что и подложка, хотя её нативные
     20 м вдвое грубее: сервер сам разложит 20-метровые значения по
@@ -157,14 +160,14 @@ def fetch(box, token: str | None = None, days: int = 20) -> Scene:
     token = token or get_token()
     w, h = native_size(box)
     rgb = Image.open(BytesIO(_process(token, box, w, h, TRUE_COLOR_EVAL,
-                                      "image/png", days))).convert("RGB")
+                                      "image/png", day))).convert("RGB")
 
     import numpy as np
     import rasterio
-    raw = _process(token, box, w, h, MOISTURE_EVAL, "image/tiff", days)
+    raw = _process(token, box, w, h, MOISTURE_EVAL, "image/tiff", day)
     with rasterio.open(BytesIO(raw)) as src:
         ndmi = np.asarray(src.read(1), dtype="float64")
         mask = np.asarray(src.read(2), dtype="float64")
 
-    return Scene(day=latest_scene_day(token, box, days), rgb=rgb,
-                 ndmi=ndmi.tolist(), valid=(mask > 0).tolist())
+    return Scene(day=day, rgb=rgb, ndmi=ndmi.tolist(),
+                 valid=(mask > 0).tolist())

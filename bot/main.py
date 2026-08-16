@@ -1286,29 +1286,27 @@ async def draw_webapp(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def _photo_verdict(row, today: date):
-    """Можно ли показать фото по этому полю. Спутник не трогаем: дату
-    снимка берём из кэша, иначе карточка ходила бы в сеть за каждым
-    открытием ради одной проверки."""
-    scene_day = None
-    raw = row["photo_scene_date"] if "photo_scene_date" in row.keys() else None
-    if raw:
-        try:
-            scene_day = date.fromisoformat(raw)
-        except ValueError:
-            scene_day = None
+    """Можно ли показать фото по этому полю — по тому, что видно локально.
+
+    Свежесть кадра здесь НЕ проверяется, и это осознанно. Раньше сюда
+    подставлялась дата последнего собранного фото, и через две недели
+    после просмотра кнопка исчезала навсегда с надписью «свежего снимка
+    нет» — хотя спутник с тех пор проходил над полем трижды, а никто его
+    не спрашивал. Ходить в сеть при каждом открытии карточки тоже нельзя.
+    Поэтому здесь только то, что известно без спутника, а настоящую
+    свежесть проверяет сборка фото и честно отвечает, если кадра нет.
+    """
     return can_show_photo(
         area_ha=row["area_ha"], irrigation_method=row["irrigation_method"],
         has_polygon=bool(_field_polygon(row)),
-        # Снимка ещё не запрашивали — считаем, что он есть: спутник над
-        # Узбекистаном проходит каждые пять дней, и отказывать заранее
-        # значило бы прятать кнопку у поля, где фото построится.
-        scene_day=scene_day or today, today=today, valid_fraction=None)
+        scene_day=today, today=today, valid_fraction=None)
 
 
 def _latest_scene_day(row) -> str:
-    """Дата самого свежего кадра над полем, '' если спросить не вышло.
+    """Дата самого свежего прохода спутника, '' если спросить не вышло.
 
-    Спутник не должен ронять карточку: без даты просто пересоберём фото.
+    Пустая строка выключает кэш и заставляет пересобрать фото — лишняя
+    работа, но не ложь: показать старую картинку под видом свежей хуже.
     """
     from suv import scene
     from suv.field_photo import bbox_of
@@ -1316,44 +1314,73 @@ def _latest_scene_day(row) -> str:
     if not ring:
         return ""
     try:
-        day = scene.latest_scene_day(scene.get_token(), bbox_of(ring))
+        days = scene.candidate_days(scene.get_token(), bbox_of(ring))
     except Exception as exc:  # noqa: BLE001
         log.warning("дата снимка для %s не получена: %s", row["field_id"], exc)
         return ""
-    return day.isoformat() if day else ""
+    return days[0].isoformat() if days else ""
+
+
+# Сколько кадров подряд пробуем, прежде чем сдаться. Спутник ходит над
+# Узбекистаном раз в пять дней, так что четыре попытки покрывают три
+# недели — дальше кадр всё равно старше порога свежести.
+PHOTO_MAX_TRIES = 4
 
 
 def _build_photo(row, lang: str):
-    """Собрать фото поля. Синхронная и медленная — только из потока."""
-    from suv import photo_render, scene
-    from suv.field_photo import bbox_of
+    """Собрать фото поля. Синхронная и медленная — только из потока.
 
+    Кадр выбирается от свежего к старому: берём первый, у которого доля
+    чистых пикселей ВНУТРИ контура достаточна. Фильтровать по облачности
+    сцены нельзя — облако за сорок километров от поля выбраковало бы
+    годный кадр (ТЗ §4.2).
+    """
+    import io
+
+    from suv import photo_render, scene
+    from suv.field_photo import (MIN_VALID_FRACTION, bbox_of, can_show_photo)
+
+    today = date.today()
     ring = _field_polygon(row)
     box = bbox_of(ring)
-    sc = scene.fetch(box)
-    verdict = can_show_photo(
-        area_ha=row["area_ha"], irrigation_method=row["irrigation_method"],
-        has_polygon=True, scene_day=sc.day, today=date.today(),
-        valid_fraction=None)
-    if not verdict.ok:
-        return None, verdict, None, ""
-    img, caption, stats = photo_render.build(
-        sc, ring, field_name=row["name"], area_ha=row["area_ha"], lang=lang)
-    if stats is not None and verdict.ok:
-        # Долю чистых пикселей можно проверить только после замера —
-        # облако над полем видно лишь когда кадр уже пришёл.
-        verdict = can_show_photo(
-            area_ha=row["area_ha"], irrigation_method=row["irrigation_method"],
-            has_polygon=True, scene_day=sc.day, today=date.today(),
-            valid_fraction=stats.valid_fraction)
-        if not verdict.ok:
-            return None, verdict, None, ""
-    import io
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=90)
-    buf.seek(0)
-    return (buf, verdict, sc.day.isoformat() if sc.day else "",
-            f"🌾 {row['name']}\n\n{caption}")
+    token = scene.get_token()
+
+    def gate(day, valid_fraction):
+        return can_show_photo(
+            area_ha=row["area_ha"],
+            irrigation_method=row["irrigation_method"], has_polygon=True,
+            scene_day=day, today=today, valid_fraction=valid_fraction)
+
+    days = scene.candidate_days(token, box)
+    if not days:
+        return None, gate(None, None), "", ""
+
+    last = gate(days[0], None)
+    for day in days[:PHOTO_MAX_TRIES]:
+        v = gate(day, None)
+        if not v.ok:
+            last = v
+            break  # дальше только старее — искать смысла нет
+        sc = scene.fetch(box, day, token)
+        stats = photo_render.measure(sc, ring)
+        # stats=None — внутри контура не осталось ни одного чистого
+        # пикселя. Показать такой кадр значило бы прислать фермеру
+        # фотографию облака вместо его поля.
+        frac = stats.valid_fraction if stats else 0.0
+        last = gate(day, frac)
+        if not last.ok:
+            continue
+        img, caption, _st = photo_render.build(
+            sc, ring, field_name=row["name"], area_ha=row["area_ha"],
+            lang=lang)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        buf.seek(0)
+        return (buf, last, day.isoformat(), f"🌾 {row['name']}\n\n{caption}")
+
+    if last.ok:  # все попытки вышли, но причина не названа
+        last = gate(days[0], 0.0)
+    return None, last, "", ""
 
 
 async def photo_callback(update: Update,
@@ -1372,22 +1399,27 @@ async def photo_callback(update: Update,
         return
     lang = "ru" if observer else "uz"
 
+    # Отвечаем ДО похода в сеть: Telegram ждёт ответа на колбэк секунды,
+    # а спутник отвечает десятками. Иначе «часики» на кнопке висят до
+    # таймаута, и фермер жмёт её снова.
+    await query.answer("Surat tayyorlanmoqda…" if lang == "uz"
+                       else "Готовлю снимок…")
+    await ctx.bot.send_chat_action(chat, ChatAction.UPLOAD_PHOTO)
+
     key = _contour_fingerprint(row)
-    # Дату свежего кадра спрашиваем у каталога — это одна быстрая
-    # проверка. Сравнивать сохранённую дату саму с собой бессмысленно:
-    # такой «кэш» никогда не заметил бы нового снимка и отдавал бы
-    # августовскую картинку до конца сезона.
+    # Дату свежего кадра спрашиваем у каталога. Сравнивать сохранённую
+    # дату саму с собой бессмысленно: такой «кэш» никогда не заметил бы
+    # нового снимка и отдавал бы августовскую картинку до конца сезона.
     latest = await asyncio.to_thread(_latest_scene_day, row)
     cached = LEDGER.cached_photo(fid, latest, key) if latest else None
     if cached:
         # Повторное нажатие отдаёт готовый file_id мгновенно (ТЗ §4.5).
-        await query.answer()
-        await ctx.bot.send_photo(chat, cached)
+        # Подпись обязательна и здесь: фото без даты снимка фермер
+        # прочитает как сегодняшнее (§1.2).
+        file_id, caption = cached
+        await ctx.bot.send_photo(chat, file_id, caption=caption or None)
         return
 
-    await query.answer("Surat tayyorlanmoqda…" if lang == "uz"
-                       else "Готовлю снимок…")
-    await ctx.bot.send_chat_action(chat, ChatAction.UPLOAD_PHOTO)
     try:
         buf, verdict, scene_day, caption = await asyncio.to_thread(
             _build_photo, row, lang)
@@ -1407,7 +1439,7 @@ async def photo_callback(update: Update,
 
     msg = await ctx.bot.send_photo(chat, buf, caption=caption)
     if msg and msg.photo:
-        LEDGER.save_photo(fid, msg.photo[-1].file_id, scene_day, key)
+        LEDGER.save_photo(fid, msg.photo[-1].file_id, scene_day, key, caption)
         ctx.user_data.get("fs_cache", {}).pop(fid, None)
 
 

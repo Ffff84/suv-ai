@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS fields (
     photo_file_id TEXT,
     photo_scene_date TEXT,     -- дата снимка, по которому фото собрано
     photo_key TEXT,            -- отпечаток контура: перечертили — пересобрать
+    -- Подпись хранится рядом с file_id: без неё повторная отправка
+    -- уходила бы БЕЗ ДАТЫ СНИМКА, а это прямой запрет ТЗ §1.2.
+    photo_caption TEXT,
     photo_built_at TEXT,
     -- Насосная установка хозяйства. NULL = самотёк: у такого поля вода
     -- фермеру ничего не стоит, и денежную экономию по нему показывать
@@ -135,6 +138,7 @@ _ADDED_COLUMNS = (
     ("photo_file_id", "TEXT"),
     ("photo_scene_date", "TEXT"),
     ("photo_key", "TEXT"),
+    ("photo_caption", "TEXT"),
     ("photo_built_at", "TEXT"),
 )
 
@@ -244,7 +248,7 @@ class Ledger:
             # и оно, иначе фермер увидит заливку не по своему полю.
             c.execute("UPDATE fields SET polygon_geojson=?, area_ha=?, "
                       "polygon_source=?, inlet_vertices=NULL, "
-                      "photo_file_id=NULL, photo_key=NULL "
+                      "photo_file_id=NULL, photo_key=NULL, photo_caption=NULL "
                       "WHERE field_id=?",
                       (json.dumps(ring), round(area_ha, 2), source, field_id))
             c.commit()
@@ -263,29 +267,30 @@ class Ledger:
             c.commit()
 
     def cached_photo(self, field_id: str, scene_day: str,
-                     key: str) -> str | None:
-        """file_id готового фото, если пересобирать нечего (ТЗ §4.5).
+                     key: str) -> tuple[str, str] | None:
+        """(file_id, подпись) готового фото, если пересобирать нечего.
 
         Пересобираем, только когда появился новый снимок или изменился
         контур. Иначе фермер ждёт полминуты ради той же картинки, а мы
         зря тратим квоту Copernicus.
         """
         with closing(self._conn()) as c:
-            r = c.execute("SELECT photo_file_id, photo_scene_date, photo_key "
-                          "FROM fields WHERE field_id=?",
+            r = c.execute("SELECT photo_file_id, photo_scene_date, photo_key, "
+                          "photo_caption FROM fields WHERE field_id=?",
                           (field_id,)).fetchone()
         if not r or not r["photo_file_id"]:
             return None
         if r["photo_scene_date"] != scene_day or r["photo_key"] != key:
             return None
-        return r["photo_file_id"]
+        return r["photo_file_id"], r["photo_caption"] or ""
 
     def save_photo(self, field_id: str, file_id: str, scene_day: str,
-                   key: str) -> None:
+                   key: str, caption: str = "") -> None:
         with closing(self._conn()) as c:
             c.execute("UPDATE fields SET photo_file_id=?, photo_scene_date=?, "
-                      "photo_key=?, photo_built_at=? WHERE field_id=?",
-                      (file_id, scene_day, key,
+                      "photo_key=?, photo_caption=?, photo_built_at=? "
+                      "WHERE field_id=?",
+                      (file_id, scene_day, key, caption,
                        datetime.utcnow().isoformat(), field_id))
             c.commit()
 
