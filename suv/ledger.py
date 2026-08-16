@@ -42,6 +42,12 @@ CREATE TABLE IF NOT EXISTS fields (
     area_ha REAL,              -- считается из контура, не со слов
     polygon_source TEXT,       -- 'miniapp' | 'pins'
     inlet_vertices TEXT,       -- два индекса вершин ребра входа воды
+    -- Кэш фото поля (ТЗ §4.5). Храним file_id Telegram, а не файл:
+    -- повторная отправка тогда мгновенна и не тратит трафик.
+    photo_file_id TEXT,
+    photo_scene_date TEXT,     -- дата снимка, по которому фото собрано
+    photo_key TEXT,            -- отпечаток контура: перечертили — пересобрать
+    photo_built_at TEXT,
     -- Насосная установка хозяйства. NULL = самотёк: у такого поля вода
     -- фермеру ничего не стоит, и денежную экономию по нему показывать
     -- нельзя, сколько бы кубов мы ни сберегли.
@@ -126,6 +132,10 @@ _ADDED_COLUMNS = (
     ("area_ha", "REAL"),
     ("polygon_source", "TEXT"),
     ("inlet_vertices", "TEXT"),
+    ("photo_file_id", "TEXT"),
+    ("photo_scene_date", "TEXT"),
+    ("photo_key", "TEXT"),
+    ("photo_built_at", "TEXT"),
 )
 
 
@@ -230,8 +240,11 @@ class Ledger:
             # inlet_vertices сбрасывается вместе с контуром: индексы
             # вершин старой границы на новой указывают куда попало, и
             # «вода заходит с севера» стало бы тихой неправдой.
+            # Фото собрано по старой границе — вместе с контуром слетает
+            # и оно, иначе фермер увидит заливку не по своему полю.
             c.execute("UPDATE fields SET polygon_geojson=?, area_ha=?, "
-                      "polygon_source=?, inlet_vertices=NULL "
+                      "polygon_source=?, inlet_vertices=NULL, "
+                      "photo_file_id=NULL, photo_key=NULL "
                       "WHERE field_id=?",
                       (json.dumps(ring), round(area_ha, 2), source, field_id))
             c.commit()
@@ -247,6 +260,33 @@ class Ledger:
         with closing(self._conn()) as c:
             c.execute("UPDATE fields SET inlet_vertices=? WHERE field_id=?",
                       (json.dumps([int(i), int(j)]), field_id))
+            c.commit()
+
+    def cached_photo(self, field_id: str, scene_day: str,
+                     key: str) -> str | None:
+        """file_id готового фото, если пересобирать нечего (ТЗ §4.5).
+
+        Пересобираем, только когда появился новый снимок или изменился
+        контур. Иначе фермер ждёт полминуты ради той же картинки, а мы
+        зря тратим квоту Copernicus.
+        """
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT photo_file_id, photo_scene_date, photo_key "
+                          "FROM fields WHERE field_id=?",
+                          (field_id,)).fetchone()
+        if not r or not r["photo_file_id"]:
+            return None
+        if r["photo_scene_date"] != scene_day or r["photo_key"] != key:
+            return None
+        return r["photo_file_id"]
+
+    def save_photo(self, field_id: str, file_id: str, scene_day: str,
+                   key: str) -> None:
+        with closing(self._conn()) as c:
+            c.execute("UPDATE fields SET photo_file_id=?, photo_scene_date=?, "
+                      "photo_key=?, photo_built_at=? WHERE field_id=?",
+                      (file_id, scene_day, key,
+                       datetime.utcnow().isoformat(), field_id))
             c.commit()
 
     def log_field_status_view(self, field_id: str,

@@ -2,4 +2,5 @@ requests>=2.31
 python-telegram-bot[job-queue]>=21.0   # job-queue — ежедневный автопуш рекомендаций
 numpy>=1.26
 rasterio>=1.3        # only needed for the satellite module
+Pillow>=10.0         # сборка фото поля: заливка по влажности
 pytest>=8.0

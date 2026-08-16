@@ -41,14 +41,16 @@ from suv.climate import STATIONS, season
 from suv.crop import CROPS
 from suv.field_shape import MAX_VERTICES
 from suv.field_shape import area_ha as polygon_area_ha
+from suv.field_photo import can_show_photo
 from suv.field_shape import from_geojson_ring
 from suv.field_shape import inlet_edge as polygon_inlet_edge
 from suv.field_shape import side_labels as polygon_side_labels
 from suv.field_shape import to_geojson_ring
 from suv.field_shape import validate as validate_shape
-from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, Status, assemble,
-                              cost_section, field_list_label, overall_status,
-                              render_card, uniformity_section, water_section,
+from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
+                              Status, assemble, cost_section,
+                              field_list_label, overall_status, render_card,
+                              uniformity_section, water_section,
                               weather_section)
 from suv.ledger import Ledger
 from suv.messages import recommendation_text, salinity_warning, savings_text
@@ -779,7 +781,8 @@ def _fs_sections(row, ctx, lang: str) -> list:
         uniformity_section(row["irrigation_method"], row["area_ha"],
                            has_reach=False, lang=lang,
                            declared_ha=row["hectares"],
-                           inlet_side=_inlet_side(row, lang)),
+                           inlet_side=_inlet_side(row, lang),
+                           photo=_photo_verdict(row, date.today())),
         weather_section(forecast, lang),
         cost_section(season_m3, pump, lang),
     )
@@ -1273,6 +1276,118 @@ async def draw_webapp(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await _draw_confirm(update, ctx, fid, check, "miniapp")
 
 
+# ------------------------------------------------------------ фото поля
+#
+# ТЗ FieldStatus §4, дни 4-5. Отличие от ТЗ и причина — в suv/field_photo.py:
+# красим ИЗМЕРЕННУЮ влажность, а не смоделированную заливку по борозде.
+#
+# Сеть и сборка картинки живут в suv/scene.py и suv/photo_render.py;
+# здесь — гейт, кэш и отправка.
+
+
+def _photo_verdict(row, today: date):
+    """Можно ли показать фото по этому полю. Спутник не трогаем: дату
+    снимка берём из кэша, иначе карточка ходила бы в сеть за каждым
+    открытием ради одной проверки."""
+    scene_day = None
+    raw = row["photo_scene_date"] if "photo_scene_date" in row.keys() else None
+    if raw:
+        try:
+            scene_day = date.fromisoformat(raw)
+        except ValueError:
+            scene_day = None
+    return can_show_photo(
+        area_ha=row["area_ha"], irrigation_method=row["irrigation_method"],
+        has_polygon=bool(_field_polygon(row)),
+        # Снимка ещё не запрашивали — считаем, что он есть: спутник над
+        # Узбекистаном проходит каждые пять дней, и отказывать заранее
+        # значило бы прятать кнопку у поля, где фото построится.
+        scene_day=scene_day or today, today=today, valid_fraction=None)
+
+
+def _build_photo(row, lang: str):
+    """Собрать фото поля. Синхронная и медленная — только из потока."""
+    from suv import photo_render, scene
+    from suv.field_photo import bbox_of
+
+    ring = _field_polygon(row)
+    box = bbox_of(ring)
+    sc = scene.fetch(box)
+    verdict = can_show_photo(
+        area_ha=row["area_ha"], irrigation_method=row["irrigation_method"],
+        has_polygon=True, scene_day=sc.day, today=date.today(),
+        valid_fraction=None)
+    if not verdict.ok:
+        return None, verdict, None, ""
+    img, caption, stats = photo_render.build(
+        sc, ring, field_name=row["name"], area_ha=row["area_ha"], lang=lang)
+    if stats is not None and verdict.ok:
+        # Долю чистых пикселей можно проверить только после замера —
+        # облако над полем видно лишь когда кадр уже пришёл.
+        verdict = can_show_photo(
+            area_ha=row["area_ha"], irrigation_method=row["irrigation_method"],
+            has_polygon=True, scene_day=sc.day, today=date.today(),
+            valid_fraction=stats.valid_fraction)
+        if not verdict.ok:
+            return None, verdict, None, ""
+    import io
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    buf.seek(0)
+    return (buf, verdict, sc.day.isoformat() if sc.day else "",
+            f"🌾 {row['name']}\n\n{caption}")
+
+
+async def photo_callback(update: Update,
+                         ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    chat = update.effective_chat.id
+    if not _authorized(update) or chat not in _FIELD_STATUS:
+        await query.answer()
+        return
+    parts = query.data.split(":", 2)
+    fid = parts[2] if len(parts) > 2 else ""
+    row = _field_row(fid)
+    rows, observer = _fields_for_view(chat)
+    if row is None or fid not in {r["field_id"] for r in rows}:
+        await query.answer()
+        return
+    lang = "ru" if observer else "uz"
+
+    key = _contour_fingerprint(row)
+    cached = LEDGER.cached_photo(fid, row["photo_scene_date"] or "", key)
+    if cached:
+        # Повторное нажатие отдаёт готовый file_id мгновенно (ТЗ §4.5).
+        await query.answer()
+        await ctx.bot.send_photo(chat, cached)
+        return
+
+    await query.answer("Surat tayyorlanmoqda…" if lang == "uz"
+                       else "Готовлю снимок…")
+    await ctx.bot.send_chat_action(chat, ChatAction.UPLOAD_PHOTO)
+    try:
+        buf, verdict, scene_day, caption = await asyncio.to_thread(
+            _build_photo, row, lang)
+    except Exception as exc:  # noqa: BLE001 — сеть и Copernicus падают
+        log.warning("фото %s не собралось: %s", fid, exc)
+        await ctx.bot.send_message(
+            chat, "Surat olinmadi. Birozdan keyin qayta urinib ko'ring."
+            if lang == "uz" else "Снимок не получился. Попробуйте позже.")
+        return
+
+    if buf is None:
+        why = PHOTO_BLOCKED.get(verdict.reason)
+        text = (why[0] if lang == "uz" else why[1]) if why else (
+            "Surat chiqmadi." if lang == "uz" else "Снимок не получился.")
+        await ctx.bot.send_message(chat, text)
+        return
+
+    msg = await ctx.bot.send_photo(chat, buf, caption=caption)
+    if msg and msg.photo:
+        LEDGER.save_photo(fid, msg.photo[-1].file_id, scene_day, key)
+        ctx.user_data.get("fs_cache", {}).pop(fid, None)
+
+
 # --------------------------------------------------- сторона входа воды
 #
 # ТЗ §2.3, день 3. Короткий шаг после контура: без него не построить ось
@@ -1647,6 +1762,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
     app.add_handler(CallbackQueryHandler(draw_confirm_callback, pattern=r"^fsdraw:"))
     app.add_handler(CallbackQueryHandler(inlet_callback, pattern=r"^fsin:"))
+    app.add_handler(CallbackQueryHandler(photo_callback, pattern=r"^fs:map:"))
     app.add_handler(CallbackQueryHandler(fs_callback, pattern=r"^fs:"))
     app.add_error_handler(on_error)
     if _ALLOWED:

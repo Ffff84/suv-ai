@@ -222,6 +222,22 @@ INLET_ACTION_UZ = "💧 Suv qaysi tomondan?"
 INLET_ACTION_RU = "💧 Откуда заходит вода?"
 INLET_CHANGE_UZ = "💧 Suv tomonini o'zgartirish"
 INLET_CHANGE_RU = "💧 Изменить сторону входа"
+MAP_ACTION_UZ = "🗺 Xaritani ko'rish"
+MAP_ACTION_RU = "🗺 Показать карту"
+
+# Почему карты нет — по одной короткой строке на причину (ТЗ §4.6).
+# Пара: узбекский, русский.
+PHOTO_BLOCKED = {
+    "too_small": ("Dala 3 gektardan kichik — sun'iy yo'ldosh zonalarni "
+                  "ajrata olmaydi",
+                  "Поле меньше 3 га — спутник не различит зоны"),
+    "no_scene": ("Sun'iy yo'ldosh surati hali yo'q",
+                 "Снимка со спутника пока нет"),
+    "scene_stale": ("Yangi surat yo'q — oxirgi surat juda eski",
+                    "Свежего снимка нет — последний слишком старый"),
+    "clouded": ("Dala bulut ostida qoldi — surat chiqmadi",
+                "Поле закрыто облаками — снимок не получился"),
+}
 
 # Заявленная и обмеренная площади всегда расходятся немного: фермер
 # помнит по документам, обмер идёт по телефонному GPS. Молчать стоит,
@@ -240,7 +256,8 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
                        has_reach: bool = False,
                        lang: str = "uz",
                        declared_ha: float | None = None,
-                       inlet_side: str | None = None) -> Section | None:
+                       inlet_side: str | None = None,
+                       photo=None) -> Section | None:
     """Равномерность полива. None = секция неприменима и не рисуется.
 
     Расчёт движения воды по борозде (модуль Egat) осмыслен только для
@@ -273,6 +290,34 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
     # Контур можно перечертить: угол, отмеченный не там, иначе остаётся
     # в базе навсегда, и кнопки исправить его нет нигде.
     redraw = Action(REDRAW_ACTION_UZ if uz else REDRAW_ACTION_RU, "fs:draw")
+
+    if photo is not None and photo.ok:
+        # Снимок есть — он и есть главное, что фермеру тут нужно. Кнопка
+        # карты вытесняет вопрос о стороне входа: замер влажности берётся
+        # по пикселям и в направлении борозды не нуждается.
+        hint = None
+        if inlet_side is None:
+            hint = ("Suv qaysi tomondan kirishini ham belgilasang bo'ladi"
+                    if uz else "Можно ещё указать, откуда заходит вода")
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=drawn if inlet_side is None else
+            (f"{drawn} · Suv {inlet_side} tomondan kiradi" if uz
+             else f"{drawn} · Вода заходит с {inlet_side}а"),
+            hint=hint,
+            action=Action(MAP_ACTION_UZ if uz else MAP_ACTION_RU, "fs:map"))
+
+    if photo is not None and photo.reason in PHOTO_BLOCKED:
+        # Фото не построить — говорим одной строкой почему (ТЗ §4.6).
+        # Кнопки карты при этом нет: мёртвая кнопка хуже её отсутствия.
+        why = PHOTO_BLOCKED[photo.reason]
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=drawn,
+            hint=why[0] if uz else why[1],
+            action=redraw if photo.reason == "too_small" else
+            Action(INLET_ACTION_UZ if uz else INLET_ACTION_RU, "fs:inlet")
+            if inlet_side is None else redraw)
 
     if declared_ha and abs(area_ha - declared_ha) / declared_ha >= AREA_MISMATCH_FRAC:
         # Две площади разошлись сильнее погрешности обхода. Молча выбрать
