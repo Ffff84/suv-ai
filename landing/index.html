@@ -274,6 +274,35 @@ header.top{
 .fin .uz{color:var(--mut);font-family:"JetBrains Mono",monospace;font-size:.8rem;letter-spacing:.18em;text-transform:uppercase}
 footer{border-top:1px solid var(--line);padding:34px 0;color:var(--mut);font-size:.85rem}
 footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+
+/* галерея полей */
+.gal{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:48px 0 10px;-webkit-overflow-scrolling:touch}
+.gal figure{flex:0 0 min(420px,78vw);scroll-snap-align:start;margin:0}
+.gal img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px;box-shadow:0 24px 50px rgba(0,0,0,.35);transition:transform .4s}
+.gal figure:hover img{transform:scale(1.03)}
+.gal figcaption{font-size:.82rem;color:var(--mut);margin-top:10px}
+.gal figcaption b{color:var(--ink);font-weight:500}
+
+/* видео */
+.vid{border-radius:16px;overflow:hidden;box-shadow:0 40px 90px rgba(0,0,0,.5);margin-top:44px}
+.vid video{width:100%;display:block}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:48px}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.kpi-grid{grid-template-columns:1fr}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 24px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--dry),var(--mid),var(--wet))}
+.kpi b{font-family:"Unbounded",sans-serif;font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);display:block;font-variant-numeric:tabular-nums}
+.kpi b i{font-style:normal;color:var(--cyan)}
+.kpi .now{font-size:.78rem;color:var(--mut);font-family:"JetBrains Mono",monospace;margin-top:4px;display:block}
+.kpi .what{font-size:.88rem;color:var(--mut);margin-top:10px;display:block}
+.path{margin-top:40px}
+.path .lab{display:flex;justify-content:space-between;font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:8px}
+.path .track{height:12px;border-radius:6px;background:var(--panel);border:1px solid var(--line);overflow:hidden;position:relative}
+.path .done{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,var(--cyan),var(--wet));border-radius:6px;transition:width 2.2s cubic-bezier(.2,.8,.2,1)}
+.path .note{font-size:.82rem;color:var(--mut);margin-top:10px}
+
 </style>
 </head>
 <body>
@@ -429,6 +458,61 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 </section>
 
 
+
+<!-- ПОЛЯ С ВЫСОТЫ -->
+<section class="sect" id="fields">
+  <div class="shell">
+    <div class="eyebrow reveal">Поля пилота</div>
+    <h2 class="reveal">Вид, с которого продукт смотрит на работу</h2>
+    <p class="lede reveal">Это не стоковые фотографии — это <b>настоящие поля пилота</b> на тех же
+      спутниковых картах, по которым фермер обводит контур, а бот строит замер.</p>
+  </div>
+  <div class="shell">
+    <div class="gal reveal">
+      <figure><img src="img/aer-uzum.jpg" alt="Виноградник Uzumzor сверху" loading="lazy">
+        <figcaption><b>Uzumzor · 1,5 га</b> — виноградник, залив из канала. Ряды лоз читаются с высоты.</figcaption></figure>
+      <figure><img src="img/aer-olma.jpg" alt="Яблоневый сад Olmazor сверху" loading="lazy">
+        <figcaption><b>Olmazor · 2 га</b> — яблоневый сад на капле. Каждое дерево — отдельная точка.</figcaption></figure>
+      <figure><img src="img/aer-wide.jpg" alt="Долина пилота: лоскут полей и кишлак" loading="lazy">
+        <figcaption><b>Долина пилота</b> — лоскут хозяйств вокруг кишлака. Каждому полю здесь нужен свой ответ про воду.</figcaption></figure>
+    </div>
+    <div class="vid reveal">
+      <video controls preload="none" poster="img/aer-wide.jpg" src="video/suv-ai-video.mp4"></video>
+    </div>
+    <p class="reveal" style="margin-top:14px;font-size:.82rem;color:var(--mut)">Видео — кадры орошения, иллюстративные; спутниковые карты — Esri, Maxar, Earthstar Geographics.</p>
+  </div>
+</section>
+
+<!-- KPI -->
+<section class="sect creed" id="kpi">
+  <div class="shell">
+    <div class="eyebrow reveal">Куда идём</div>
+    <h2 class="reveal">Цели, за которые нам можно спросить</h2>
+    <p class="lede reveal">KPI продукта устроен как его журнал: каждую цифру можно
+      <b>пересчитать и оспорить</b>. Вот к чему мы идём — и где мы сейчас, без прикрас.</p>
+    <div class="kpi-grid">
+      <div class="kpi reveal"><b><i>−</i><span data-count="20">0</span><i>%</i></b>
+        <span class="now">сейчас: считается журналом пилота</span>
+        <span class="what">воды и часов насоса на поле — проверяемая экономия, а не обещание</span></div>
+      <div class="kpi reveal"><b><span data-count="30000">0</span> <i>га</i></b>
+        <span class="now">сейчас: 3,5 га · 2 поля</span>
+        <span class="what">под управлением к концу 2027 — через кластеры и ассоциации водопользователей</span></div>
+      <div class="kpi reveal"><b><span data-count="1000">0</span> <i>хозяйств</i></b>
+        <span class="now">сейчас: 1 фермер · пилот</span>
+        <span class="what">получают утренний совет на своём языке — узбекском</span></div>
+      <div class="kpi reveal"><b><span data-count="5">0</span> <i>сек</i></b>
+        <span class="now">сейчас: уже так</span>
+        <span class="what">от вопроса «поливать ли сегодня?» до ответа — в чате, без агронома</span></div>
+    </div>
+    <div class="path reveal">
+      <div class="lab"><span>пилот · 3,5 га</span><span>цель 2027 · 30 000 га</span></div>
+      <div class="track"><div class="done" id="pathbar" data-w="1.2"></div></div>
+      <p class="note">Заполнено честно: мы в самом начале пути — 0,01%. Зато каждый из этих
+        гектаров считается каждое утро, и каждая рекомендация по нему записана в журнал.</p>
+    </div>
+  </div>
+</section>
+
 <!-- НАУКА -->
 <section class="sect creed">
   <div class="shell">
@@ -551,6 +635,11 @@ var io = new IntersectionObserver(function(es){
   es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("on"); io.unobserve(e.target); } });
 },{threshold:0.18});
 document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+/* страховка: если наблюдатель не отработал (прерондер, скрытая вкладка,
+   экзотический браузер) — контент не должен остаться невидимым */
+setTimeout(function(){
+  document.querySelectorAll(".reveal:not(.on)").forEach(function(el){ el.classList.add("on"); });
+}, 3000);
 
 /* борозда-прогресс */
 var fur = document.querySelector("#furrow i");
@@ -790,6 +879,30 @@ document.getElementById("themeBtn").addEventListener("click", function(){
   localStorage.setItem("suvai-theme", light ? "dark" : "light");
   REDRAW.forEach(function(f){ f(); });
 });
+
+
+/* KPI: счётчики и полоса пути */
+(function(){
+  var sec=document.getElementById("kpi");
+  if(!sec) return;
+  function ease(k){ return 1-Math.pow(1-k,3); }
+  new IntersectionObserver(function(es,ob){
+    if(!es[0].isIntersecting) return;
+    ob.disconnect();
+    sec.querySelectorAll("[data-count]").forEach(function(el){
+      var target=+el.getAttribute("data-count"), t0=performance.now();
+      var dur = reduced ? 0 : 1900;
+      (function step(t){
+        var k = dur ? Math.min(1,(t-t0)/dur) : 1;
+        var v = Math.round(target*ease(k));
+        el.textContent = v.toLocaleString("ru-RU").replace(/,/g," ");
+        if(k<1) requestAnimationFrame(step);
+      })(t0);
+    });
+    var bar=document.getElementById("pathbar");
+    requestAnimationFrame(function(){ bar.style.width = bar.getAttribute("data-w")+"%"; });
+  },{threshold:0.12}).observe(sec);
+})();
 
 /* карточка: сообщения по очереди */
 (function(){
