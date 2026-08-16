@@ -1388,9 +1388,18 @@ def _build_photo(row, lang: str):
         last = gate(day, frac)
         if not last.ok:
             continue
+        # Чёткий архивный фон — лучше, но не обязателен: без него фото
+        # выходит на кадре Sentinel-2, как раньше.
+        try:
+            from suv import basemap as bm
+            base_img = bm.fetch(box)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("подложка для %s не скачалась: %s",
+                        row["field_id"], exc)
+            base_img = None
         img, caption, _st = photo_render.build(
             sc, ring, field_name=row["name"], area_ha=row["area_ha"],
-            lang=lang)
+            lang=lang, basemap=base_img)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=90)
         buf.seek(0)

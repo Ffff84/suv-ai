@@ -69,13 +69,21 @@ def measure(scene, ring: list[list[float]]):
 
 def build(scene, ring: list[list[float]], *, field_name: str,
           area_ha: float | None, today: date | None = None,
-          lang: str = "uz", contour_is_real: bool = True):
+          lang: str = "uz", contour_is_real: bool = True,
+          basemap=None):
     """Собрать фото поля. Возвращает (изображение PIL, подпись, статистика).
 
     contour_is_real=False — контур поля ещё не обведён, и показан квадрат
     вокруг точки. Такой кадр честно об этом пишет прямо на картинке:
     в квадрат попадают соседние участки, и принимать по нему решения
     о своём поле нельзя.
+
+    basemap — архивная подложка высокого разрешения под тот же bbox
+    (suv/basemap.py). С ней фермер узнаёт свои ряды и деревья, чего
+    Sentinel-2 с его 10 м не даст никогда. Цена: фон снят когда-то, а
+    не в день замера — подпись и строка на кадре обязаны это говорить,
+    дата фото относится только к влажности. Без подложки (сеть, дырка в
+    покрытии) фон — кадр Sentinel-2, как раньше.
     """
     from PIL import Image, ImageChops, ImageDraw
 
@@ -91,6 +99,8 @@ def build(scene, ring: list[list[float]], *, field_name: str,
 
     # Заливка в нативной сетке, апскейл — потом и только NEAREST: иначе
     # сглаживание нарисует плавные переходы, которых в данных нет.
+    # Блочность заливки — намеренная и остаётся при любом фоне: клетка
+    # 20 м и есть настоящий размер измерения.
     overlay = Image.new("RGBA", (w0, h0), (0, 0, 0, 0))
     if stats is not None and not stats.uniform:
         opx = overlay.load()
@@ -99,36 +109,61 @@ def build(scene, ring: list[list[float]], *, field_name: str,
                 if scene.valid[y][x]:
                     opx[x, y] = moisture_color(scene.ndmi[y][x], stats)
 
-    # Кратность считаем и по высоте тоже. По одной ширине узкое поле
-    # вдоль канала давало картинку 1080 на четырнадцать тысяч точек —
-    # Telegram такую не примет, а фермер на телефоне не разглядит.
-    scale = max(MIN_UPSCALE, min(-(-WIDTH // max(1, w0)),
-                                 -(-MAX_HEIGHT // max(1, h0))))
-    size = (w0 * scale, h0 * scale)
-    img = base.resize(size, Image.NEAREST).convert("RGBA")
+    if basemap is not None:
+        # Архивную карту сгладить не грех — она фотография, а не данные.
+        # Тянем и вверх: в глубинке покрытие бывает только на зумах
+        # погрубее, и полотно приходит в 300-400 пикселей — даже
+        # растянутое, оно чётче кадра Sentinel-2 в разы.
+        k = min(WIDTH / basemap.width, MAX_HEIGHT / basemap.height)
+        size = (max(1, round(basemap.width * k)),
+                max(1, round(basemap.height * k)))
+        img = basemap.resize(size, Image.LANCZOS).convert("RGBA")
+        poly = ring_to_pixels(ring, box, *size)
+    else:
+        # Кратность считаем и по высоте тоже. По одной ширине узкое поле
+        # вдоль канала давало картинку 1080 на четырнадцать тысяч точек —
+        # Telegram такую не примет, а фермер на телефоне не разглядит.
+        scale = max(MIN_UPSCALE, min(-(-WIDTH // max(1, w0)),
+                                     -(-MAX_HEIGHT // max(1, h0))))
+        size = (w0 * scale, h0 * scale)
+        img = base.resize(size, Image.NEAREST).convert("RGBA")
+        poly = [(x * scale, y * scale) for x, y in ring_px]
 
-    # Режем заливку по контуру УЖЕ после апскейла. Маска, построенная в
-    # нативной сетке, округляется до целой клетки — а клетка это десять
+    # Режем заливку по контуру УЖЕ в итоговом размере. Маска, построенная
+    # в нативной сетке, округляется до целой клетки — а клетка это десять
     # метров поля, и на готовом кадре заливка вылезала за межу на полосу
     # в полсотни пикселей, закрашивая соседский участок.
     big = overlay.resize(size, Image.NEAREST)
-    fine = _polygon_mask([(x * scale, y * scale) for x, y in ring_px], size)
+    fine = _polygon_mask(poly, size)
     big.putalpha(ImageChops.multiply(big.getchannel("A"), fine))
     img.alpha_composite(big)
     img = img.convert("RGB")
 
     d = ImageDraw.Draw(img)
-    poly = [(x * scale, y * scale) for x, y in ring_px]
     d.line(poly + [poly[0]], fill=(255, 255, 255), width=3)
 
     _north(d, img.width, _font(16), uz)
     _scale_bar(d, img, box, _font(15))
+    if basemap is not None:
+        _basemap_credit(d, img, uz)
     if not contour_is_real:
         _warn_strip(img, uz)
 
     caption = _caption(scene.day, today, stats, field_name, area_ha, uz,
-                       contour_is_real)
+                       contour_is_real, archival_base=basemap is not None)
     return _with_legend(img, stats, uz), caption, stats
+
+
+def _basemap_credit(d, img, uz: bool) -> None:
+    """Атрибуция Esri (обязательна) плюс честное «фон — архив»."""
+    from .basemap import ATTRIBUTION
+    font = _font(13)
+    text = (f"Fon: arxiv xarita · {ATTRIBUTION}" if uz
+            else f"Фон: архивная карта · {ATTRIBUTION}")
+    tw = int(d.textlength(text, font=font))
+    x, y = img.width - tw - 10, img.height - 20
+    d.rectangle([x - 6, y - 3, img.width, y + 16], fill=(0, 0, 0))
+    d.text((x, y), text, fill=(200, 200, 200), font=font)
 
 
 def _north(d, width: int, font, uz: bool) -> None:
@@ -209,7 +244,7 @@ def _with_legend(img, stats: MoistureStats | None, uz: bool):
 
 def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
              field_name: str, area_ha: float | None, uz: bool,
-             contour_is_real: bool) -> str:
+             contour_is_real: bool, archival_base: bool = False) -> str:
     """Подпись под фото. Дата снимка обязательна (ТЗ §1.2)."""
     lines: list[str] = []
     if scene_day:
@@ -218,8 +253,16 @@ def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
                 else f"{ago} kun oldin") if uz else (
             "сегодня" if ago == 0 else "вчера" if ago == 1
             else f"{ago} дн. назад")
-        lines.append(f"🛰 {'Surat' if uz else 'Снимок'}: "
+        what = ("Namlik o'lchovi" if uz else "Замер влажности") \
+            if archival_base else ("Surat" if uz else "Снимок")
+        lines.append(f"🛰 {what}: "
                      f"{scene_day.day:02d}.{scene_day.month:02d} ({when})")
+    if archival_base:
+        # Дата выше относится ТОЛЬКО к влажности: фон снят когда-то за
+        # последние год-два, и молчать об этом нельзя — фермер прочитает
+        # красивую карту как сегодняшнюю.
+        lines.append("Fon xaritasi — arxiv surat" if uz
+                     else "Фоновая карта — архивная")
     lines.append("")
 
     if stats is None:
