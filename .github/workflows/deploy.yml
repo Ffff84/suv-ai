@@ -93,6 +93,13 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             pip install -r requirements.txt --break-system-packages -q
+            # Страницу обводки поля отдаёт nginx из /var/www — из /root
+            # он её не прочитает. Копируем на каждом деплое: иначе
+            # фермер будет рисовать по версии, которая устарела на месяц.
+            if [ -d /var/www/suv-ai ]; then
+              cp miniapp/draw.html /var/www/suv-ai/draw.html
+              echo "Mini App обновлён"
+            fi
             systemctl list-unit-files suv-ai.service >/dev/null 2>&1 \
               || { echo "НЕТ СЛУЖБЫ suv-ai.service"; exit 11; }
             systemctl restart suv-ai
