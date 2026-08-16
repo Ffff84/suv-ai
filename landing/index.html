@@ -487,9 +487,9 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
         <figcaption data-i18n="flds.c3"><b>Долина пилота</b> — лоскут хозяйств вокруг кишлака. Каждому полю здесь нужен свой ответ про воду.</figcaption></figure>
     </div>
     <div class="vid reveal">
-      <video controls preload="none" poster="img/aer-wide.jpg" src="video/suv-ai-video.mp4"></video>
+      <video id="pitchVideo" controls preload="none" poster="img/aer-wide.jpg" src="video/suv-ai-video-ru.mp4"></video>
     </div>
-    <p class="reveal" style="margin-top:14px;font-size:.82rem;color:var(--mut)" data-i18n="flds.credit">Видео — кадры орошения, иллюстративные; спутниковые карты — Esri, Maxar, Earthstar Geographics.</p>
+    <p class="reveal" style="margin-top:14px;font-size:.82rem;color:var(--mut)" data-i18n="flds.credit">Видео — анимированная презентация SUV AI; спутниковые карты — Esri, Maxar, Earthstar Geographics.</p>
   </div>
 </section>
 
@@ -684,7 +684,7 @@ uz: {
 "flds.c1":"<b>Uzumzor</b> — kanaldan bostirib sug'oriladigan uzumzor. Oq chiziq — Mini App'dan haqiqiy chegara: o'lchov bo'yicha 1,41 ga.",
 "flds.c2":"<b>Olmazor</b> — tomchilatib sug'oriladigan G-shaklidagi bog', chegarada 8 nuqta. O'lchov: 2,52 ga.",
 "flds.c3":"<b>Pilot vodiysi</b> — qishloq atrofidagi xo'jaliklar korami. Bu yerda har bir dalaga suv haqida o'z javobi kerak.",
-"flds.credit":"Video — sug'orish kadrlari, illyustrativ; sun'iy yo'ldosh xaritalari — Esri, Maxar, Earthstar Geographics.",
+"flds.credit":"Video — SUV AI animatsion taqdimoti; sun'iy yo'ldosh xaritalari — Esri, Maxar, Earthstar Geographics.",
 "kpi.eyebrow":"Qayoqqa ketyapmiz",
 "kpi.h2":"Bizdan so'rasa bo'ladigan maqsadlar",
 "kpi.lede":"Mahsulot KPI'si jurnali kabi qurilgan: har bir raqamni <b>qayta hisoblash va bahslashish</b> mumkin. Mana biz qayoqqa ketyapmiz — va hozir qayerdamiz, bo'yamasdan.",
@@ -788,7 +788,7 @@ en: {
 "flds.c1":"<b>Uzumzor</b> — a vineyard flood-irrigated from the canal. In white — the real boundary from the Mini App: 1.41 ha measured.",
 "flds.c2":"<b>Olmazor</b> — an L-shaped drip-irrigated orchard, 8 boundary vertices. Measured: 2.52 ha.",
 "flds.c3":"<b>The pilot valley</b> — a patchwork of farms around the kishlak. Every field here needs its own answer about water.",
-"flds.credit":"Video — illustrative irrigation footage; satellite maps — Esri, Maxar, Earthstar Geographics.",
+"flds.credit":"Video — an animated SUV AI presentation; satellite maps — Esri, Maxar, Earthstar Geographics.",
 "kpi.eyebrow":"Where we are going",
 "kpi.h2":"Goals we can be held to",
 "kpi.lede":"The product's KPI works like its ledger: every number can be <b>recomputed and challenged</b>. Here is where we are going — and where we are now, unvarnished.",
@@ -1171,6 +1171,13 @@ function setLang(l){
   document.querySelectorAll(".langs button").forEach(function(b){
     b.classList.toggle("on", b.getAttribute("data-lang")===l);
   });
+  var pv = document.getElementById("pitchVideo");
+  if(pv){
+    // Видео-презентация озвучена на двух языках: английская страница
+    // получает английскую дорожку, русская и узбекская — русскую.
+    var vsrc = l==="en" ? "video/suv-ai-video-en.mp4" : "video/suv-ai-video-ru.mp4";
+    if(pv.getAttribute("src")!==vsrc){ pv.setAttribute("src", vsrc); pv.load(); }
+  }
   REDRAW.forEach(function(f){ f(); });   // подсказка на канвасе обводки
 }
 document.querySelectorAll(".langs button").forEach(function(b){
