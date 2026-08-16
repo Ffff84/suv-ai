@@ -161,17 +161,23 @@ def test_no_contour_no_photo():
     assert _verdict(has_polygon=False).reason == "no_contour"
 
 
-def test_drip_field_gets_no_photo():
-    """Заливка вдоль борозды к капельному поливу неприменима (§4.6)."""
-    assert _verdict(irrigation_method="drip").reason == "not_furrow"
-    assert _verdict(irrigation_method="sprinkler").reason == "not_furrow"
+def test_photo_ignores_the_irrigation_method():
+    """Осознанное отступление от §4.6: «только борозда» относилось к
+    заливке вдоль борозды, а мы показываем ИЗМЕРЕННУЮ влажность — замеру
+    всё равно, как поливают. Для капли карта даже нужнее: забитый
+    капельник не видно никак, а сухое пятно вокруг него читается."""
+    assert _verdict(irrigation_method="drip").ok
+    assert _verdict(irrigation_method="sprinkler").ok
 
 
 def test_small_field_gets_no_photo():
-    """10 м на пиксель: на двух гектарах зон не разглядеть (§4.6).
-    Это правило и отсекает яблоневый сад Фарруха."""
-    assert _verdict(area_ha=2.0).reason == "too_small"
+    """Порог по клеткам ЗАМЕРА (B11, 20 м), а не по подложке 10 м:
+    виноградник Фарруха в 1,5 га даёт настоящий перепад (размах NDMI
+    0,21, не проседающий при отсечении кромки), и резать его порогом,
+    выведенным для другой величины, значит прятать рабочую карту."""
+    assert _verdict(area_ha=1.0).reason == "too_small"
     assert _verdict(area_ha=None).reason == "too_small"
+    assert _verdict(area_ha=1.5).ok
     assert _verdict(area_ha=MIN_AREA_HA).ok
 
 

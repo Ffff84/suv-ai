@@ -251,6 +251,11 @@ def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
             f"📊 {'Tekshirilgan' if uz else 'Измерено'}: "
             f"{stats.valid_fraction * 100:.0f}% "
             f"{'dala yuzasi' if uz else 'площади поля'}")
+        # Грубость замера — прямо в подписи: влажность меряется клетками
+        # 20x20 м, и на небольшом поле фермер должен понимать, что один
+        # квадрат картинки — это двадцать метров его земли, а не грядка.
+        lines.append("Aniqlik: 1 katak ≈ 20 m" if uz
+                     else "Точность: 1 клетка ≈ 20 м")
 
     if not contour_is_real:
         lines.append("")

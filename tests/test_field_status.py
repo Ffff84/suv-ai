@@ -303,3 +303,54 @@ def test_field_list_label_carries_status_emoji():
 def test_field_list_label_localizes_the_hectare_unit():
     label = field_list_label("Guliston", 10.0, "Хлопок", Status.OK, "ru")
     assert label == "🟢 Guliston · 10 га · Хлопок"
+
+
+# ---------------------------------------------------------------- снимок
+
+def _photo(ok=True, reason=None):
+    from dataclasses import dataclass
+
+    @dataclass
+    class V:
+        ok: bool
+        reason: str | None
+    return V(ok, reason)
+
+
+def test_photo_section_does_not_care_how_the_field_is_irrigated():
+    """Снимок — это замер, и способу полива он безразличен. Для капли
+    карта даже нужнее: забитый капельник не видно никак, а сухое пятно
+    вокруг него на снимке читается."""
+    from suv.field_status import photo_section
+    for method in ("drip", "furrow", "sprinkler"):
+        s = photo_section(1.5, method, photo=_photo(ok=True))
+        assert s is not None and s.action.callback == "fs:map"
+
+
+def test_photo_section_invites_drawing_only_where_uniformity_does_not():
+    """У борозды приглашение обвести уже стоит в секции равномерности —
+    второй раз о том же не просим. У капли равномерности нет, значит
+    зовёт снимок."""
+    from suv.field_status import photo_section
+    assert photo_section(None, "furrow") is None
+    drip = photo_section(None, "drip")
+    assert drip is not None and drip.action.callback == "fs:draw"
+
+
+def test_photo_section_explains_why_there_is_no_map():
+    from suv.field_status import photo_section
+    s = photo_section(1.0, "drip", photo=_photo(ok=False, reason="too_small"))
+    assert s.action is None
+    assert "kichik" in s.line
+
+    stale = photo_section(1.5, "drip",
+                          photo=_photo(ok=False, reason="scene_stale"))
+    assert "eski" in stale.line
+
+
+def test_photo_section_never_colors_the_field():
+    """Секция информационная: предлагает картинку, а не оценивает поле."""
+    from suv.field_status import photo_section
+    s = photo_section(1.5, "drip", photo=_photo(ok=True))
+    assert s.status is Status.NO_DATA and s.informational
+    assert overall_status([_section(Status.OK), s]) is Status.OK

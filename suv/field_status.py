@@ -228,9 +228,9 @@ MAP_ACTION_RU = "🗺 Показать карту"
 # Почему карты нет — по одной короткой строке на причину (ТЗ §4.6).
 # Пара: узбекский, русский.
 PHOTO_BLOCKED = {
-    "too_small": ("Dala 3 gektardan kichik — sun'iy yo'ldosh zonalarni "
+    "too_small": ("Dala juda kichik — sun'iy yo'ldosh zonalarni "
                   "ajrata olmaydi",
-                  "Поле меньше 3 га — спутник не различит зоны"),
+                  "Поле слишком маленькое — спутник не различит зоны"),
     "no_scene": ("Sun'iy yo'ldosh surati hali yo'q",
                  "Снимка со спутника пока нет"),
     "scene_stale": ("Yangi surat yo'q — oxirgi surat juda eski",
@@ -252,18 +252,68 @@ def _ha1(value: float) -> str:
     return f"{value:.1f}".replace(".", ",")
 
 
+def photo_section(area_ha: float | None, irrigation_method: str,
+                  photo=None, lang: str = "uz") -> Section | None:
+    """Снимок поля: карта измеренной влажности со спутника.
+
+    ОТДЕЛЬНАЯ секция, не равномерность. Равномерность — про движение
+    воды по борозде и ждёт замера; снимок — про то, что спутник уже
+    измерил, и способу полива он безразличен. Для капли карта даже
+    нужнее: забитый капельник не видно никак, а сухое пятно вокруг
+    него на снимке читается.
+
+    Секция информационная: она предлагает картинку, а не оценивает
+    поле, поэтому общий статус не красит.
+    """
+    uz = lang == "uz"
+    title = "🛰 Dala surati" if uz else "🛰 Снимок поля"
+
+    if not area_ha:
+        if irrigation_method == "furrow":
+            # У борозды приглашение обвести уже стоит в секции
+            # равномерности — второй раз о том же не просим.
+            return None
+        return Section(
+            key="photo", order=25, title=title, status=Status.NO_DATA,
+            line=("Dalangiz chegarasini chizsang, sun'iy yo'ldosh "
+                  "suratini ko'rsataman" if uz else
+                  "Обведите поле — покажу снимок со спутника"),
+            action=Action(DRAW_ACTION_UZ if uz else DRAW_ACTION_RU,
+                          "fs:draw"),
+            informational=True)
+
+    if photo is not None and photo.ok:
+        return Section(
+            key="photo", order=25, title=title, status=Status.NO_DATA,
+            line=("Qizil — quruqroq, yashil — namroq joylar" if uz
+                  else "Красное — суше, зелёное — влажнее"),
+            action=Action(MAP_ACTION_UZ if uz else MAP_ACTION_RU, "fs:map"),
+            informational=True)
+
+    if photo is not None and photo.reason in PHOTO_BLOCKED:
+        # Фото не построить — говорим одной строкой почему (ТЗ §4.6).
+        # Кнопки карты при этом нет: мёртвая кнопка хуже её отсутствия.
+        why = PHOTO_BLOCKED[photo.reason]
+        return Section(
+            key="photo", order=25, title=title, status=Status.NO_DATA,
+            line=why[0] if uz else why[1],
+            informational=True)
+
+    return None
+
+
 def uniformity_section(irrigation_method: str, area_ha: float | None,
                        has_reach: bool = False,
                        lang: str = "uz",
                        declared_ha: float | None = None,
-                       inlet_side: str | None = None,
-                       photo=None) -> Section | None:
+                       inlet_side: str | None = None) -> Section | None:
     """Равномерность полива. None = секция неприменима и не рисуется.
 
     Расчёт движения воды по борозде (модуль Egat) осмыслен только для
     бороздкового полива: при капельном вода подаётся в каждый куст, при
     дождевании — сверху, и «докуда добежала» там не вопрос. Пустой слот
-    в таких карточках был бы не честностью, а мусором.
+    в таких карточках был бы не честностью, а мусором. Снимок поля — не
+    здесь: он живёт своей секцией и способа полива не разбирает.
 
     Пока это только пустые состояния из ТЗ §3.5: сам расчёт приходит с
     модулем Egat, а карта — с замером. Рисовать «вода не дошла» по
@@ -291,18 +341,6 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
     # в базе навсегда, и кнопки исправить его нет нигде.
     redraw = Action(REDRAW_ACTION_UZ if uz else REDRAW_ACTION_RU, "fs:draw")
 
-    if photo is not None and photo.reason in PHOTO_BLOCKED:
-        # Фото не построить — говорим одной строкой почему (ТЗ §4.6).
-        # Кнопки карты при этом нет: мёртвая кнопка хуже её отсутствия.
-        why = PHOTO_BLOCKED[photo.reason]
-        return Section(
-            key="uniformity", order=20, title=title, status=Status.NO_DATA,
-            line=drawn,
-            hint=why[0] if uz else why[1],
-            action=redraw if photo.reason == "too_small" else
-            Action(INLET_ACTION_UZ if uz else INLET_ACTION_RU, "fs:inlet")
-            if inlet_side is None else redraw)
-
     if declared_ha and abs(area_ha - declared_ha) / declared_ha >= AREA_MISMATCH_FRAC:
         # Две площади разошлись сильнее погрешности обхода. Молча выбрать
         # одну нельзя: расчёт воды идёт по заявленной, и если верна
@@ -314,21 +352,6 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
                   if uz else
                   f"В анкете {_ha1(declared_ha)} га — есть расхождение"),
             action=redraw)
-
-    if photo is not None and photo.ok:
-        # Снимок есть — он и есть главное, что фермеру тут нужно. Кнопка
-        # карты вытесняет вопрос о стороне входа: замер влажности берётся
-        # по пикселям и в направлении борозды не нуждается.
-        #
-        # Про сторону входа тут молчим: подсказка «можно ещё указать»
-        # висела без кнопки, а нажать было негде — шаг становился
-        # недостижимым ровно тогда, когда карточка о нём напоминала.
-        return Section(
-            key="uniformity", order=20, title=title, status=Status.NO_DATA,
-            line=drawn if inlet_side is None else
-            (f"{drawn} · Suv {inlet_side} tomondan kiradi" if uz
-             else f"{drawn} · Вода заходит с {inlet_side}а"),
-            action=Action(MAP_ACTION_UZ if uz else MAP_ACTION_RU, "fs:map"))
 
     if inlet_side is None:
         # Следующий недостающий шаг — сторона входа воды. Без неё ось

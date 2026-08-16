@@ -49,9 +49,9 @@ from suv.field_shape import to_geojson_ring
 from suv.field_shape import validate as validate_shape
 from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
                               Status, assemble, cost_section,
-                              field_list_label, overall_status, render_card,
-                              uniformity_section, water_section,
-                              weather_section)
+                              field_list_label, overall_status,
+                              photo_section, render_card, uniformity_section,
+                              water_section, weather_section)
 from suv.ledger import Ledger
 from suv.messages import recommendation_text, salinity_warning, savings_text
 from suv.schedule import Field, recommend, simulate
@@ -781,8 +781,9 @@ def _fs_sections(row, ctx, lang: str) -> list:
         uniformity_section(row["irrigation_method"], row["area_ha"],
                            has_reach=False, lang=lang,
                            declared_ha=row["hectares"],
-                           inlet_side=_inlet_side(row, lang),
-                           photo=_photo_verdict(row, date.today())),
+                           inlet_side=_inlet_side(row, lang)),
+        photo_section(row["area_ha"], row["irrigation_method"],
+                      photo=_photo_verdict(row, date.today()), lang=lang),
         weather_section(forecast, lang),
         cost_section(season_m3, pump, lang),
     )
