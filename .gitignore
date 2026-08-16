@@ -9,6 +9,8 @@ field.json
 # Здесь только то, из чего собирается и работает продукт.
 ЗАЯВКА.md
 *.pdf
+# ...кроме презентаций, которые сайт отдаёт из /docs — они деплоятся из репозитория.
+!landing/docs/*.pdf
 *.pptx
 brand/logo_kvadrat.png
 brand/logo_gorizontalniy.png
