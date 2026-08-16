@@ -67,6 +67,44 @@ def test_no_clear_pixels_means_no_measurement():
     assert stats_over_field(NDMI, FIELD, dark) is None
 
 
+def test_one_puddle_does_not_paint_the_whole_field_red():
+    """Самая опасная ошибка этой картинки.
+
+    Шкала растягивается на диапазон поля. Если брать крайние значения,
+    одной лужи, мокрой колеи или края канала хватает, чтобы задать верх
+    шкалы: остальные 289 клеток оказываются у нижнего края и красятся в
+    ярко-красное «сухо». Фермер идёт поливать политое — ровно то, о чём
+    предупреждает §1.1.
+    """
+    field = [[True] * 6 for _ in range(6)]
+    clear = [[True] * 6 for _ in range(6)]
+    flat_with_puddle = [0.30] * 35 + [0.75]
+    grid = [flat_with_puddle[i * 6:(i + 1) * 6] for i in range(6)]
+
+    st = stats_over_field(grid, field, clear)
+    assert st.wettest == 0.75, "выброс никуда не делся из данных"
+    assert st.high == pytest.approx(0.30), "но шкалу он не задаёт"
+    assert st.uniform, "поле ровное — красить его нельзя"
+
+    dry_patch = [0.45] * 35 + [0.02]
+    st2 = stats_over_field([dry_patch[i * 6:(i + 1) * 6] for i in range(6)],
+                           field, clear)
+    assert st2.driest == 0.02 and st2.uniform
+
+
+def test_a_real_gradient_is_still_painted():
+    """Устойчивая шкала не должна съедать настоящий перепад."""
+    field = [[True] * 6 for _ in range(6)]
+    clear = [[True] * 6 for _ in range(6)]
+    ramp = [0.10 + 0.02 * i for i in range(36)]
+    st = stats_over_field([ramp[i * 6:(i + 1) * 6] for i in range(6)],
+                          field, clear)
+    assert not st.uniform and st.spread > 0.5
+    r_dry, g_dry, *_ = moisture_color(st.low, st)
+    r_wet, g_wet, *_ = moisture_color(st.high, st)
+    assert r_dry > g_dry and g_wet > r_wet
+
+
 def test_even_field_is_reported_as_uniform():
     """Разброс меньше порога — говорить о сухих и влажных зонах нельзя."""
     flat = [[0.40, 0.40, 0.40],

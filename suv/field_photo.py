@@ -51,15 +51,34 @@ MAX_SCENE_AGE_DAYS = 14
 MIN_AREA_HA = 3.0
 
 
+# Шкала строится не по крайним значениям, а по этим долям выборки.
+# Причина конкретная: на поле в 3 га около 290 клеток, и ОДНОЙ лужи,
+# мокрой колеи или края канала хватает, чтобы задать верх шкалы. Тогда
+# ровное поле целиком красится в ярко-красное «сухо», и фермер идёт
+# поливать политое. Отбрасывая по двадцатой части с каждого конца, мы
+# теряем настоящие крайние клетки, но перестаём врать про остальные.
+LOW_PERCENTILE = 0.05
+HIGH_PERCENTILE = 0.95
+
+
+def _percentile(sorted_values: list[float], q: float) -> float:
+    if not sorted_values:
+        return 0.0
+    i = int(round(q * (len(sorted_values) - 1)))
+    return sorted_values[max(0, min(len(sorted_values) - 1, i))]
+
+
 @dataclass(frozen=True)
 class MoistureStats:
     """Что показал замер влажности внутри контура поля."""
 
-    low: float          # NDMI самой сухой части
-    high: float         # NDMI самой влажной
+    low: float          # нижняя граница шкалы (5-я процентиль)
+    high: float         # верхняя граница шкалы (95-я процентиль)
     mean: float
     valid_fraction: float
     pixels: int
+    driest: float = 0.0   # самая сухая клетка, как есть
+    wettest: float = 0.0  # самая влажная
 
     @property
     def spread(self) -> float:
@@ -67,7 +86,11 @@ class MoistureStats:
 
     @property
     def uniform(self) -> bool:
-        """Разброс так мал, что говорить о сухих и влажных зонах нельзя."""
+        """Разброс так мал, что говорить о сухих и влажных зонах нельзя.
+
+        Считается по устойчивым границам: иначе одна лужа превращала бы
+        ровное поле в «неравномерное».
+        """
         return self.spread < MIN_SPREAD
 
 
@@ -86,10 +109,13 @@ def stats_over_field(values, inside, cloud_free) -> MoistureStats | None:
     in_field = sum(1 for ins in _flat(inside) if ins)
     if not picked or not in_field:
         return None
+    ordered = sorted(picked)
     return MoistureStats(
-        low=min(picked), high=max(picked),
+        low=_percentile(ordered, LOW_PERCENTILE),
+        high=_percentile(ordered, HIGH_PERCENTILE),
         mean=sum(picked) / len(picked),
-        valid_fraction=len(picked) / in_field, pixels=len(picked))
+        valid_fraction=len(picked) / in_field, pixels=len(picked),
+        driest=ordered[0], wettest=ordered[-1])
 
 
 def _flat(grid):

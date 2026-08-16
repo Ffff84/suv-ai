@@ -1305,6 +1305,24 @@ def _photo_verdict(row, today: date):
         scene_day=scene_day or today, today=today, valid_fraction=None)
 
 
+def _latest_scene_day(row) -> str:
+    """Дата самого свежего кадра над полем, '' если спросить не вышло.
+
+    Спутник не должен ронять карточку: без даты просто пересоберём фото.
+    """
+    from suv import scene
+    from suv.field_photo import bbox_of
+    ring = _field_polygon(row)
+    if not ring:
+        return ""
+    try:
+        day = scene.latest_scene_day(scene.get_token(), bbox_of(ring))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("дата снимка для %s не получена: %s", row["field_id"], exc)
+        return ""
+    return day.isoformat() if day else ""
+
+
 def _build_photo(row, lang: str):
     """Собрать фото поля. Синхронная и медленная — только из потока."""
     from suv import photo_render, scene
@@ -1355,7 +1373,12 @@ async def photo_callback(update: Update,
     lang = "ru" if observer else "uz"
 
     key = _contour_fingerprint(row)
-    cached = LEDGER.cached_photo(fid, row["photo_scene_date"] or "", key)
+    # Дату свежего кадра спрашиваем у каталога — это одна быстрая
+    # проверка. Сравнивать сохранённую дату саму с собой бессмысленно:
+    # такой «кэш» никогда не заметил бы нового снимка и отдавал бы
+    # августовскую картинку до конца сезона.
+    latest = await asyncio.to_thread(_latest_scene_day, row)
+    cached = LEDGER.cached_photo(fid, latest, key) if latest else None
     if cached:
         # Повторное нажатие отдаёт готовый file_id мгновенно (ТЗ §4.5).
         await query.answer()

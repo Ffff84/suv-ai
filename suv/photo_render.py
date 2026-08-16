@@ -207,7 +207,10 @@ def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
             f"📊 {'Tekshirilgan' if uz else 'Измерено'}: "
             f"{stats.valid_fraction * 100:.0f}% "
             f"{'dala yuzasi' if uz else 'площади поля'}")
-        lines.append(f"NDMI {stats.low:+.2f} … {stats.high:+.2f}")
+        if not stats.uniform:
+            # Границы шкалы, а не крайние клетки: цвет означает именно
+            # этот диапазон, и подписывать надо его.
+            lines.append(f"NDMI {stats.low:+.2f} … {stats.high:+.2f}")
 
     if not contour_is_real:
         lines.append("")
