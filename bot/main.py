@@ -1433,7 +1433,11 @@ async def photo_callback(update: Update,
                        else "Готовлю снимок…")
     await ctx.bot.send_chat_action(chat, ChatAction.UPLOAD_PHOTO)
 
-    key = _contour_fingerprint(row)
+    # Ключ кэша: версия отрисовки + контур. Версия обязательна — без
+    # неё выкатка нового вида фото ничего не меняет для фермера, пока
+    # спутник не пройдёт заново: кэш видит ту же дату и тот же контур.
+    from suv.photo_render import STYLE_VERSION
+    key = f"v{STYLE_VERSION}:{_contour_fingerprint(row)}"
     # Дату свежего кадра спрашиваем у каталога. Сравнивать сохранённую
     # дату саму с собой бессмысленно: такой «кэш» никогда не заметил бы
     # нового снимка и отдавал бы августовскую картинку до конца сезона.
