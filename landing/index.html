@@ -100,6 +100,12 @@ header.top{
   display:flex;align-items:center;justify-content:center;transition:transform .2s;
 }
 .tbtn:hover{transform:rotate(40deg)}
+.langs{display:flex;border:1px solid var(--line);border-radius:100px;overflow:hidden}
+.langs button{
+  font:600 .75rem "JetBrains Mono",monospace;letter-spacing:.08em;
+  background:none;border:0;color:var(--mut);padding:9px 12px;cursor:pointer;
+}
+.langs button.on{background:var(--panel);color:var(--ink)}
 
 /* прогресс — борозда, наполняющаяся водой */
 #furrow{position:fixed;left:0;top:0;bottom:0;width:4px;background:var(--line);z-index:60}
@@ -312,8 +318,11 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <header class="top">
   <a class="logo" href="#">SUV<b>·AI</b></a>
   <div class="right">
+    <nav class="langs" aria-label="Til / Язык / Language">
+      <button data-lang="uz">UZ</button><button data-lang="ru">RU</button><button data-lang="en">EN</button>
+    </nav>
     <button class="tbtn" id="themeBtn" aria-label="Переключить тему" title="Тема">◐</button>
-    <a class="cta" href="https://t.me/suv_ai_bot">Открыть бота</a>
+    <a class="cta" href="https://t.me/suv_ai_bot" data-i18n="nav.cta">Открыть бота</a>
   </div>
 </header>
 
@@ -321,46 +330,46 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <section class="hero">
   <canvas id="flow"></canvas>
   <div class="shell">
-    <div class="eyebrow">Пилот работает · Самаркандская область · 2026</div>
-    <h1>Спутник видит, <em>докуда дошла вода</em> на вашем поле</h1>
-    <p class="sub">Telegram-бот считает водный баланс FAO-56, смотрит на поле из космоса
+    <div class="eyebrow" data-i18n="hero.eyebrow">Пилот работает · Самаркандская область · 2026</div>
+    <h1 data-i18n="hero.h1">Спутник видит, <em>докуда дошла вода</em> на вашем поле</h1>
+    <p class="sub" data-i18n="hero.sub">Telegram-бот считает водный баланс FAO-56, смотрит на поле из космоса
       и говорит фермеру одну фразу: <b>когда включить насос и на сколько часов</b>.
       Теперь — с картой влажности каждого гектара.</p>
     <div class="acts">
       <a class="btn b1" href="https://t.me/suv_ai_bot">@suv_ai_bot</a>
-      <a class="btn b2" href="#wet">Смотреть, как это работает ↓</a>
+      <a class="btn b2" href="#wet" data-i18n="hero.btn2">Смотреть, как это работает ↓</a>
     </div>
   </div>
-  <div class="hint">листайте — вода потечёт</div>
+  <div class="hint" data-i18n="hero.hint">листайте — вода потечёт</div>
 </section>
 
 <div class="ticker" aria-hidden="true">
   <div class="rail" id="rail">
-    <span>Sentinel-2 · снимок каждые <b>5 дней</b></span>
-    <span>движок FAO-56 · <b>171</b> автотест</span>
-    <span>контур поля — <b>пальцем за 30 секунд</b></span>
-    <span>карта влажности · клетка <b>20 м</b></span>
-    <span>совет — <b>часами насоса</b>, не миллиметрами</span>
-    <span>честный журнал · экономию можно <b>пересчитать</b></span>
+    <span data-i18n="tick.1">Sentinel-2 · снимок каждые <b>5 дней</b></span>
+    <span data-i18n="tick.2">движок FAO-56 · <b>171</b> автотест</span>
+    <span data-i18n="tick.3">контур поля — <b>пальцем за 30 секунд</b></span>
+    <span data-i18n="tick.4">карта влажности · клетка <b>20 м</b></span>
+    <span data-i18n="tick.5">совет — <b>часами насоса</b>, не миллиметрами</span>
+    <span data-i18n="tick.6">честный журнал · экономию можно <b>пересчитать</b></span>
   </div>
 </div>
 
 <!-- ЖИВАЯ КАРТА ВЛАЖНОСТИ -->
 <section class="sect" id="wet">
   <div class="shell">
-    <div class="eyebrow reveal">Новое · карта влажности</div>
-    <h2 class="reveal">Поле, которое показывает, где ему сухо</h2>
-    <p class="lede reveal">Индекс влажности NDMI по каждой клетке 20×20 метров — <b>измеренный спутником, не нарисованный моделью</b>. Наведите на клетку. Потом откройте воду.</p>
+    <div class="eyebrow reveal" data-i18n="wet.eyebrow">Новое · карта влажности</div>
+    <h2 class="reveal" data-i18n="wet.h2">Поле, которое показывает, где ему сухо</h2>
+    <p class="lede reveal" data-i18n="wet.lede">Индекс влажности NDMI по каждой клетке 20×20 метров — <b>измеренный спутником, не нарисованный моделью</b>. Наведите на клетку. Потом откройте воду.</p>
     <div class="wet-wrap">
       <div class="tilt reveal"><canvas id="moist"></canvas></div>
       <div class="wet-info reveal">
         <div class="read">
           <span class="mono" id="cellv">—</span>
-          <small id="cellw">наведите курсор на поле</small>
+          <small id="cellw" data-i18n="wet.hover0">наведите курсор на поле</small>
         </div>
-        <div class="wet-legend"><span>сухо</span><i></i><span>влажно</span></div>
-        <button class="play" id="irrigate">Открыть воду с севера</button>
-        <p style="margin-top:18px;font-size:.88rem;color:var(--mut)">
+        <div class="wet-legend"><span data-i18n="wet.legL">сухо</span><i></i><span data-i18n="wet.legR">влажно</span></div>
+        <button class="play" id="irrigate" data-i18n="wet.btn">Открыть воду с севера</button>
+        <p style="margin-top:18px;font-size:.88rem;color:var(--mut)" data-i18n="wet.note">
           Так выглядит день 6 продукта: фермер открыл канал — спутник через
           несколько дней покажет, докуда добежала вода и где остались сухие языки.
         </p>
@@ -372,24 +381,24 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <!-- ОБВОДКА -->
 <section class="sect" style="background:var(--deep2);border-top:1px solid var(--line)">
   <div class="shell">
-    <div class="eyebrow reveal">Новое · контур поля</div>
-    <h2 class="reveal">Обведите поле пальцем — прямо здесь</h2>
+    <div class="eyebrow reveal" data-i18n="draw.eyebrow">Новое · контур поля</div>
+    <h2 class="reveal" data-i18n="draw.h2">Обведите поле пальцем — прямо здесь</h2>
     <div class="draw-wrap">
       <div class="txt reveal">
-        <p class="lede">Кликайте по углам участка. Площадь считается на лету — как в настоящем
+        <p class="lede" data-i18n="draw.lede">Кликайте по углам участка. Площадь считается на лету — как в настоящем
           Mini App бота, где фермер обводит поле на спутниковой карте.</p>
         <ol class="steps-mini">
-          <li><span class="n">1</span><span><b>Контур</b> — 30 секунд пальцем или обход углов с геолокацией</span></li>
-          <li><span class="n">2</span><span><b>Площадь</b> — бот переспрашивает: «Dalangiz 1,5 gektar chiqdi. To'g'rimi?»</span></li>
-          <li><span class="n">3</span><span><b>Спутник</b> перестаёт смотреть в квадрат — замер идёт ровно по вашей меже</span></li>
+          <li><span class="n">1</span><span data-i18n="draw.s1"><b>Контур</b> — 30 секунд пальцем или обход углов с геолокацией</span></li>
+          <li><span class="n">2</span><span data-i18n="draw.s2"><b data-i18n="pil.dt1">Площадь</b> — бот переспрашивает: «Dalangiz 1,5 gektar chiqdi. To'g'rimi?»</span></li>
+          <li><span class="n">3</span><span data-i18n="draw.s3"><b>Спутник</b> перестаёт смотреть в квадрат — замер идёт ровно по вашей меже</span></li>
         </ol>
-        <div class="chip">Площадь: <span class="mono" id="area">0,00 га</span></div>
+        <div class="chip" data-i18n="draw.areaL">Площадь: <span class="mono" id="area">0,00 га</span></div>
         <div class="chip" id="drawmsg" style="display:none"></div>
-        <br><button class="play" id="redraw" style="margin-top:16px;background:var(--panel);color:var(--ink);border:1px solid var(--line)">Начать заново</button>
+        <br><button class="play" id="redraw" style="margin-top:16px;background:var(--panel);color:var(--ink);border:1px solid var(--line)" data-i18n="draw.redraw">Начать заново</button>
       </div>
       <div class="reveal"><canvas id="draw"></canvas></div>
     </div>
-    <p class="reveal" style="margin-top:28px;font-size:.88rem;color:var(--mut);max-width:60ch">
+    <p class="reveal" style="margin-top:28px;font-size:.88rem;color:var(--mut);max-width:60ch" data-i18n="draw.note">
       На пилоте контур уже поймал ошибку анкеты: заявленные 3 гектара виноградника
       оказались 1,4 — и рекомендации перестали советовать двойной объём воды.
     </p>
@@ -399,19 +408,19 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <!-- ДО/ПОСЛЕ -->
 <section class="sect">
   <div class="shell">
-    <div class="eyebrow reveal">Новое · фото поля</div>
-    <h2 class="reveal">Из пикселей — в карту, по которой видно поле</h2>
-    <p class="lede reveal">Слева — как выглядит бесплатный спутник (10 м на пиксель). Справа — то, что
+    <div class="eyebrow reveal" data-i18n="ba.eyebrow">Новое · фото поля</div>
+    <h2 class="reveal" data-i18n="ba.h2">Из пикселей — в карту, по которой видно поле</h2>
+    <p class="lede reveal" data-i18n="ba.lede">Слева — как выглядит бесплатный спутник (10 м на пиксель). Справа — то, что
       получает фермер: архивная карта высокого разрешения, а поверх — <b>измеренная влажность
       сегодняшнего снимка</b>. Потяните ползунок.</p>
     <div class="ba reveal" id="ba">
       <img class="base" src="img/photo-before.jpg" alt="Кадр Sentinel-2: поле в пикселях 10 м">
       <div class="after"><img src="img/photo-after.jpg" alt="Карта влажности на архивной подложке высокого разрешения"></div>
       <div class="bar" style="left:50%"></div>
-      <span class="tag l">Sentinel-2 · 10 м</span>
-      <span class="tag r">SUV AI · фото поля</span>
+      <span class="tag l" data-i18n="ba.tagl">Sentinel-2 · 10 м</span>
+      <span class="tag r" data-i18n="ba.tagr">SUV AI · фото поля</span>
     </div>
-    <p class="reveal" style="margin-top:20px;font-size:.85rem;color:var(--mut)">Это не рендер — реальный кадр из бота: виноградник пилота, замер влажности от 16 августа 2026.</p>
+    <p class="reveal" style="margin-top:20px;font-size:.85rem;color:var(--mut)" data-i18n="ba.note">Это не рендер — реальный кадр из бота: виноградник пилота, замер влажности от 16 августа 2026.</p>
   </div>
 </section>
 
@@ -420,12 +429,12 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
   <div class="shell">
     <div class="phone-wrap">
       <div class="reveal">
-        <div class="eyebrow">Новое · экран «Dala holati»</div>
-        <h2>Всё поле — одним сообщением</h2>
-        <p class="lede">Полив, равномерность, погода и расходы собираются в одну карточку.
+        <div class="eyebrow" data-i18n="card.eyebrow">Новое · экран «Dala holati»</div>
+        <h2 data-i18n="card.h2">Всё поле — одним сообщением</h2>
+        <p class="lede" data-i18n="card.lede1">Полив, равномерность, погода и расходы собираются в одну карточку.
           Секции — реестр: заморозки и засоление встанут туда без переделки экрана.
           Навигация правит <b>одно сообщение</b> — чат не превращается в простыню.</p>
-        <p class="lede" style="margin-top:12px">Статус — всегда словом, не только цветом:
+        <p class="lede" style="margin-top:12px" data-i18n="card.lede2">Статус — всегда словом, не только цветом:
           часть фермеров не различает красный и зелёный.</p>
       </div>
       <div class="phone reveal"><div class="scr" id="scr">
@@ -443,17 +452,17 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <!-- ЧЕСТНОСТЬ -->
 <section class="sect">
   <div class="shell">
-    <div class="eyebrow reveal">Принципы</div>
-    <h2 class="reveal">Правила честности, зашитые в код</h2>
-    <p class="lede reveal">Красивая картинка убедительнее данных под ней — поэтому у бота есть
+    <div class="eyebrow reveal" data-i18n="creed.eyebrow">Принципы</div>
+    <h2 class="reveal" data-i18n="creed.h2">Правила честности, зашитые в код</h2>
+    <p class="lede reveal" data-i18n="creed.lede">Красивая картинка убедительнее данных под ней — поэтому у бота есть
       правила, которые запрещают ему приукрашивать. Каждое закреплено автотестом.</p>
     <div class="creed-grid reveal">
-      <article><h3><span>§1</span>Карта — только по замеру</h3><p>Пока нет ни наблюдения фермера, ни спутникового замера — карта не рисуется вообще. Догадка не показывается как факт.</p></article>
-      <article><h3><span>§2</span>Дата описывает пиксели</h3><p>«Замер влажности: 16.08» относится ровно к тем клеткам, что нарисованы. Архивный фон подписан как архивный.</p></article>
-      <article><h3><span>§3</span>Ровное поле не красим</h3><p>Если разброс влажности меньше порога прибора, поле не раскрашивается: растянутая шкала нарисовала бы узор, которого нет.</p></article>
-      <article><h3><span>§4</span>Одна лужа — не сухое поле</h3><p>Шкала строится по устойчивым границам: случайная мокрая колея не превращает всё поле в «красное».</p></article>
-      <article><h3><span>§5</span>Экономию можно пересчитать</h3><p>Журнал хранит три факта: что сказали, что сделал фермер, что показал счётчик. Экономия выводится при чтении — и оспаривается.</p></article>
-      <article><h3><span>§6</span>Нет данных — так и говорим</h3><p>Облака над полем, старый снимок, поле меньше клетки замера — бот называет причину, а не показывает старое как свежее.</p></article>
+      <article><h3 data-i18n="creed.t1"><span>§1</span>Карта — только по замеру</h3><p data-i18n="creed.p1">Пока нет ни наблюдения фермера, ни спутникового замера — карта не рисуется вообще. Догадка не показывается как факт.</p></article>
+      <article><h3 data-i18n="creed.t2"><span>§2</span>Дата описывает пиксели</h3><p data-i18n="creed.p2">«Замер влажности: 16.08» относится ровно к тем клеткам, что нарисованы. Архивный фон подписан как архивный.</p></article>
+      <article><h3 data-i18n="creed.t3"><span>§3</span>Ровное поле не красим</h3><p data-i18n="creed.p3">Если разброс влажности меньше порога прибора, поле не раскрашивается: растянутая шкала нарисовала бы узор, которого нет.</p></article>
+      <article><h3 data-i18n="creed.t4"><span>§4</span>Одна лужа — не сухое поле</h3><p data-i18n="creed.p4">Шкала строится по устойчивым границам: случайная мокрая колея не превращает всё поле в «красное».</p></article>
+      <article><h3 data-i18n="creed.t5"><span>§5</span>Экономию можно пересчитать</h3><p data-i18n="creed.p5">Журнал хранит три факта: что сказали, что сделал фермер, что показал счётчик. Экономия выводится при чтении — и оспаривается.</p></article>
+      <article><h3 data-i18n="creed.t6"><span>§6</span>Нет данных — так и говорим</h3><p data-i18n="creed.p6">Облака над полем, старый снимок, поле меньше клетки замера — бот называет причину, а не показывает старое как свежее.</p></article>
     </div>
   </div>
 </section>
@@ -463,52 +472,52 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <!-- ПОЛЯ С ВЫСОТЫ -->
 <section class="sect" id="fields">
   <div class="shell">
-    <div class="eyebrow reveal">Поля пилота</div>
-    <h2 class="reveal">Вид, с которого продукт смотрит на работу</h2>
-    <p class="lede reveal">Это не стоковые фотографии — это <b>настоящие поля пилота</b> на тех же
+    <div class="eyebrow reveal" data-i18n="flds.eyebrow">Поля пилота</div>
+    <h2 class="reveal" data-i18n="flds.h2">Вид, с которого продукт смотрит на работу</h2>
+    <p class="lede reveal" data-i18n="flds.lede">Это не стоковые фотографии — это <b>настоящие поля пилота</b> на тех же
       спутниковых картах, по которым фермер обводит контур, а бот строит замер.</p>
   </div>
   <div class="shell">
     <div class="gal reveal">
       <figure><img src="img/aer-uzum.jpg" alt="Виноградник Uzumzor сверху" loading="lazy">
-        <figcaption><b>Uzumzor</b> — виноградник, залив из канала. Белым — настоящий контур из Mini App: 1,41 га по обмеру.</figcaption></figure>
+        <figcaption data-i18n="flds.c1"><b>Uzumzor</b> — виноградник, залив из канала. Белым — настоящий контур из Mini App: 1,41 га по обмеру.</figcaption></figure>
       <figure><img src="img/aer-olma.jpg" alt="Яблоневый сад Olmazor сверху" loading="lazy">
-        <figcaption><b>Olmazor</b> — Г-образный сад на капле, 8 вершин контура. Обмер: 2,52 га.</figcaption></figure>
+        <figcaption data-i18n="flds.c2"><b>Olmazor</b> — Г-образный сад на капле, 8 вершин контура. Обмер: 2,52 га.</figcaption></figure>
       <figure><img src="img/aer-wide.jpg" alt="Долина пилота: лоскут полей и кишлак" loading="lazy">
-        <figcaption><b>Долина пилота</b> — лоскут хозяйств вокруг кишлака. Каждому полю здесь нужен свой ответ про воду.</figcaption></figure>
+        <figcaption data-i18n="flds.c3"><b>Долина пилота</b> — лоскут хозяйств вокруг кишлака. Каждому полю здесь нужен свой ответ про воду.</figcaption></figure>
     </div>
     <div class="vid reveal">
       <video controls preload="none" poster="img/aer-wide.jpg" src="video/suv-ai-video.mp4"></video>
     </div>
-    <p class="reveal" style="margin-top:14px;font-size:.82rem;color:var(--mut)">Видео — кадры орошения, иллюстративные; спутниковые карты — Esri, Maxar, Earthstar Geographics.</p>
+    <p class="reveal" style="margin-top:14px;font-size:.82rem;color:var(--mut)" data-i18n="flds.credit">Видео — кадры орошения, иллюстративные; спутниковые карты — Esri, Maxar, Earthstar Geographics.</p>
   </div>
 </section>
 
 <!-- KPI -->
 <section class="sect creed" id="kpi">
   <div class="shell">
-    <div class="eyebrow reveal">Куда идём</div>
-    <h2 class="reveal">Цели, за которые нам можно спросить</h2>
-    <p class="lede reveal">KPI продукта устроен как его журнал: каждую цифру можно
+    <div class="eyebrow reveal" data-i18n="kpi.eyebrow">Куда идём</div>
+    <h2 class="reveal" data-i18n="kpi.h2">Цели, за которые нам можно спросить</h2>
+    <p class="lede reveal" data-i18n="kpi.lede">KPI продукта устроен как его журнал: каждую цифру можно
       <b>пересчитать и оспорить</b>. Вот к чему мы идём — и где мы сейчас, без прикрас.</p>
     <div class="kpi-grid">
       <div class="kpi reveal"><b><i>−</i><span data-count="20">0</span><i>%</i></b>
-        <span class="now">сейчас: считается журналом пилота</span>
-        <span class="what">воды и часов насоса на поле — проверяемая экономия, а не обещание</span></div>
-      <div class="kpi reveal"><b><span data-count="30000">0</span> <i>га</i></b>
-        <span class="now">сейчас: 3,5 га · 2 поля</span>
-        <span class="what">под управлением к концу 2027 — через кластеры и ассоциации водопользователей</span></div>
-      <div class="kpi reveal"><b><span data-count="1000">0</span> <i>хозяйств</i></b>
-        <span class="now">сейчас: 1 фермер · пилот</span>
-        <span class="what">получают утренний совет на своём языке — узбекском</span></div>
-      <div class="kpi reveal"><b><span data-count="5">0</span> <i>сек</i></b>
-        <span class="now">сейчас: уже так</span>
-        <span class="what">от вопроса «поливать ли сегодня?» до ответа — в чате, без агронома</span></div>
+        <span class="now" data-i18n="kpi.n1">сейчас: считается журналом пилота</span>
+        <span class="what" data-i18n="kpi.w1">воды и часов насоса на поле — проверяемая экономия, а не обещание</span></div>
+      <div class="kpi reveal"><b><span data-count="30000">0</span> <i data-i18n="kpi.u2">га</i></b>
+        <span class="now" data-i18n="kpi.n2">сейчас: 3,5 га · 2 поля</span>
+        <span class="what" data-i18n="kpi.w2">под управлением к концу 2027 — через кластеры и ассоциации водопользователей</span></div>
+      <div class="kpi reveal"><b><span data-count="1000">0</span> <i data-i18n="kpi.u3">хозяйств</i></b>
+        <span class="now" data-i18n="kpi.n3">сейчас: 1 фермер · пилот</span>
+        <span class="what" data-i18n="kpi.w3">получают утренний совет на своём языке — узбекском</span></div>
+      <div class="kpi reveal"><b><span data-count="5">0</span> <i data-i18n="kpi.u4">сек</i></b>
+        <span class="now" data-i18n="kpi.n4">сейчас: уже так</span>
+        <span class="what" data-i18n="kpi.w4">от вопроса «поливать ли сегодня?» до ответа — в чате, без агронома</span></div>
     </div>
     <div class="path reveal">
-      <div class="lab"><span>пилот · 3,5 га</span><span>цель 2027 · 30 000 га</span></div>
+      <div class="lab"><span data-i18n="kpi.labL">пилот · 3,5 га</span><span data-i18n="kpi.labR">цель 2027 · 30 000 га</span></div>
       <div class="track"><div class="done" id="pathbar" data-w="1.2"></div></div>
-      <p class="note">Заполнено честно: мы в самом начале пути — 0,01%. Зато каждый из этих
+      <p class="note" data-i18n="kpi.note">Заполнено честно: мы в самом начале пути — 0,01%. Зато каждый из этих
         гектаров считается каждое утро, и каждая рекомендация по нему записана в журнал.</p>
     </div>
   </div>
@@ -517,28 +526,28 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <!-- НАУКА -->
 <section class="sect creed">
   <div class="shell">
-    <div class="eyebrow reveal">Наука</div>
-    <h2 class="reveal">Западный калькулятор здесь ошибается почти вдвое</h2>
-    <p class="lede reveal">В Ферганской и Зарафшанской долинах грунтовые воды стоят в 1–3 метрах и
+    <div class="eyebrow reveal" data-i18n="sci.eyebrow">Наука</div>
+    <h2 class="reveal" data-i18n="sci.h2">Западный калькулятор здесь ошибается почти вдвое</h2>
+    <p class="lede reveal" data-i18n="sci.lede">В Ферганской и Зарафшанской долинах грунтовые воды стоят в 1–3 метрах и
       подпаивают корни снизу. Мировые реализации FAO-56 этот член уравнения отбрасывают.
       Мы вернули капиллярный подъём — и сезонная норма сошлась с реальными хозяйствами.</p>
     <div class="sci">
       <div class="bars reveal">
-        <div class="brow">агрономическая норма · хлопок
+        <div class="brow" data-i18n="sci.b1">агрономическая норма · хлопок
           <div class="track"><div class="fill" style="width:62%;background:var(--line);color:var(--ink)">5 000–7 000 м³/га</div></div>
         </div>
-        <div class="brow">FAO-56 без грунтовых вод
-          <div class="track"><div class="fill" style="width:97%;background:var(--dry)">9 700 м³/га — вдвое больше нормы</div></div>
+        <div class="brow" data-i18n="sci.b2">FAO-56 без грунтовых вод
+          <div class="track"><div class="fill" style="width:97%;background:var(--dry)" data-i18n="sci.f2">9 700 м³/га — вдвое больше нормы</div></div>
         </div>
-        <div class="brow">SUV AI с капиллярным подъёмом
-          <div class="track"><div class="fill" style="width:55%;background:var(--wet)">5 455 м³/га — внутри нормы</div></div>
+        <div class="brow" data-i18n="sci.b3">SUV AI с капиллярным подъёмом
+          <div class="track"><div class="fill" style="width:55%;background:var(--wet)" data-i18n="sci.f3">5 455 м³/га — внутри нормы</div></div>
         </div>
       </div>
       <div class="reveal">
-        <p style="color:var(--mut);font-size:.95rem">Тот же механизм — причина засоления половины орошаемых
+        <p style="color:var(--mut);font-size:.95rem" data-i18n="sci.p2">Тот же механизм — причина засоления половины орошаемых
           земель: перелив поднимает соль в корневую зону. Из этой поправки родилось
           предупреждение о засолении, которое бот шлёт фермеру вместе с рекомендацией.</p>
-        <p style="color:var(--mut);font-size:.95rem;margin-top:12px">Физика проверена по контрольным примерам
+        <p style="color:var(--mut);font-size:.95rem;margin-top:12px" data-i18n="sci.p3">Физика проверена по контрольным примерам
           самого справочника FAO-56 — <span class="mono" style="color:var(--ink)">171</span> автотест проходит при каждом изменении.</p>
       </div>
     </div>
@@ -548,49 +557,49 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <!-- ПИЛОТ -->
 <section class="sect">
   <div class="shell">
-    <div class="eyebrow reveal">Пилот · Самаркандская область</div>
-    <h2 class="reveal">Продукт живёт в кармане реального фермера</h2>
-    <p class="lede reveal">Каждое утро в 06:00 бот считает два поля хозяйства Фарруха.
+    <div class="eyebrow reveal" data-i18n="pil.eyebrow">Пилот · Самаркандская область</div>
+    <h2 class="reveal" data-i18n="pil.h2">Продукт живёт в кармане реального фермера</h2>
+    <p class="lede reveal" data-i18n="pil.lede">Каждое утро в 06:00 бот считает два поля хозяйства Фарруха.
       Это два разных мира орошения — и продукт честно различает их экономику.</p>
     <div class="pilot-cards">
       <div class="pcard reveal">
         <img class="pph" src="img/crop-olma.jpg" alt="Яблоневый сад — иллюстративное фото" loading="lazy">
-        <h3>🍎 Olmazor</h3><div class="sub">яблоневый сад · капля · насос</div>
+        <h3>🍎 Olmazor</h3><div class="sub" data-i18n="pil.sub1">яблоневый сад · капля · насос</div>
         <dl>
-          <dt>Площадь</dt><dd class="mono">2,0 га</dd>
-          <dt>Насос</dt><dd class="mono">60 м³/ч · 30 кВт·ч</dd>
-          <dt>Цена часа</dt><dd class="mono">45 000 сум</dd>
+          <dt data-i18n="pil.dt2">Площадь</dt><dd class="mono" data-i18n="pil.dd1">2,0 га</dd>
+          <dt data-i18n="pil.dtP">Насос</dt><dd class="mono" data-i18n="pil.ddP">60 м³/ч · 30 кВт·ч</dd>
+          <dt data-i18n="pil.dtC">Цена часа</dt><dd class="mono" data-i18n="pil.ddC">45 000 сум</dd>
         </dl>
-        <div class="note">Каждый сэкономленный куб сразу превращается в деньги фермера.</div>
+        <div class="note" data-i18n="pil.note1">Каждый сэкономленный куб сразу превращается в деньги фермера.</div>
       </div>
       <div class="pcard reveal">
         <img class="pph" src="img/crop-uzum.jpg" alt="Виноградник — иллюстративное фото" loading="lazy">
-        <h3>🍇 Uzumzor</h3><div class="sub">виноградник · залив из канала</div>
+        <h3>🍇 Uzumzor</h3><div class="sub" data-i18n="pil.sub2">виноградник · залив из канала</div>
         <dl>
-          <dt>Площадь</dt><dd class="mono">1,5 га — обмерено контуром</dd>
-          <dt>Полив</dt><dd class="mono">самотёк · сутки</dd>
-          <dt>Электричество</dt><dd class="mono">не расходуется</dd>
+          <dt>Площадь</dt><dd class="mono" data-i18n="pil.dd2">1,5 га — обмерено контуром</dd>
+          <dt data-i18n="pil.dtI">Полив</dt><dd class="mono" data-i18n="pil.ddI">самотёк · сутки</dd>
+          <dt data-i18n="pil.dtE">Электричество</dt><dd class="mono" data-i18n="pil.ddE">не расходуется</dd>
         </dl>
-        <div class="note">Вода фермеру бесплатна — экономию получают государство и хозяйства
+        <div class="note" data-i18n="pil.note2">Вода фермеру бесплатна — экономию получают государство и хозяйства
           ниже по каналу. Другой клиент, другой разговор.</div>
       </div>
     </div>
-    <p class="reveal" style="margin-top:16px;font-size:.82rem;color:var(--mut)">Фотографии культур — иллюстративные; цифры в карточках — настоящие, из базы пилота.</p>
+    <p class="reveal" style="margin-top:16px;font-size:.82rem;color:var(--mut)" data-i18n="pil.illustr">Фотографии культур — иллюстративные; цифры в карточках — настоящие, из базы пилота.</p>
   </div>
 </section>
 
 <!-- КОМАНДА -->
 <section class="sect creed" id="team">
   <div class="shell">
-    <div class="eyebrow reveal">Команда</div>
-    <h2 class="reveal">Трое, у которых уже есть работающий продукт</h2>
+    <div class="eyebrow reveal" data-i18n="team.eyebrow">Команда</div>
+    <h2 class="reveal" data-i18n="team.h2">Трое, у которых уже есть работающий продукт</h2>
     <div class="team">
       <div class="tcard reveal"><img src="img/amir.jpg" alt="Амир Негматуллаев">
-        <div><h3>Амир Негматуллаев</h3><p>Автор идеи · владелец продукта. Довёл SUV AI от уравнения FAO-56 до бота, который каждое утро пишет реальному фермеру.</p></div></div>
+        <div><h3>Амир Негматуллаев</h3><p data-i18n="team.r1">Автор идеи · владелец продукта. Довёл SUV AI от уравнения FAO-56 до бота, который каждое утро пишет реальному фермеру.</p></div></div>
       <div class="tcard reveal"><img src="img/husan.jpg" alt="Хусан Негматуллаев">
-        <div><h3>Хусан Негматуллаев</h3><p>Главный разработчик. Движок, спутниковый слой, инфраструктура: 171 автотест, физика сверена со справочником FAO-56.</p></div></div>
+        <div><h3>Хусан Негматуллаев</h3><p data-i18n="team.r2">Главный разработчик. Движок, спутниковый слой, инфраструктура: 171 автотест, физика сверена со справочником FAO-56.</p></div></div>
       <div class="tcard reveal"><img src="img/farux.jpg" alt="Фаррух Урунов">
-        <div><h3>Фаррух Урунов</h3><p>Фермер-партнёр пилота. Два поля, на которых продукт проверяется ежедневно. Его насос научил бота говорить часами, а не кубами.</p></div></div>
+        <div><h3>Фаррух Урунов</h3><p data-i18n="team.r3">Фермер-партнёр пилота. Два поля, на которых продукт проверяется ежедневно. Его насос научил бота говорить часами, а не кубами.</p></div></div>
     </div>
   </div>
 </section>
@@ -599,19 +608,239 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <section class="fin">
   <div class="shell">
     <div class="uz reveal">Har bir dala uchun aqlli sug'orish</div>
-    <h2 class="reveal">Дайте полю голос — оно скажет, когда ему пить</h2>
-    <p class="reveal" style="color:var(--mut);max-width:46ch;margin:0 auto 30px">Подключение — пять вопросов в чате.
+    <h2 class="reveal" data-i18n="fin.h2">Дайте полю голос — оно скажет, когда ему пить</h2>
+    <p class="reveal" style="color:var(--mut);max-width:46ch;margin:0 auto 30px" data-i18n="fin.p">Подключение — пять вопросов в чате.
       Без анкет, без приложений, без обучения.</p>
-    <a class="btn b1 reveal" href="https://t.me/suv_ai_bot">Открыть @suv_ai_bot</a>
+    <a class="btn b1 reveal" href="https://t.me/suv_ai_bot" data-i18n="fin.btn">Открыть @suv_ai_bot</a>
   </div>
 </section>
 
 <footer>
   <div class="shell">
-    <span>SUV AI · умный полив для каждого поля · пилот 2026</span>
+    <span data-i18n="foot.l">SUV AI · умный полив для каждого поля · пилот 2026</span>
     <span><a href="https://t.me/suv_ai_bot">@suv_ai_bot</a> · <a href="mailto:negmatullaevamir2@gmail.com">negmatullaevamir2@gmail.com</a></span>
   </div>
 </footer>
+
+<script>
+/* Переводы. Русский — в самой разметке и снимается при загрузке. */
+window.SUVAI_I18N = {
+uz: {
+"nav.cta":"Botni ochish",
+"hero.eyebrow":"Pilot ishlayapti · Samarqand viloyati · 2026",
+"hero.h1":"Sun'iy yo'ldosh dalangizda <em>suv qayergacha yetganini</em> ko'radi",
+"hero.sub":"Telegram-bot FAO-56 suv balansini hisoblaydi, dalaga kosmosdan qaraydi va fermerga bitta gap aytadi: <b>nasosni qachon va necha soatga yoqish</b>. Endi — har bir gektarning namlik xaritasi bilan.",
+"hero.btn2":"Qanday ishlashini ko'rish ↓",
+"hero.hint":"varaqlang — suv oqadi",
+"tick.1":"Sentinel-2 · har <b>5 kunda</b> surat",
+"tick.2":"FAO-56 dvigateli · <b>171</b> avtotest",
+"tick.3":"dala chegarasi — <b>30 soniyada barmoq bilan</b>",
+"tick.4":"namlik xaritasi · katak <b>20 m</b>",
+"tick.5":"maslahat — millimetr emas, <b>nasos soatlarida</b>",
+"tick.6":"halol jurnal · tejamkorlikni <b>qayta hisoblash</b> mumkin",
+"wet.eyebrow":"Yangi · namlik xaritasi",
+"wet.h2":"Qayeri qurug'ini o'zi ko'rsatadigan dala",
+"wet.lede":"Har bir 20×20 metr katakdagi NDMI namlik indeksi — <b>model chizgani emas, sun'iy yo'ldosh o'lchagani</b>. Katakka kursor olib boring. Keyin suvni oching.",
+"wet.hover0":"kursorni dalaga olib boring",
+"wet.legL":"quruq","wet.legR":"nam",
+"wet.btn":"Suvni shimoldan ochish",
+"wet.note":"Mahsulotning 6-kuni shunday ko'rinadi: fermer kanalni ochdi — bir necha kundan keyin sun'iy yo'ldosh suv qayergacha yetgani va qayerda quruq tillar qolganini ko'rsatadi.",
+"draw.eyebrow":"Yangi · dala chegarasi",
+"draw.h2":"Dalani barmoq bilan chizing — shu yerning o'zida",
+"draw.lede":"Uchastka burchaklarini bosing. Maydon shu zahoti hisoblanadi — botning haqiqiy Mini App'idagidek: fermer dalani sun'iy yo'ldosh xaritasida chizadi.",
+"draw.s1":"<b>Chegara</b> — 30 soniya barmoq bilan yoki burchaklarni geolokatsiya bilan aylanib chiqish",
+"draw.s2":"<b>Maydon</b> — bot qayta so'raydi: «Dalangiz 1,5 gektar chiqdi. To'g'rimi?»",
+"draw.s3":"<b>Sun'iy yo'ldosh</b> endi kvadratga qaramaydi — o'lchov aynan sizning chegarangiz bo'ylab boradi",
+"draw.areaL":"Maydon: <span class=\"mono\" id=\"area\">0,00 ga</span>",
+"draw.redraw":"Qaytadan boshlash",
+"draw.note":"Pilotda chegara anketa xatosini ushladi: uzumzorning e'lon qilingan 3 gektari 1,4 bo'lib chiqdi — va tavsiyalar ikki barobar suv aytishni to'xtatdi.",
+"ba.eyebrow":"Yangi · dala surati",
+"ba.h2":"Piksellardan — dala ko'rinadigan xaritaga",
+"ba.lede":"Chapda — bepul sun'iy yo'ldosh ko'rinishi (pikselga 10 m). O'ngda — fermer oladigani: yuqori aniqlikdagi arxiv xarita, ustida esa <b>bugungi suratning o'lchangan namligi</b>. Slayderni torting.",
+"ba.tagl":"Sentinel-2 · 10 m","ba.tagr":"SUV AI · dala surati",
+"ba.note":"Bu render emas — botdan olingan haqiqiy kadr: pilot uzumzori, 2026-yil 16-avgustdagi namlik o'lchovi.",
+"card.eyebrow":"Yangi · «Dala holati» ekrani",
+"card.h2":"Butun dala — bitta xabarda",
+"card.lede1":"Sug'orish, tekislik, ob-havo va xarajatlar bitta kartochkaga yig'iladi. Bo'limlar — reestr: sovuq urishi va sho'rlanish ekranni qayta ishlamasdan qo'shiladi. Navigatsiya <b>bitta xabarni</b> tahrirlaydi — chat cho'zilib ketmaydi.",
+"card.lede2":"Holat — doim so'z bilan, faqat rang bilan emas: ayrim fermerlar qizil bilan yashilni farqlamaydi.",
+"creed.eyebrow":"Tamoyillar",
+"creed.h2":"Kodga tikilgan halollik qoidalari",
+"creed.lede":"Chiroyli rasm ostidagi ma'lumotdan ko'ra ishonarliroq — shuning uchun botda bo'yab ko'rsatishni taqiqlaydigan qoidalar bor. Har biri avtotest bilan mustahkamlangan.",
+"creed.t1":"<span>§1</span>Xarita — faqat o'lchov bo'yicha",
+"creed.p1":"Fermer kuzatuvi ham, sun'iy yo'ldosh o'lchovi ham bo'lmaguncha — xarita umuman chizilmaydi. Taxmin fakt sifatida ko'rsatilmaydi.",
+"creed.t2":"<span>§2</span>Sana piksellarni tasvirlaydi",
+"creed.p2":"«Namlik o'lchovi: 16.08» aynan chizilgan kataklarga tegishli. Arxiv fon arxiv deb imzolangan.",
+"creed.t3":"<span>§3</span>Tekis dalani bo'yamaymiz",
+"creed.p3":"Agar namlik tarqalishi asbob chegarasidan kichik bo'lsa, dala bo'yalmaydi: cho'zilgan shkala yo'q naqshni chizib berardi.",
+"creed.t4":"<span>§4</span>Bitta ko'lmak — quruq dala emas",
+"creed.p4":"Shkala barqaror chegaralar bo'yicha quriladi: tasodifiy ho'l iz butun dalani «qizil» qilib qo'ymaydi.",
+"creed.t5":"<span>§5</span>Tejamkorlikni qayta hisoblash mumkin",
+"creed.p5":"Jurnal uch faktni saqlaydi: nima deyildi, fermer nima qildi, hisoblagich nimani ko'rsatdi. Tejamkorlik o'qishda hisoblanadi — va bahslashsa bo'ladi.",
+"creed.t6":"<span>§6</span>Ma'lumot yo'q — shunday deymiz",
+"creed.p6":"Dala ustida bulut, eski surat, o'lchov katagidan kichik dala — bot sababini aytadi, eskini yangidek ko'rsatmaydi.",
+"flds.eyebrow":"Pilot dalalari",
+"flds.h2":"Mahsulot ishiga qaraydigan ko'rinish",
+"flds.lede":"Bular stok suratlar emas — <b>pilotning haqiqiy dalalari</b>, fermer chegara chizadigan va bot o'lchov quradigan o'sha sun'iy yo'ldosh xaritalarida.",
+"flds.c1":"<b>Uzumzor</b> — kanaldan bostirib sug'oriladigan uzumzor. Oq chiziq — Mini App'dan haqiqiy chegara: o'lchov bo'yicha 1,41 ga.",
+"flds.c2":"<b>Olmazor</b> — tomchilatib sug'oriladigan G-shaklidagi bog', chegarada 8 nuqta. O'lchov: 2,52 ga.",
+"flds.c3":"<b>Pilot vodiysi</b> — qishloq atrofidagi xo'jaliklar korami. Bu yerda har bir dalaga suv haqida o'z javobi kerak.",
+"flds.credit":"Video — sug'orish kadrlari, illyustrativ; sun'iy yo'ldosh xaritalari — Esri, Maxar, Earthstar Geographics.",
+"kpi.eyebrow":"Qayoqqa ketyapmiz",
+"kpi.h2":"Bizdan so'rasa bo'ladigan maqsadlar",
+"kpi.lede":"Mahsulot KPI'si jurnali kabi qurilgan: har bir raqamni <b>qayta hisoblash va bahslashish</b> mumkin. Mana biz qayoqqa ketyapmiz — va hozir qayerdamiz, bo'yamasdan.",
+"kpi.n1":"hozir: pilot jurnali hisoblab boradi",
+"kpi.w1":"dalada suv va nasos soatlari — va'da emas, tekshiriladigan tejamkorlik",
+"kpi.u2":"ga","kpi.n2":"hozir: 3,5 ga · 2 dala",
+"kpi.w2":"2027 oxirigacha boshqaruvda — klasterlar va suv iste'molchilari uyushmalari orqali",
+"kpi.u3":"xo'jalik","kpi.n3":"hozir: 1 fermer · pilot",
+"kpi.w3":"har tong o'z tilida — o'zbekchada maslahat oladi",
+"kpi.u4":"soniya","kpi.n4":"hozir: allaqachon shunday",
+"kpi.w4":"«bugun sug'oraymi?» degan savoldan javobgacha — chatda, agronomsiz",
+"kpi.labL":"pilot · 3,5 ga","kpi.labR":"maqsad 2027 · 30 000 ga",
+"kpi.note":"Halol to'ldirilgan: biz yo'lning eng boshidamiz — 0,01%. Ammo bu gektarlarning har biri har tong hisoblanadi va har bir tavsiya jurnalga yozilgan.",
+"sci.eyebrow":"Ilm",
+"sci.h2":"G'arb kalkulyatori bu yerda deyarli ikki barobar adashadi",
+"sci.lede":"Farg'ona va Zarafshon vodiylarida sizot suvlari 1–3 metrda turadi va ildizlarni pastdan sug'oradi. FAO-56 ning jahon tatbiqlari bu hadni tashlab yuboradi. Biz kapillyar ko'tarilishni qaytardik — mavsumiy norma haqiqiy xo'jaliklar bilan mos tushdi.",
+"sci.b1":"agronomik norma · paxta","sci.b2":"FAO-56 sizot suvisiz","sci.b3":"SUV AI kapillyar ko'tarilish bilan",
+"sci.f2":"9 700 m³/ga — normadan ikki barobar ko'p","sci.f3":"5 455 m³/ga — norma ichida",
+"sci.p2":"Xuddi shu mexanizm — sug'oriladigan yerlarning yarmi sho'rlanishining sababi: ortiqcha suv tuzni ildiz zonasiga ko'taradi. Shu tuzatishdan bot tavsiya bilan birga yuboradigan sho'rlanish ogohlantirishi tug'ildi.",
+"sci.p3":"Fizika FAO-56 ma'lumotnomasining nazorat misollari bilan tekshirilgan — har o'zgarishda <span class=\"mono\" style=\"color:var(--ink)\">171</span> avtotest o'tadi.",
+"pil.eyebrow":"Pilot · Samarqand viloyati",
+"pil.h2":"Mahsulot haqiqiy fermerning cho'ntagida yashaydi",
+"pil.lede":"Har tong 06:00 da bot Farrux xo'jaligining ikki dalasini hisoblaydi. Bu sug'orishning ikki xil olami — mahsulot ularning iqtisodini halol farqlaydi.",
+"pil.sub1":"olma bog'i · tomchilatib · nasos",
+"pil.dt1":"Maydon","pil.dd1":"2,0 ga",
+"pil.dtP":"Nasos","pil.ddP":"60 m³/soat · 30 kVt·soat",
+"pil.dtC":"Soat narxi","pil.ddC":"45 000 so'm",
+"pil.note1":"Har bir tejalgan kub darhol fermer puliga aylanadi.",
+"pil.sub2":"uzumzor · kanaldan bostirish",
+"pil.dt2":"Maydon","pil.dd2":"1,5 ga — chegara bilan o'lchangan",
+"pil.dtI":"Sug'orish","pil.ddI":"o'z oqimi · bir sutka",
+"pil.dtE":"Elektr","pil.ddE":"sarflanmaydi",
+"pil.note2":"Suv fermerga bepul — tejamkorlik davlatga va kanal quyisidagi xo'jaliklarga tegadi. Boshqa mijoz, boshqa suhbat.",
+"pil.illustr":"Ekin suratlari illyustrativ; kartochkalardagi raqamlar haqiqiy, pilot bazasidan.",
+"team.eyebrow":"Jamoa",
+"team.h2":"Ishlayotgan mahsuloti bor uch kishi",
+"team.r1":"G'oya muallifi · mahsulot egasi. SUV AI ni FAO-56 tenglamasidan har tong haqiqiy fermerga yozadigan botgacha olib keldi.",
+"team.r2":"Bosh dasturchi. Dvigatel, sun'iy yo'ldosh qatlami, infratuzilma: 171 avtotest, fizika FAO-56 ma'lumotnomasi bilan solishtirilgan.",
+"team.r3":"Pilotning fermer-hamkori. Mahsulot har kuni sinovdan o'tadigan ikki dala. Uning nasosi botni kub emas, soat bilan gapirishga o'rgatdi.",
+"fin.h2":"Dalaga ovoz bering — qachon suv ichishini o'zi aytadi",
+"fin.p":"Ulanish — chatdagi beshta savol. Anketasiz, ilovasiz, o'qitishsiz.",
+"fin.btn":"@suv_ai_bot ni ochish",
+"foot.l":"SUV AI · har bir dala uchun aqlli sug'orish · pilot 2026"
+},
+en: {
+"nav.cta":"Open the bot",
+"hero.eyebrow":"Pilot live · Samarkand region · 2026",
+"hero.h1":"The satellite sees <em>how far the water reached</em> on your field",
+"hero.sub":"A Telegram bot runs the FAO-56 water balance, watches the field from space and tells the farmer one sentence: <b>when to switch the pump on and for how many hours</b>. Now — with a moisture map of every hectare.",
+"hero.btn2":"See how it works ↓",
+"hero.hint":"scroll — the water will flow",
+"tick.1":"Sentinel-2 · a scene every <b>5 days</b>",
+"tick.2":"FAO-56 engine · <b>171</b> tests",
+"tick.3":"field boundary — <b>traced by finger in 30 s</b>",
+"tick.4":"moisture map · <b>20 m</b> cell",
+"tick.5":"advice in <b>pump hours</b>, not millimetres",
+"tick.6":"honest ledger · savings can be <b>recomputed</b>",
+"wet.eyebrow":"New · moisture map",
+"wet.h2":"A field that shows where it is dry",
+"wet.lede":"The NDMI moisture index for every 20×20 m cell — <b>measured by the satellite, not painted by a model</b>. Hover a cell. Then open the water.",
+"wet.hover0":"hover the field",
+"wet.legL":"dry","wet.legR":"wet",
+"wet.btn":"Open water from the north",
+"wet.note":"This is day 6 of the product: the farmer opens the canal — a few days later the satellite shows how far the water ran and where dry tongues remain.",
+"draw.eyebrow":"New · field boundary",
+"draw.h2":"Trace your field by finger — right here",
+"draw.lede":"Click the plot corners. The area is computed live — just like the bot's real Mini App, where the farmer traces the field on a satellite map.",
+"draw.s1":"<b>Boundary</b> — 30 seconds by finger, or walking the corners with geolocation",
+"draw.s2":"<b>Area</b> — the bot double-checks: “Dalangiz 1,5 gektar chiqdi. To'g'rimi?”",
+"draw.s3":"<b>The satellite</b> stops looking at a square — measurement follows your exact boundary",
+"draw.areaL":"Area: <span class=\"mono\" id=\"area\">0.00 ha</span>",
+"draw.redraw":"Start over",
+"draw.note":"On the pilot the boundary already caught a paperwork error: the vineyard's declared 3 hectares turned out to be 1.4 — and the advice stopped prescribing double the water.",
+"ba.eyebrow":"New · field photo",
+"ba.h2":"From pixels to a map where you can see the field",
+"ba.lede":"Left — what the free satellite looks like (10 m per pixel). Right — what the farmer gets: a high-resolution archival map with <b>today's measured moisture</b> on top. Drag the handle.",
+"ba.tagl":"Sentinel-2 · 10 m","ba.tagr":"SUV AI · field photo",
+"ba.note":"Not a render — a real frame from the bot: the pilot vineyard, moisture measured on 16 August 2026.",
+"card.eyebrow":"New · the Dala holati screen",
+"card.h2":"The whole field in one message",
+"card.lede1":"Irrigation, uniformity, weather and costs assemble into one card. Sections are a registry: frost and salinity will slot in without redoing the screen. Navigation edits <b>one message</b> — the chat never becomes a scroll of noise.",
+"card.lede2":"Status is always a word, never colour alone: some farmers cannot tell red from green.",
+"creed.eyebrow":"Principles",
+"creed.h2":"Honesty rules written into the code",
+"creed.lede":"A beautiful picture is more convincing than the data beneath it — so the bot has rules that forbid embellishment. Each one is pinned by an automated test.",
+"creed.t1":"<span>§1</span>The map — only from measurement",
+"creed.p1":"Until there is a farmer observation or a satellite measurement, no map is drawn at all. A guess is never shown as a fact.",
+"creed.t2":"<span>§2</span>The date describes the pixels",
+"creed.p2":"“Moisture measured: 16.08” refers to exactly the cells that are painted. The archival background is labelled archival.",
+"creed.t3":"<span>§3</span>An even field is not painted",
+"creed.p3":"If the moisture spread is below the instrument's threshold, the field is not coloured: a stretched scale would paint a pattern that isn't there.",
+"creed.t4":"<span>§4</span>One puddle is not a dry field",
+"creed.p4":"The scale uses robust bounds: a random wet track does not turn the whole field red.",
+"creed.t5":"<span>§5</span>Savings can be recomputed",
+"creed.p5":"The ledger stores three facts: what we said, what the farmer did, what the meter showed. Savings are derived at read time — and can be challenged.",
+"creed.t6":"<span>§6</span>No data — we say so",
+"creed.p6":"Clouds over the field, a stale scene, a plot smaller than the measuring cell — the bot names the reason instead of passing off old as fresh.",
+"flds.eyebrow":"Pilot fields",
+"flds.h2":"The view the product works from",
+"flds.lede":"These are not stock photos — they are the <b>pilot's real fields</b> on the same satellite maps the farmer traces on and the bot measures from.",
+"flds.c1":"<b>Uzumzor</b> — a vineyard flood-irrigated from the canal. In white — the real boundary from the Mini App: 1.41 ha measured.",
+"flds.c2":"<b>Olmazor</b> — an L-shaped drip-irrigated orchard, 8 boundary vertices. Measured: 2.52 ha.",
+"flds.c3":"<b>The pilot valley</b> — a patchwork of farms around the kishlak. Every field here needs its own answer about water.",
+"flds.credit":"Video — illustrative irrigation footage; satellite maps — Esri, Maxar, Earthstar Geographics.",
+"kpi.eyebrow":"Where we are going",
+"kpi.h2":"Goals we can be held to",
+"kpi.lede":"The product's KPI works like its ledger: every number can be <b>recomputed and challenged</b>. Here is where we are going — and where we are now, unvarnished.",
+"kpi.n1":"now: being measured by the pilot ledger",
+"kpi.w1":"of water and pump hours per field — verifiable savings, not a promise",
+"kpi.u2":"ha","kpi.n2":"now: 3.5 ha · 2 fields",
+"kpi.w2":"under management by end of 2027 — via clusters and water-user associations",
+"kpi.u3":"farms","kpi.n3":"now: 1 farmer · pilot",
+"kpi.w3":"receive the morning advice in their own language — Uzbek",
+"kpi.u4":"sec","kpi.n4":"now: already true",
+"kpi.w4":"from “water today?” to the answer — in chat, no agronomist",
+"kpi.labL":"pilot · 3.5 ha","kpi.labR":"goal 2027 · 30,000 ha",
+"kpi.note":"Filled honestly: we are at the very start — 0.01%. But every one of those hectares is computed each morning, and every recommendation is on the ledger.",
+"sci.eyebrow":"Science",
+"sci.h2":"The Western calculator is off by almost half here",
+"sci.lede":"In the Fergana and Zarafshan valleys the water table sits 1–3 metres down and feeds roots from below. World implementations of FAO-56 drop this term. We put capillary rise back — and the seasonal norm matched real farms.",
+"sci.b1":"agronomic norm · cotton","sci.b2":"FAO-56 without groundwater","sci.b3":"SUV AI with capillary rise",
+"sci.f2":"9,700 m³/ha — double the norm","sci.f3":"5,455 m³/ha — within the norm",
+"sci.p2":"The same mechanism is why half the irrigated land is saline: over-watering lifts salt into the root zone. That correction is where the salinity warning the bot sends alongside its advice was born.",
+"sci.p3":"The physics is checked against the FAO-56 handbook's own worked examples — <span class=\"mono\" style=\"color:var(--ink)\">171</span> tests run on every change.",
+"pil.eyebrow":"Pilot · Samarkand region",
+"pil.h2":"The product lives in a real farmer's pocket",
+"pil.lede":"Every morning at 06:00 the bot computes two fields of Farrukh's farm. Two different worlds of irrigation — and the product honestly tells their economics apart.",
+"pil.sub1":"apple orchard · drip · pump",
+"pil.dt1":"Area","pil.dd1":"2.0 ha",
+"pil.dtP":"Pump","pil.ddP":"60 m³/h · 30 kWh",
+"pil.dtC":"Hour cost","pil.ddC":"45,000 UZS",
+"pil.note1":"Every cubic metre saved turns straight into the farmer's money.",
+"pil.sub2":"vineyard · canal flood",
+"pil.dt2":"Area","pil.dd2":"1.5 ha — measured by boundary",
+"pil.dtI":"Irrigation","pil.ddI":"gravity flow · 24 h",
+"pil.dtE":"Electricity","pil.ddE":"none used",
+"pil.note2":"Water costs the farmer nothing — the savings go to the state and to farms downstream. A different customer, a different conversation.",
+"pil.illustr":"Crop photos are illustrative; the numbers in the cards are real, from the pilot database.",
+"team.eyebrow":"Team",
+"team.h2":"Three people who already have a working product",
+"team.r1":"Idea author · product owner. Took SUV AI from the FAO-56 equation to a bot that writes to a real farmer every morning.",
+"team.r2":"Lead developer. Engine, satellite layer, infrastructure: 171 tests, physics checked against the FAO-56 handbook.",
+"team.r3":"The pilot's partner farmer. Two fields where the product is tested daily. His pump taught the bot to speak in hours, not cubic metres.",
+"fin.h2":"Give the field a voice — it will say when it is thirsty",
+"fin.p":"Onboarding is five questions in a chat. No forms, no apps, no training.",
+"fin.btn":"Open @suv_ai_bot",
+"foot.l":"SUV AI · smart irrigation for every field · pilot 2026"
+}
+};
+/* строки, которые пишет сам JS */
+window.SUVAI_RT = {
+ru:{hover:"наведите курсор на поле",dry:"суше остального поля — сюда вода не дошла",mid:"средняя влажность",wetw:"влажно — вода дошла",again:"Полить ещё раз",unit:" га",hint:"кликайте по углам поля",title:"SUV AI — спутник видит, докуда дошла вода"},
+uz:{hover:"kursorni dalaga olib boring",dry:"dalaning qolganidan quruqroq — suv bu yerga yetmagan",mid:"o'rtacha namlik",wetw:"nam — suv yetgan",again:"Yana sug'orish",unit:" ga",hint:"dala burchaklarini bosing",title:"SUV AI — sun'iy yo'ldosh suv qayerga yetganini ko'radi"},
+en:{hover:"hover the field",dry:"drier than the rest — water didn't reach here",mid:"average moisture",wetw:"wet — water reached",again:"Irrigate again",unit:" ha",hint:"click the field corners",title:"SUV AI — the satellite sees how far the water reached"}
+};
+</script>
 
 <script>
 (function(){
@@ -753,11 +982,10 @@ rail.innerHTML += rail.innerHTML;
     var c=cells[hov], v=Math.min(1,c.b+c.add);
     var ndmi=(-0.05+v*0.5);
     vEl.textContent="NDMI "+(ndmi>=0?"+":"")+ndmi.toFixed(2);
-    wEl.textContent = v<0.35 ? "суше остального поля — сюда вода не дошла"
-                    : v<0.6  ? "средняя влажность" : "влажно — вода дошла";
+    wEl.textContent = v<0.35 ? RT().dry : v<0.6 ? RT().mid : RT().wetw;
     draw();
   });
-  cv.addEventListener("pointerleave",function(){hov=-1;vEl.textContent="—";wEl.textContent="наведите курсор на поле";draw();});
+  cv.addEventListener("pointerleave",function(){hov=-1;vEl.textContent="—";wEl.textContent=RT().hover;draw();});
   wetBtn.addEventListener("click",function(){
     if(animating) return;
     animating=true; wetBtn.disabled=true; t0=performance.now();
@@ -773,7 +1001,7 @@ rail.innerHTML += rail.innerHTML;
       }
       draw();
       if(k<1) requestAnimationFrame(anim);
-      else { animating=false; wetBtn.disabled=false; wetBtn.textContent="Полить ещё раз"; }
+      else { animating=false; wetBtn.disabled=false; wetBtn.textContent=RT().again; }
     })(t0);
   });
 })();
@@ -816,7 +1044,7 @@ rail.innerHTML += rail.innerHTML;
     if(!pts.length){
       cx.fillStyle=pal().hint;
       cx.font="13px JetBrains Mono,monospace";cx.textAlign="center";
-      cx.fillText("кликайте по углам поля", w/2, h/2);
+      cx.fillText(RT().hint, w/2, h/2);
       var t=performance.now()/600;
       cx.strokeStyle=pal().pulse(0.4+0.3*Math.sin(t));
       cx.lineWidth=2;cx.beginPath();cx.arc(w/2,h/2+30,10+2*Math.sin(t),0,7);cx.stroke();
@@ -835,7 +1063,8 @@ rail.innerHTML += rail.innerHTML;
       });
     }
     var ha=area();
-    areaEl.textContent=ha.toFixed(2).replace(".",",")+" га";
+    var areaNode=document.getElementById("area");
+    if(areaNode) areaNode.textContent=(LANG==="en"?ha.toFixed(2):ha.toFixed(2).replace(".",","))+RT().unit;
     if(pts.length>2){
       msg.style.display="inline-flex";
       msg.textContent="Dalangiz "+ha.toFixed(1).replace(".",",")+" gektar chiqdi. To'g'rimi?";
@@ -917,6 +1146,37 @@ document.getElementById("themeBtn").addEventListener("click", function(){
     ob.disconnect();
   },{threshold:0.35}).observe(scr);
 })();
+
+/* ── языки ── */
+var LANG = localStorage.getItem("suvai-lang");
+if(!LANG){
+  var nl = (navigator.language||"").toLowerCase();
+  LANG = nl.indexOf("uz")===0 ? "uz" : nl.indexOf("en")===0 ? "en" : "ru";
+}
+var RUBASE = {};
+document.querySelectorAll("[data-i18n]").forEach(function(el){
+  RUBASE[el.getAttribute("data-i18n")] = el.innerHTML;
+});
+function RT(){ return SUVAI_RT[LANG] || SUVAI_RT.ru; }
+function setLang(l){
+  LANG = l;
+  localStorage.setItem("suvai-lang", l);
+  document.documentElement.lang = l;
+  document.querySelectorAll("[data-i18n]").forEach(function(el){
+    var k = el.getAttribute("data-i18n");
+    var v = l==="ru" ? RUBASE[k] : (SUVAI_I18N[l] && SUVAI_I18N[l][k]);
+    if(v!==undefined) el.innerHTML = v;
+  });
+  document.title = RT().title;
+  document.querySelectorAll(".langs button").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-lang")===l);
+  });
+  REDRAW.forEach(function(f){ f(); });   // подсказка на канвасе обводки
+}
+document.querySelectorAll(".langs button").forEach(function(b){
+  b.addEventListener("click", function(){ setLang(b.getAttribute("data-lang")); });
+});
+setLang(LANG);
 })();
 </script>
 
