@@ -1,8 +1,15 @@
 __pycache__/
 *.pyc
 *.db
+*.sqlite
+*.sqlite3
+*.session
 .pytest_cache/
+# Любые варианты .env — включая бэкапы вроде .env.bak-allowlist с живым токеном.
 .env
+.env.*
+!.env.example
+*.bak
 field.json
 
 # Материалы заявок и презентаций: живут на диске, в репозитории им не место.
