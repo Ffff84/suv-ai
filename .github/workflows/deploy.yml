@@ -109,6 +109,10 @@ jobs:
                   mkdir -p /var/www/suv-ai/video
                   cp -r landing/video/. /var/www/suv-ai/video/ 2>/dev/null || true
                 fi
+                if [ -d landing/docs ]; then
+                  mkdir -p /var/www/suv-ai/docs
+                  cp -r landing/docs/. /var/www/suv-ai/docs/ 2>/dev/null || true
+                fi
                 echo "Лендинг обновлён"
               fi
             fi
