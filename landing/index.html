@@ -252,6 +252,7 @@ header.top{
 .pilot-cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
 @media(max-width:760px){.pilot-cards{grid-template-columns:1fr}}
 .pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px}
+.pcard .pph{width:calc(100% + 52px);margin:-26px -26px 18px;aspect-ratio:16/9;object-fit:cover;border-radius:13px 13px 0 0;display:block}
 .pcard h3{font-size:1.05rem;margin-bottom:4px}
 .pcard .sub{color:var(--mut);font-size:.85rem;margin-bottom:16px}
 .pcard dl{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:.9rem}
@@ -470,9 +471,9 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
   <div class="shell">
     <div class="gal reveal">
       <figure><img src="img/aer-uzum.jpg" alt="Виноградник Uzumzor сверху" loading="lazy">
-        <figcaption><b>Uzumzor · 1,5 га</b> — виноградник, залив из канала. Ряды лоз читаются с высоты.</figcaption></figure>
+        <figcaption><b>Uzumzor</b> — виноградник, залив из канала. Белым — настоящий контур из Mini App: 1,41 га по обмеру.</figcaption></figure>
       <figure><img src="img/aer-olma.jpg" alt="Яблоневый сад Olmazor сверху" loading="lazy">
-        <figcaption><b>Olmazor · 2 га</b> — яблоневый сад на капле. Каждое дерево — отдельная точка.</figcaption></figure>
+        <figcaption><b>Olmazor</b> — Г-образный сад на капле, 8 вершин контура. Обмер: 2,52 га.</figcaption></figure>
       <figure><img src="img/aer-wide.jpg" alt="Долина пилота: лоскут полей и кишлак" loading="lazy">
         <figcaption><b>Долина пилота</b> — лоскут хозяйств вокруг кишлака. Каждому полю здесь нужен свой ответ про воду.</figcaption></figure>
     </div>
@@ -553,6 +554,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
       Это два разных мира орошения — и продукт честно различает их экономику.</p>
     <div class="pilot-cards">
       <div class="pcard reveal">
+        <img class="pph" src="img/crop-olma.jpg" alt="Яблоневый сад — иллюстративное фото" loading="lazy">
         <h3>🍎 Olmazor</h3><div class="sub">яблоневый сад · капля · насос</div>
         <dl>
           <dt>Площадь</dt><dd class="mono">2,0 га</dd>
@@ -562,6 +564,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
         <div class="note">Каждый сэкономленный куб сразу превращается в деньги фермера.</div>
       </div>
       <div class="pcard reveal">
+        <img class="pph" src="img/crop-uzum.jpg" alt="Виноградник — иллюстративное фото" loading="lazy">
         <h3>🍇 Uzumzor</h3><div class="sub">виноградник · залив из канала</div>
         <dl>
           <dt>Площадь</dt><dd class="mono">1,5 га — обмерено контуром</dd>
@@ -572,6 +575,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
           ниже по каналу. Другой клиент, другой разговор.</div>
       </div>
     </div>
+    <p class="reveal" style="margin-top:16px;font-size:.82rem;color:var(--mut)">Фотографии культур — иллюстративные; цифры в карточках — настоящие, из базы пилота.</p>
   </div>
 </section>
 
