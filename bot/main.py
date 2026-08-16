@@ -795,6 +795,21 @@ def _crop_name(row, lang: str) -> str:
     return crop.name_uz if lang == "uz" else crop.name_ru
 
 
+def _may_setup(chat: int, row) -> bool:
+    """Кто вправе настраивать поле: обводить контур, указывать сторону
+    входа воды, смотреть карту.
+
+    Хозяин — очевидно. Но и наблюдатель: обвести межу это НАСТРОЙКА
+    поля, а не действие фермера. Границу участка знает агроном, он же
+    сидит за картой; фермер в это время стоит в поле и обходить его
+    углами ради того, что рисуется пальцем за полминуты, не должен.
+
+    Отметка полива под это правило не попадает и остаётся у хозяина:
+    полил тот, кто полил, и расписаться за него в KPI-журнале нельзя.
+    """
+    return row["owner_chat_id"] == chat or chat in _OBSERVERS
+
+
 def _fs_card(row, chat: int, ctx, lang: str,
              many: bool) -> tuple[str, InlineKeyboardMarkup]:
     sections = _fs_sections(row, ctx, lang)
@@ -810,13 +825,15 @@ def _fs_card(row, chat: int, ctx, lang: str,
     fid = row["field_id"]
     kb: list[list[InlineKeyboardButton]] = []
     actions: list[InlineKeyboardButton] = []
-    if owner:
-        # Кнопки секций — только хозяину: наблюдатель не обводит чужое
-        # поле и не отмечает по нему полив.
+    if _may_setup(chat, row):
+        # Кнопки настройки поля — контур, сторона входа, карта.
         for s in sections:
             if s.action is not None:
                 actions.append(InlineKeyboardButton(
                     s.action.label, callback_data=f"{s.action.callback}:{fid}"))
+    if owner:
+        # А вот отметка полива — только хозяину: полил тот, кто полил,
+        # и наблюдатель не вправе расписаться за него в KPI-журнале.
         label = "🚿 Bugun sug'ordim" if lang == "uz" else "🚿 Полил сегодня"
         actions.append(InlineKeyboardButton(label,
                                             callback_data=f"fs:baj:{fid}"))
@@ -974,16 +991,16 @@ async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     if verb == "draw" and row is not None:
-        if row["owner_chat_id"] != chat:
-            await query.answer("Контур обводит хозяин поля.", show_alert=True)
+        if not _may_setup(chat, row):
+            await query.answer("Bu dala sizniki emas.", show_alert=True)
             return
         await query.answer()
         await _draw_start(update, ctx, row)
         return
 
     if verb == "inlet" and row is not None:
-        if row["owner_chat_id"] != chat:
-            await query.answer("Это указывает хозяин поля.", show_alert=True)
+        if not _may_setup(chat, row):
+            await query.answer("Bu dala sizniki emas.", show_alert=True)
             return
         await query.answer()
         await _inlet_ask(query, row, lang)
@@ -1255,7 +1272,7 @@ async def draw_webapp(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     row = _field_row(fid)
-    if row is None or row["owner_chat_id"] != chat:
+    if row is None or not _may_setup(chat, row):
         await msg.reply_text("Dala topilmadi.", reply_markup=_menu(chat))
         ctx.user_data.pop("draw", None)
         return
@@ -1550,7 +1567,7 @@ async def inlet_callback(update: Update,
         return
 
     row = _field_row(fid)
-    if row is None or row["owner_chat_id"] != chat:
+    if row is None or not _may_setup(chat, row):
         await query.answer()
         return
 
