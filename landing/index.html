@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SUV AI — спутник видит, докуда дошла вода</title>
+<meta name="description" content="Telegram-бот умного полива: FAO-56, Sentinel-2, карта влажности поля. Пилот в Самаркандской области.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#0A1A17;        /* ночная вода */
+  --deep2:#0E211D;
+  --card:#12292400;
+  --panel:#102420;
+  --ink:#E9F2EE;
+  --mut:#7E938C;
+  --line:#1D3630;
+  --cyan:#4FC8D4;        /* канал, интерактив */
+  --dry:#D96C3D;         /* ось продукта: сухо */
+  --mid:#E8C558;
+  --wet:#63C06B;         /*             влажно */
+  --ok:#63C06B;
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+body{
+  background:var(--deep);color:var(--ink);
+  font:16px/1.65 "Golos Text",system-ui,sans-serif;
+  overflow-x:hidden;
+}
+h1,h2,h3{font-family:"Unbounded",sans-serif;font-weight:500;line-height:1.15;text-wrap:balance}
+.mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+a{color:var(--cyan)}
+img{max-width:100%;display:block}
+section{position:relative}
+.shell{max-width:1180px;margin:0 auto;padding:0 24px}
+.eyebrow{
+  font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
+.reveal.on{opacity:1;transform:none}
+
+/* ── шапка ─────────────────────────────── */
+header.top{
+  position:fixed;inset:0 0 auto 0;z-index:50;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 28px;
+  background:linear-gradient(to bottom,rgba(10,26,23,.92),rgba(10,26,23,0));
+}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1.05rem;color:var(--ink);text-decoration:none;letter-spacing:.02em}
+.logo b{color:var(--cyan);font-weight:700}
+.top a.cta{
+  font-size:.85rem;text-decoration:none;color:var(--deep);
+  background:var(--cyan);padding:9px 18px;border-radius:100px;font-weight:600;
+  transition:transform .2s;
+}
+.top a.cta:hover{transform:translateY(-2px)}
+
+/* прогресс — борозда, наполняющаяся водой */
+#furrow{position:fixed;left:0;top:0;bottom:0;width:4px;background:var(--line);z-index:60}
+#furrow i{position:absolute;left:0;top:0;width:100%;height:0;background:linear-gradient(var(--cyan),var(--wet))}
+
+/* ── герой ─────────────────────────────── */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+#flow{position:absolute;inset:0;width:100%;height:100%}
+.hero .shell{position:relative;z-index:2;padding-top:80px}
+.hero h1{
+  font-size:clamp(2rem,6.2vw,4.6rem);font-weight:700;max-width:19ch;
+  text-shadow:0 2px 30px rgba(10,26,23,.8);
+}
+.hero h1 em{font-style:normal;color:var(--cyan)}
+.hero .sub{max-width:52ch;margin-top:22px;color:var(--mut);font-size:1.05rem}
+.hero .sub b{color:var(--ink);font-weight:500}
+.hero .acts{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap}
+.btn{
+  display:inline-block;text-decoration:none;font-weight:600;font-size:.95rem;
+  padding:14px 26px;border-radius:100px;transition:transform .2s;
+}
+.btn:hover{transform:translateY(-2px)}
+.btn.b1{background:var(--cyan);color:var(--deep)}
+.btn.b2{border:1px solid var(--line);color:var(--ink)}
+.hero .hint{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);color:var(--mut);font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;z-index: 3;}
+
+/* бегущая строка */
+.ticker{border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;padding:13px 0;background:var(--deep2)}
+.ticker .rail{display:flex;gap:56px;white-space:nowrap;animation:rail 36s linear infinite;width:max-content}
+@keyframes rail{to{transform:translateX(-50%)}}
+.ticker span{font-family:"JetBrains Mono",monospace;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+.ticker span b{color:var(--cyan);font-weight:400}
+
+/* ── секции ────────────────────────────── */
+.sect{padding:120px 0}
+.sect h2{font-size:clamp(1.5rem,3.6vw,2.5rem);margin:14px 0 16px;max-width:24ch}
+.sect .lede{color:var(--mut);max-width:58ch;font-size:1.02rem}
+.sect .lede b{color:var(--ink);font-weight:500}
+
+/* демо влажности */
+.wet-wrap{display:grid;grid-template-columns:1.15fr .85fr;gap:44px;align-items:center;margin-top:48px}
+@media(max-width:900px){.wet-wrap{grid-template-columns:1fr}}
+.tilt{perspective:900px}
+#moist{
+  width:100%;aspect-ratio:1.15;border-radius:14px;display:block;cursor:crosshair;
+  transform:rotateX(14deg) rotateZ(-2deg);
+  box-shadow:0 40px 80px rgba(0,0,0,.5);
+  transition:transform .5s ease;
+  touch-action:none;
+}
+.tilt:hover #moist{transform:rotateX(6deg) rotateZ(0)}
+.wet-info .read{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:18px 20px;margin-bottom:14px;
+}
+.wet-info .read .mono{font-size:1.7rem}
+.wet-info .read small{color:var(--mut);display:block;margin-top:2px}
+.wet-legend{display:flex;align-items:center;gap:10px;font-size:.8rem;color:var(--mut);margin:10px 0 22px}
+.wet-legend i{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--dry),var(--mid),var(--wet))}
+.play{
+  font:600 .95rem "Golos Text",sans-serif;color:var(--deep);background:var(--wet);
+  border:0;border-radius:100px;padding:13px 26px;cursor:pointer;transition:transform .2s;
+}
+.play:hover{transform:translateY(-2px)}
+.play:disabled{opacity:.5;transform:none;cursor:default}
+
+/* демо обводки */
+.draw-wrap{display:grid;grid-template-columns:.85fr 1.15fr;gap:44px;align-items:center;margin-top:48px}
+@media(max-width:900px){.draw-wrap{grid-template-columns:1fr}.draw-wrap .txt{order:2}}
+#draw{
+  width:100%;aspect-ratio:1.2;border-radius:14px;display:block;cursor:crosshair;
+  box-shadow:0 30px 60px rgba(0,0,0,.45);touch-action:manipulation;
+}
+.chip{
+  display:inline-flex;align-items:center;gap:8px;background:var(--panel);
+  border:1px solid var(--line);border-radius:100px;padding:8px 16px;
+  font-size:.85rem;color:var(--mut);margin-top:14px;
+}
+.chip .mono{color:var(--ink)}
+.steps-mini{list-style:none;padding:0;margin:26px 0 0;display:flex;flex-direction:column;gap:12px}
+.steps-mini li{display:grid;grid-template-columns:30px 1fr;gap:12px;font-size:.95rem;color:var(--mut)}
+.steps-mini li b{color:var(--ink);font-weight:500}
+.steps-mini .n{
+  font-family:"JetBrains Mono",monospace;color:var(--cyan);font-size:.8rem;
+  border:1px solid var(--line);border-radius:50%;width:26px;height:26px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* слайдер до/после */
+.ba{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 40px 90px rgba(0,0,0,.55);margin-top:48px;user-select:none}
+.ba img{width:100%;display:block;pointer-events:none}
+.ba .base{max-height:76vh;object-fit:cover}
+.ba .after{position:absolute;inset:0;overflow:hidden}
+.ba .after img{position:absolute;inset:0;height:100%;width:auto;min-width:100%;object-fit:cover}
+.ba .base{width:100%;object-fit:cover}
+.ba .bar{
+  position:absolute;top:0;bottom:0;width:3px;background:var(--ink);cursor:ew-resize;
+}
+.ba .bar::after{
+  content:"⇄";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:var(--ink);color:var(--deep);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+}
+.ba .tag{
+  position:absolute;bottom:14px;font-family:"JetBrains Mono",monospace;
+  font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;
+  background:rgba(10,26,23,.8);padding:6px 12px;border-radius:6px;
+}
+.ba .tag.l{left:14px}.ba .tag.r{right:14px}
+
+/* карточка бота */
+.phone-wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;margin-top:48px}
+@media(max-width:900px){.phone-wrap{grid-template-columns:1fr}}
+.phone{
+  max-width:390px;margin:0 auto;background:#0d1f1b;border:1px solid var(--line);
+  border-radius:34px;padding:18px 14px;box-shadow:0 40px 90px rgba(0,0,0,.55);
+}
+.phone .scr{background:var(--deep2);border-radius:22px;padding:16px 14px;min-height:480px}
+.msg{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:13px 15px;font-size:.86rem;line-height:1.55;margin-bottom:10px;
+  opacity:0;transform:translateY(14px);transition:opacity .5s,transform .5s;
+}
+.msg.on{opacity:1;transform:none}
+.msg .st{color:var(--mut)}
+.msg .g{color:var(--wet)}.msg .y{color:var(--mid)}
+.msg hr{border:0;border-top:1px solid var(--line);margin:9px 0}
+.kb{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.kb i{
+  font-style:normal;font-size:.78rem;background:#16332c;border-radius:8px;
+  padding:7px 12px;color:var(--cyan);
+}
+
+/* манифест честности */
+.creed{background:var(--deep2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.creed-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:2px;margin-top:48px;background:var(--line);border-radius:14px;overflow:hidden}
+@media(max-width:760px){.creed-grid{grid-template-columns:1fr}}
+.creed-grid article{background:var(--deep2);padding:30px 28px}
+.creed-grid h3{font-size:1.02rem;font-weight:500;margin-bottom:10px;color:var(--ink)}
+.creed-grid h3 span{color:var(--dry);font-family:"JetBrains Mono",monospace;font-size:.78rem;display:block;margin-bottom:10px}
+.creed-grid p{font-size:.9rem;color:var(--mut)}
+
+/* наука + пилот */
+.sci{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:44px;align-items:start}
+@media(max-width:860px){.sci{grid-template-columns:1fr}}
+.sci .bars{display:flex;flex-direction:column;gap:14px}
+.sci .brow{font-size:.85rem;color:var(--mut)}
+.sci .brow .track{background:var(--panel);border-radius:6px;height:34px;position:relative;margin-top:6px;overflow:hidden}
+.sci .brow .fill{position:absolute;inset:0 auto 0 0;border-radius:6px;display:flex;align-items:center;padding-left:12px;font-family:"JetBrains Mono",monospace;font-size:.8rem;color:var(--deep);white-space:nowrap}
+.pilot-cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
+@media(max-width:760px){.pilot-cards{grid-template-columns:1fr}}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px}
+.pcard h3{font-size:1.05rem;margin-bottom:4px}
+.pcard .sub{color:var(--mut);font-size:.85rem;margin-bottom:16px}
+.pcard dl{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:.9rem}
+.pcard dt{color:var(--mut)}
+.pcard dd{text-align:right}
+.pcard .note{margin-top:14px;font-size:.83rem;color:var(--mut);border-top:1px solid var(--line);padding-top:12px}
+
+/* команда */
+.team{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
+@media(max-width:760px){.team{grid-template-columns:1fr}}
+.tcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.tcard img{width:100%;aspect-ratio:1;object-fit:cover;filter:saturate(.85)}
+.tcard div{padding:18px 20px}
+.tcard h3{font-size:1rem}
+.tcard p{font-size:.83rem;color:var(--mut);margin-top:6px}
+
+/* финал */
+.fin{text-align:center;padding:140px 0}
+.fin h2{font-size:clamp(1.7rem,4.4vw,3.2rem);max-width:22ch;margin:14px auto 18px}
+.fin .uz{color:var(--mut);font-family:"JetBrains Mono",monospace;font-size:.8rem;letter-spacing:.18em;text-transform:uppercase}
+footer{border-top:1px solid var(--line);padding:34px 0;color:var(--mut);font-size:.85rem}
+footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div id="furrow"><i></i></div>
+
+<header class="top">
+  <a class="logo" href="#">SUV<b>·AI</b></a>
+  <a class="cta" href="https://t.me/suv_ai_bot">Открыть бота</a>
+</header>
+
+<!-- ГЕРОЙ -->
+<section class="hero">
+  <canvas id="flow"></canvas>
+  <div class="shell">
+    <div class="eyebrow">Пилот работает · Самаркандская область · 2026</div>
+    <h1>Спутник видит, <em>докуда дошла вода</em> на вашем поле</h1>
+    <p class="sub">Telegram-бот считает водный баланс FAO-56, смотрит на поле из космоса
+      и говорит фермеру одну фразу: <b>когда включить насос и на сколько часов</b>.
+      Теперь — с картой влажности каждого гектара.</p>
+    <div class="acts">
+      <a class="btn b1" href="https://t.me/suv_ai_bot">@suv_ai_bot</a>
+      <a class="btn b2" href="#wet">Смотреть, как это работает ↓</a>
+    </div>
+  </div>
+  <div class="hint">листайте — вода потечёт</div>
+</section>
+
+<div class="ticker" aria-hidden="true">
+  <div class="rail" id="rail">
+    <span>Sentinel-2 · снимок каждые <b>5 дней</b></span>
+    <span>движок FAO-56 · <b>171</b> автотест</span>
+    <span>контур поля — <b>пальцем за 30 секунд</b></span>
+    <span>карта влажности · клетка <b>20 м</b></span>
+    <span>совет — <b>часами насоса</b>, не миллиметрами</span>
+    <span>честный журнал · экономию можно <b>пересчитать</b></span>
+  </div>
+</div>
+
+<!-- ЖИВАЯ КАРТА ВЛАЖНОСТИ -->
+<section class="sect" id="wet">
+  <div class="shell">
+    <div class="eyebrow reveal">Новое · карта влажности</div>
+    <h2 class="reveal">Поле, которое показывает, где ему сухо</h2>
+    <p class="lede reveal">Индекс влажности NDMI по каждой клетке 20×20 метров — <b>измеренный спутником, не нарисованный моделью</b>. Наведите на клетку. Потом откройте воду.</p>
+    <div class="wet-wrap">
+      <div class="tilt reveal"><canvas id="moist"></canvas></div>
+      <div class="wet-info reveal">
+        <div class="read">
+          <span class="mono" id="cellv">—</span>
+          <small id="cellw">наведите курсор на поле</small>
+        </div>
+        <div class="wet-legend"><span>сухо</span><i></i><span>влажно</span></div>
+        <button class="play" id="irrigate">Открыть воду с севера</button>
+        <p style="margin-top:18px;font-size:.88rem;color:var(--mut)">
+          Так выглядит день 6 продукта: фермер открыл канал — спутник через
+          несколько дней покажет, докуда добежала вода и где остались сухие языки.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ОБВОДКА -->
+<section class="sect" style="background:var(--deep2);border-top:1px solid var(--line)">
+  <div class="shell">
+    <div class="eyebrow reveal">Новое · контур поля</div>
+    <h2 class="reveal">Обведите поле пальцем — прямо здесь</h2>
+    <div class="draw-wrap">
+      <div class="txt reveal">
+        <p class="lede">Кликайте по углам участка. Площадь считается на лету — как в настоящем
+          Mini App бота, где фермер обводит поле на спутниковой карте.</p>
+        <ol class="steps-mini">
+          <li><span class="n">1</span><span><b>Контур</b> — 30 секунд пальцем или обход углов с геолокацией</span></li>
+          <li><span class="n">2</span><span><b>Площадь</b> — бот переспрашивает: «Dalangiz 1,5 gektar chiqdi. To'g'rimi?»</span></li>
+          <li><span class="n">3</span><span><b>Спутник</b> перестаёт смотреть в квадрат — замер идёт ровно по вашей меже</span></li>
+        </ol>
+        <div class="chip">Площадь: <span class="mono" id="area">0,00 га</span></div>
+        <div class="chip" id="drawmsg" style="display:none"></div>
+        <br><button class="play" id="redraw" style="margin-top:16px;background:var(--panel);color:var(--ink);border:1px solid var(--line)">Начать заново</button>
+      </div>
+      <div class="reveal"><canvas id="draw"></canvas></div>
+    </div>
+    <p class="reveal" style="margin-top:28px;font-size:.88rem;color:var(--mut);max-width:60ch">
+      На пилоте контур уже поймал ошибку анкеты: заявленные 3 гектара виноградника
+      оказались 1,4 — и рекомендации перестали советовать двойной объём воды.
+    </p>
+  </div>
+</section>
+
+<!-- ДО/ПОСЛЕ -->
+<section class="sect">
+  <div class="shell">
+    <div class="eyebrow reveal">Новое · фото поля</div>
+    <h2 class="reveal">Из пикселей — в карту, по которой видно поле</h2>
+    <p class="lede reveal">Слева — как выглядит бесплатный спутник (10 м на пиксель). Справа — то, что
+      получает фермер: архивная карта высокого разрешения, а поверх — <b>измеренная влажность
+      сегодняшнего снимка</b>. Потяните ползунок.</p>
+    <div class="ba reveal" id="ba">
+      <img class="base" src="img/photo-before.jpg" alt="Кадр Sentinel-2: поле в пикселях 10 м">
+      <div class="after"><img src="img/photo-after.jpg" alt="Карта влажности на архивной подложке высокого разрешения"></div>
+      <div class="bar" style="left:50%"></div>
+      <span class="tag l">Sentinel-2 · 10 м</span>
+      <span class="tag r">SUV AI · фото поля</span>
+    </div>
+    <p class="reveal" style="margin-top:20px;font-size:.85rem;color:var(--mut)">Это не рендер — реальный кадр из бота: виноградник пилота, замер влажности от 16 августа 2026.</p>
+  </div>
+</section>
+
+<!-- КАРТОЧКА -->
+<section class="sect creed" id="card">
+  <div class="shell">
+    <div class="phone-wrap">
+      <div class="reveal">
+        <div class="eyebrow">Новое · экран «Dala holati»</div>
+        <h2>Всё поле — одним сообщением</h2>
+        <p class="lede">Полив, равномерность, погода и расходы собираются в одну карточку.
+          Секции — реестр: заморозки и засоление встанут туда без переделки экрана.
+          Навигация правит <b>одно сообщение</b> — чат не превращается в простыню.</p>
+        <p class="lede" style="margin-top:12px">Статус — всегда словом, не только цветом:
+          часть фермеров не различает красный и зелёный.</p>
+      </div>
+      <div class="phone reveal"><div class="scr" id="scr">
+        <div class="msg"><b>🌾 Uzumzor · 1,5 ga · Uzum</b><hr><span class="g">🟢 Hammasi yaxshi</span></div>
+        <div class="msg">💧 Sug'orish · <span class="g">🟢 yaxshi</span><br><span class="st">Bu hafta shart emas.<br>Oxirgi: 4 kun oldin</span></div>
+        <div class="msg">📐 Sug'orish tekisligi · ⚪️ ma'lumot yo'q<br><span class="st">Chegara chizilgan: 1,4 ga · Suv shimol tomondan kiradi</span></div>
+        <div class="msg">🛰 Dala surati<br><span class="st">Qizil — quruqroq, yashil — namroq joylar</span></div>
+        <div class="msg">🌡 Ob-havo · <span class="g">🟢 yaxshi</span><br><span class="st">Bugun +34°, yomg'ir kutilmaydi</span></div>
+        <div class="msg"><div class="kb"><i>🗺 Xaritani ko'rish</i><i>🚿 Bugun sug'ordim</i><i>🔄 Yangilash</i></div></div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ЧЕСТНОСТЬ -->
+<section class="sect">
+  <div class="shell">
+    <div class="eyebrow reveal">Принципы</div>
+    <h2 class="reveal">Правила честности, зашитые в код</h2>
+    <p class="lede reveal">Красивая картинка убедительнее данных под ней — поэтому у бота есть
+      правила, которые запрещают ему приукрашивать. Каждое закреплено автотестом.</p>
+    <div class="creed-grid reveal">
+      <article><h3><span>§1</span>Карта — только по замеру</h3><p>Пока нет ни наблюдения фермера, ни спутникового замера — карта не рисуется вообще. Догадка не показывается как факт.</p></article>
+      <article><h3><span>§2</span>Дата описывает пиксели</h3><p>«Замер влажности: 16.08» относится ровно к тем клеткам, что нарисованы. Архивный фон подписан как архивный.</p></article>
+      <article><h3><span>§3</span>Ровное поле не красим</h3><p>Если разброс влажности меньше порога прибора, поле не раскрашивается: растянутая шкала нарисовала бы узор, которого нет.</p></article>
+      <article><h3><span>§4</span>Одна лужа — не сухое поле</h3><p>Шкала строится по устойчивым границам: случайная мокрая колея не превращает всё поле в «красное».</p></article>
+      <article><h3><span>§5</span>Экономию можно пересчитать</h3><p>Журнал хранит три факта: что сказали, что сделал фермер, что показал счётчик. Экономия выводится при чтении — и оспаривается.</p></article>
+      <article><h3><span>§6</span>Нет данных — так и говорим</h3><p>Облака над полем, старый снимок, поле меньше клетки замера — бот называет причину, а не показывает старое как свежее.</p></article>
+    </div>
+  </div>
+</section>
+
+
+<!-- НАУКА -->
+<section class="sect creed">
+  <div class="shell">
+    <div class="eyebrow reveal">Наука</div>
+    <h2 class="reveal">Западный калькулятор здесь ошибается почти вдвое</h2>
+    <p class="lede reveal">В Ферганской и Зарафшанской долинах грунтовые воды стоят в 1–3 метрах и
+      подпаивают корни снизу. Мировые реализации FAO-56 этот член уравнения отбрасывают.
+      Мы вернули капиллярный подъём — и сезонная норма сошлась с реальными хозяйствами.</p>
+    <div class="sci">
+      <div class="bars reveal">
+        <div class="brow">агрономическая норма · хлопок
+          <div class="track"><div class="fill" style="width:62%;background:var(--line);color:var(--ink)">5 000–7 000 м³/га</div></div>
+        </div>
+        <div class="brow">FAO-56 без грунтовых вод
+          <div class="track"><div class="fill" style="width:97%;background:var(--dry)">9 700 м³/га — вдвое больше нормы</div></div>
+        </div>
+        <div class="brow">SUV AI с капиллярным подъёмом
+          <div class="track"><div class="fill" style="width:55%;background:var(--wet)">5 455 м³/га — внутри нормы</div></div>
+        </div>
+      </div>
+      <div class="reveal">
+        <p style="color:var(--mut);font-size:.95rem">Тот же механизм — причина засоления половины орошаемых
+          земель: перелив поднимает соль в корневую зону. Из этой поправки родилось
+          предупреждение о засолении, которое бот шлёт фермеру вместе с рекомендацией.</p>
+        <p style="color:var(--mut);font-size:.95rem;margin-top:12px">Физика проверена по контрольным примерам
+          самого справочника FAO-56 — <span class="mono" style="color:var(--ink)">171</span> автотест проходит при каждом изменении.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ПИЛОТ -->
+<section class="sect">
+  <div class="shell">
+    <div class="eyebrow reveal">Пилот · Самаркандская область</div>
+    <h2 class="reveal">Продукт живёт в кармане реального фермера</h2>
+    <p class="lede reveal">Каждое утро в 06:00 бот считает два поля хозяйства Фарруха.
+      Это два разных мира орошения — и продукт честно различает их экономику.</p>
+    <div class="pilot-cards">
+      <div class="pcard reveal">
+        <h3>🍎 Olmazor</h3><div class="sub">яблоневый сад · капля · насос</div>
+        <dl>
+          <dt>Площадь</dt><dd class="mono">2,0 га</dd>
+          <dt>Насос</dt><dd class="mono">60 м³/ч · 30 кВт·ч</dd>
+          <dt>Цена часа</dt><dd class="mono">45 000 сум</dd>
+        </dl>
+        <div class="note">Каждый сэкономленный куб сразу превращается в деньги фермера.</div>
+      </div>
+      <div class="pcard reveal">
+        <h3>🍇 Uzumzor</h3><div class="sub">виноградник · залив из канала</div>
+        <dl>
+          <dt>Площадь</dt><dd class="mono">1,5 га — обмерено контуром</dd>
+          <dt>Полив</dt><dd class="mono">самотёк · сутки</dd>
+          <dt>Электричество</dt><dd class="mono">не расходуется</dd>
+        </dl>
+        <div class="note">Вода фермеру бесплатна — экономию получают государство и хозяйства
+          ниже по каналу. Другой клиент, другой разговор.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- КОМАНДА -->
+<section class="sect creed" id="team">
+  <div class="shell">
+    <div class="eyebrow reveal">Команда</div>
+    <h2 class="reveal">Трое, у которых уже есть работающий продукт</h2>
+    <div class="team">
+      <div class="tcard reveal"><img src="img/amir.jpg" alt="Амир Негматуллаев">
+        <div><h3>Амир Негматуллаев</h3><p>Автор идеи · владелец продукта. Довёл SUV AI от уравнения FAO-56 до бота, который каждое утро пишет реальному фермеру.</p></div></div>
+      <div class="tcard reveal"><img src="img/husan.jpg" alt="Хусан Негматуллаев">
+        <div><h3>Хусан Негматуллаев</h3><p>Главный разработчик. Движок, спутниковый слой, инфраструктура: 171 автотест, физика сверена со справочником FAO-56.</p></div></div>
+      <div class="tcard reveal"><img src="img/farux.jpg" alt="Фаррух Урунов">
+        <div><h3>Фаррух Урунов</h3><p>Фермер-партнёр пилота. Два поля, на которых продукт проверяется ежедневно. Его насос научил бота говорить часами, а не кубами.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ФИНАЛ -->
+<section class="fin">
+  <div class="shell">
+    <div class="uz reveal">Har bir dala uchun aqlli sug'orish</div>
+    <h2 class="reveal">Дайте полю голос — оно скажет, когда ему пить</h2>
+    <p class="reveal" style="color:var(--mut);max-width:46ch;margin:0 auto 30px">Подключение — пять вопросов в чате.
+      Без анкет, без приложений, без обучения.</p>
+    <a class="btn b1 reveal" href="https://t.me/suv_ai_bot">Открыть @suv_ai_bot</a>
+  </div>
+</section>
+
+<footer>
+  <div class="shell">
+    <span>SUV AI · умный полив для каждого поля · пилот 2026</span>
+    <span><a href="https://t.me/suv_ai_bot">@suv_ai_bot</a> · <a href="mailto:negmatullaevamir2@gmail.com">negmatullaevamir2@gmail.com</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* появления */
+var io = new IntersectionObserver(function(es){
+  es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("on"); io.unobserve(e.target); } });
+},{threshold:0.18});
+document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+
+/* борозда-прогресс */
+var fur = document.querySelector("#furrow i");
+addEventListener("scroll", function(){
+  var h = document.documentElement;
+  fur.style.height = (h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+"%";
+},{passive:true});
+
+/* бегущая строка: дублируем для бесшовности */
+var rail = document.getElementById("rail");
+rail.innerHTML += rail.innerHTML;
+
+/* ГЕРОЙ: поток воды по бороздам */
+(function(){
+  var cv = document.getElementById("flow"), cx = cv.getContext("2d");
+  var W,H,DPR = Math.min(devicePixelRatio||1,2), pts=[], mouse={x:-1e4,y:-1e4};
+  function size(){
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W*DPR; cv.height = H*DPR; cx.setTransform(DPR,0,0,DPR,0,0);
+    cx.fillStyle="#0A1A17"; cx.fillRect(0,0,W,H);
+  }
+  size(); addEventListener("resize", size);
+  new ResizeObserver(size).observe(cv);
+  var N = Math.min(650, (innerWidth*innerHeight)/2500|0);
+  for(var i=0;i<N;i++) pts.push({x:Math.random()*innerWidth, y:Math.random()*innerHeight, s:0.4+Math.random()*1.2});
+  function field(x,y,t){
+    return Math.sin(y*0.012 + t*0.00022)*0.9 + Math.sin((x+y*0.4)*0.004 - t*0.00013)*0.5;
+  }
+  cv.parentElement.addEventListener("pointermove", function(e){
+    var r = cv.getBoundingClientRect(); mouse.x = e.clientX-r.left; mouse.y = e.clientY-r.top;
+  });
+  cv.parentElement.addEventListener("pointerleave", function(){ mouse.x=-1e4; });
+  var run = true;
+  new IntersectionObserver(function(es){ run = es[0].isIntersecting; }).observe(cv);
+  if(reduced){
+    for(var y=30;y<H;y+=26){
+      cx.strokeStyle="rgba(79,200,212,0.10)"; cx.beginPath();
+      for(var x=0;x<=W;x+=20){ if(x) cx.lineTo(x,y+Math.sin(x*0.01+y)*6); else cx.moveTo(x,y); }
+      cx.stroke();
+    }
+    return;
+  }
+  (function tick(t){
+    requestAnimationFrame(tick);
+    if(!run) return;
+    cx.fillStyle="rgba(10,26,23,0.09)"; cx.fillRect(0,0,W,H);
+    for(var i=0;i<pts.length;i++){
+      var p = pts[i];
+      var ang = field(p.x,p.y,t) * 0.9;
+      var dx = p.x-mouse.x, dy = p.y-mouse.y, d2 = dx*dx+dy*dy;
+      if(d2<16000){ ang += Math.atan2(dy,dx)*0.5; }
+      var vx = Math.cos(ang)*p.s + 0.55, vy = Math.sin(ang)*p.s*0.6;
+      var nx = p.x+vx*1.6, ny = p.y+vy*1.6;
+      var wet = 0.5+0.5*Math.sin(p.y*0.012);
+      cx.strokeStyle = "rgba("+(79+wet*20|0)+","+(190+wet*20|0)+","+(200-wet*40|0)+",0.5)";
+      cx.lineWidth = 1.1;
+      cx.beginPath(); cx.moveTo(p.x,p.y); cx.lineTo(nx,ny); cx.stroke();
+      p.x=nx; p.y=ny;
+      if(p.x>W+10) {p.x=-10; p.y=Math.random()*H;}
+      if(p.x<-12||p.y<-12||p.y>H+12){ p.x=Math.random()*W; p.y=Math.random()*H; }
+    }
+  })(0);
+})();
+
+/* ЖИВАЯ ВЛАЖНОСТЬ */
+(function(){
+  var cv = document.getElementById("moist"), cx = cv.getContext("2d");
+  var GX=16, GY=14, cells=[], animating=false, t0=0;
+  var wetBtn = document.getElementById("irrigate");
+  var vEl = document.getElementById("cellv"), wEl = document.getElementById("cellw");
+  function noise(x,y){ return 0.5+0.28*Math.sin(x*1.7+2)+0.22*Math.cos(y*1.3+x*0.8)+0.15*Math.sin((x+y)*2.4); }
+  for(var y=0;y<GY;y++)for(var x=0;x<GX;x++){
+    var v = Math.max(0,Math.min(1, noise(x/GX*3,y/GY*3)*0.95 - 0.08 + (x/GX)*0.18 ));
+    cells.push({b:v, add:0});
+  }
+  function ramp(v){
+    v=Math.max(0,Math.min(1,v));
+    var c1=[217,108,61], c2=[232,197,88], c3=[99,192,107], a,b,k;
+    if(v<0.5){a=c1;b=c2;k=v*2;} else {a=c2;b=c3;k=v*2-1;}
+    return "rgb("+(a[0]+(b[0]-a[0])*k|0)+","+(a[1]+(b[1]-a[1])*k|0)+","+(a[2]+(b[2]-a[2])*k|0)+")";
+  }
+  var hov=-1, DPR=Math.min(devicePixelRatio||1,2);
+  function size(){ cv.width=cv.clientWidth*DPR; cv.height=cv.clientHeight*DPR; cx.setTransform(DPR,0,0,DPR,0,0); }
+  size(); addEventListener("resize",function(){size();draw();});
+  new ResizeObserver(function(){size();draw();}).observe(cv);
+  function draw(){
+    var w=cv.clientWidth, h=cv.clientHeight, cw=w/GX, ch=h/GY;
+    cx.fillStyle="#0E211D"; cx.fillRect(0,0,w,h);
+    for(var i=0;i<cells.length;i++){
+      var gx=i%GX, gy=i/GX|0, c=cells[i];
+      var v=Math.min(1,c.b+c.add);
+      cx.fillStyle=ramp(v);
+      cx.beginPath();
+      cx.roundRect(gx*cw+1.5, gy*ch+1.5, cw-3, ch-3, 4);
+      cx.fill();
+      if(i===hov){ cx.strokeStyle="#E9F2EE"; cx.lineWidth=2; cx.stroke(); }
+    }
+  }
+  draw();
+  cv.addEventListener("pointermove",function(e){
+    var r=cv.getBoundingClientRect();
+    var gx=Math.floor((e.clientX-r.left)/r.width*GX), gy=Math.floor((e.clientY-r.top)/r.height*GY);
+    if(gx<0||gy<0||gx>=GX||gy>=GY){hov=-1;draw();return;}
+    hov=gy*GX+gx;
+    var c=cells[hov], v=Math.min(1,c.b+c.add);
+    var ndmi=(-0.05+v*0.5);
+    vEl.textContent="NDMI "+(ndmi>=0?"+":"")+ndmi.toFixed(2);
+    wEl.textContent = v<0.35 ? "суше остального поля — сюда вода не дошла"
+                    : v<0.6  ? "средняя влажность" : "влажно — вода дошла";
+    draw();
+  });
+  cv.addEventListener("pointerleave",function(){hov=-1;vEl.textContent="—";wEl.textContent="наведите курсор на поле";draw();});
+  wetBtn.addEventListener("click",function(){
+    if(animating) return;
+    animating=true; wetBtn.disabled=true; t0=performance.now();
+    cells.forEach(function(c){c.add=0;});
+    (function anim(t){
+      var k=Math.min(1,(t-t0)/3600);
+      var frontY = k*(GY+4)-2;
+      for(var i=0;i<cells.length;i++){
+        var gy=i/GX|0, gx=i%GX;
+        var lag = Math.sin(gx*1.3)*0.8;
+        var reach = frontY - gy - lag;
+        cells[i].add = Math.max(0, Math.min(0.55, reach*0.28));
+      }
+      draw();
+      if(k<1) requestAnimationFrame(anim);
+      else { animating=false; wetBtn.disabled=false; wetBtn.textContent="Полить ещё раз"; }
+    })(t0);
+  });
+})();
+
+/* ОБВОДКА */
+(function(){
+  var cv=document.getElementById("draw"), cx=cv.getContext("2d");
+  var pts=[], DPR=Math.min(devicePixelRatio||1,2);
+  var areaEl=document.getElementById("area"), msg=document.getElementById("drawmsg");
+  var M_PER_PX;
+  function terrain(){
+    var w=cv.clientWidth,h=cv.clientHeight;
+    var g=cx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,"#22301F");g.addColorStop(1,"#2E3B24");
+    cx.fillStyle=g;cx.fillRect(0,0,w,h);
+    var rnd=48271, seed=function(){rnd=(rnd*69621)%2147483647;return rnd/2147483647;};
+    for(var i=0;i<26;i++){
+      var x=seed()*w,y=seed()*h,pw=40+seed()*150,ph=30+seed()*110;
+      cx.fillStyle="rgba("+(40+seed()*50|0)+","+(60+seed()*40|0)+","+(30+seed()*25|0)+",0.55)";
+      cx.save();cx.translate(x,y);cx.rotate((seed()-0.5)*0.5);cx.fillRect(-pw/2,-ph/2,pw,ph);cx.restore();
+    }
+    cx.globalAlpha=0.14;
+    for(var yy=0;yy<h;yy+=7){cx.strokeStyle="#0A1A17";cx.beginPath();cx.moveTo(0,yy);cx.lineTo(w,yy+4);cx.stroke();}
+    cx.globalAlpha=1;
+    cx.strokeStyle="rgba(190,180,150,0.5)";cx.lineWidth=6;cx.beginPath();cx.moveTo(w*0.08,0);cx.lineTo(w*0.16,h);cx.stroke();
+    cx.strokeStyle="rgba(79,200,212,0.55)";cx.lineWidth=4;cx.beginPath();cx.moveTo(0,h*0.16);cx.bezierCurveTo(w*0.4,h*0.10,w*0.7,h*0.2,w,h*0.14);cx.stroke();
+  }
+  function area(){
+    if(pts.length<3) return 0;
+    var s=0;
+    for(var i=0;i<pts.length;i++){
+      var a=pts[i],b=pts[(i+1)%pts.length];
+      s+=a.x*b.y-b.x*a.y;
+    }
+    return Math.abs(s)/2*M_PER_PX*M_PER_PX/10000;
+  }
+  function draw(){
+    terrain();
+    var w=cv.clientWidth,h=cv.clientHeight;
+    if(!pts.length){
+      cx.fillStyle="rgba(233,242,238,0.75)";
+      cx.font="13px JetBrains Mono,monospace";cx.textAlign="center";
+      cx.fillText("кликайте по углам поля", w/2, h/2);
+      var t=performance.now()/600;
+      cx.strokeStyle="rgba(79,200,212,"+(0.4+0.3*Math.sin(t))+")";
+      cx.lineWidth=2;cx.beginPath();cx.arc(w/2,h/2+30,10+2*Math.sin(t),0,7);cx.stroke();
+    }
+    if(pts.length){
+      cx.beginPath();cx.moveTo(pts[0].x,pts[0].y);
+      pts.forEach(function(p){cx.lineTo(p.x,p.y);});
+      if(pts.length>2)cx.closePath();
+      cx.fillStyle="rgba(79,200,212,0.16)";
+      if(pts.length>2)cx.fill();
+      cx.strokeStyle="#4FC8D4";cx.lineWidth=2.5;cx.stroke();
+      pts.forEach(function(p,i){
+        cx.fillStyle=i?"#E9F2EE":"#4FC8D4";
+        cx.beginPath();cx.arc(p.x,p.y,5,0,7);cx.fill();
+        cx.strokeStyle="#0A1A17";cx.lineWidth=2;cx.stroke();
+      });
+    }
+    var ha=area();
+    areaEl.textContent=ha.toFixed(2).replace(".",",")+" га";
+    if(pts.length>2){
+      msg.style.display="inline-flex";
+      msg.textContent="Dalangiz "+ha.toFixed(1).replace(".",",")+" gektar chiqdi. To'g'rimi?";
+    } else msg.style.display="none";
+  }
+  function size(){ cv.width=cv.clientWidth*DPR; cv.height=cv.clientHeight*DPR; cx.setTransform(DPR,0,0,DPR,0,0);
+    M_PER_PX = 320/cv.clientWidth; draw(); }
+  size(); addEventListener("resize",size);
+  new ResizeObserver(size).observe(cv);
+  if(!reduced) (function pulse(){ if(!pts.length) draw(); requestAnimationFrame(pulse); })();
+  cv.addEventListener("pointerdown",function(e){
+    var r=cv.getBoundingClientRect();
+    if(pts.length>=12) return;
+    pts.push({x:e.clientX-r.left,y:e.clientY-r.top});
+    draw();
+  });
+  document.getElementById("redraw").addEventListener("click",function(){pts=[];draw();});
+})();
+
+/* ДО/ПОСЛЕ */
+(function(){
+  var ba=document.getElementById("ba"), after=ba.querySelector(".after"), bar=ba.querySelector(".bar");
+  function setK(k){
+    k=Math.max(0.04,Math.min(0.96,k));
+    after.style.clipPath="inset(0 0 0 "+(k*100)+"%)";
+    bar.style.left=(k*100)+"%";
+  }
+  setK(0.5);
+  var dragging=false;
+  function fromX(x){
+    var r=ba.getBoundingClientRect();
+    setK((x-r.left)/r.width);
+  }
+  ba.addEventListener("pointerdown",function(e){dragging=true;fromX(e.clientX);});
+  addEventListener("pointermove",function(e){if(dragging)fromX(e.clientX);});
+  addEventListener("pointerup",function(){dragging=false;});
+})();
+
+/* карточка: сообщения по очереди */
+(function(){
+  var scr=document.getElementById("scr"), msgs=scr.querySelectorAll(".msg");
+  new IntersectionObserver(function(es,ob){
+    if(!es[0].isIntersecting) return;
+    msgs.forEach(function(m,i){ setTimeout(function(){m.classList.add("on");}, 250+i*350); });
+    ob.disconnect();
+  },{threshold:0.35}).observe(scr);
+})();
+})();
+</script>
+
+</body>
+</html>

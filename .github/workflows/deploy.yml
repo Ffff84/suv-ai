@@ -99,6 +99,14 @@ jobs:
             if [ -d /var/www/suv-ai ]; then
               cp miniapp/draw.html /var/www/suv-ai/draw.html
               echo "Mini App обновлён"
+              # Лендинг живёт в репозитории с этого дня; старая версия
+              # сохранена на сервере как index-old-20260816.html
+              if [ -f landing/index.html ]; then
+                cp landing/index.html /var/www/suv-ai/index.html
+                mkdir -p /var/www/suv-ai/img
+                cp -r landing/img/. /var/www/suv-ai/img/ 2>/dev/null || true
+                echo "Лендинг обновлён"
+              fi
             fi
             systemctl list-unit-files suv-ai.service >/dev/null 2>&1 \
               || { echo "НЕТ СЛУЖБЫ suv-ai.service"; exit 11; }
