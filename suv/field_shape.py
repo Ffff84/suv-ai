@@ -458,13 +458,32 @@ def side_labels(points: list[tuple[float, float]],
 
 def inlet_edge(points: list[tuple[float, float]],
                inlet: tuple[int, int] | None) -> Edge | None:
-    """Ребро входа воды по сохранённым индексам вершин."""
+    """Ребро входа воды по сохранённым индексам вершин.
+
+    Сначала ищем среди склеенных сторон — их предлагает интерфейс. Если
+    пара не нашлась, но это соседние вершины, строим ребро по сырому
+    отрезку. Ворота полива часто и есть короткий торец: на настоящем
+    винограднике пилота вход с северо-востока — межа в 33 метра, которую
+    склейка честно прячет внутри длинной «восточной» стороны. Точное
+    ребро, записанное агрономом, важнее списка из восьми кнопок.
+    """
     if not inlet:
         return None
+    n = len(points)
     i, j = inlet
-    if not (0 <= i < len(points) and 0 <= j < len(points)):
+    if not (0 <= i < n and 0 <= j < n):
         return None
-    return next((e for e in edges(points) if (e.i, e.j) == (i, j)), None)
+    found = next((e for e in edges(points) if (e.i, e.j) == (i, j)), None)
+    if found is not None or j != (i + 1) % n:
+        return found
+    xy = to_local_m(points)
+    ccw = _signed_area_m2(xy) > 0
+    dx = xy[j][0] - xy[i][0]
+    dy = xy[j][1] - xy[i][1]
+    nx, ny = (dy, -dx) if ccw else (-dy, dx)
+    return Edge(i=i, j=j,
+                bearing=math.degrees(math.atan2(nx, ny)) % 360.0,
+                length_m=math.hypot(dx, dy))
 
 
 # ---------------------------------------------------------------- хранение

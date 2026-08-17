@@ -417,3 +417,26 @@ def test_geojson_round_trip_keeps_the_area():
     back = from_geojson_ring(to_geojson_ring(pts))
     assert len(back) == len(pts)
     assert area_ha(back) == pytest.approx(area_ha(pts), rel=1e-9)
+
+
+def test_inlet_edge_falls_back_to_a_raw_segment():
+    """Ворота полива часто короче порога склейки: на винограднике пилота
+    вход с северо-востока — торец в 33 метра, спрятанный склейкой внутри
+    «восточной» стороны. Точное ребро, записанное по словам фермера,
+    обязано находиться и по сырому отрезку."""
+    from suv.field_shape import edges, inlet_edge, meters_per_degree
+    m_lat, m_lon = meters_per_degree(LAT0)
+    def P(x, y): return (LAT0 + y / m_lat, LON0 + x / m_lon)
+    # узкая полоса с косым коротким торцом наверху
+    strip = [P(60, 150), P(40, 165), P(-20, 100), P(0, -160), P(35, -160)]
+
+    merged = {(e.i, e.j) for e in edges(strip)}
+    assert (0, 1) not in merged, "торец не должен быть отдельной стороной"
+
+    gate = inlet_edge(strip, (0, 1))
+    assert gate is not None
+    assert gate.length_m < 40
+    assert gate.name("ru") in ("северо-восток", "север")
+
+    # несоседние пары по-прежнему не выдумываются
+    assert inlet_edge(strip, (0, 2)) is None
