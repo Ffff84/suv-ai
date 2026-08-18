@@ -310,6 +310,58 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 .path .done{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,var(--cyan),var(--wet));border-radius:6px;transition:width 2.2s cubic-bezier(.2,.8,.2,1)}
 .path .note{font-size:.82rem;color:var(--mut);margin-top:10px}
 
+/* ── цены ── */
+.top .mlink{font-size:.85rem;color:var(--ink);text-decoration:none;opacity:.85}
+.top .mlink:hover{opacity:1}
+@media(max-width:560px){.top .mlink{display:none}}
+#pricing .chip{margin-top:26px}
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px;align-items:stretch}
+@media(max-width:960px){.price-grid{grid-template-columns:1fr;max-width:540px}}
+.prcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 26px;display:flex;flex-direction:column;position:relative}
+.prcard.acc{border-color:var(--cyan);box-shadow:0 30px 70px rgba(0,0,0,.35)}
+.pbadge{position:absolute;top:-13px;left:22px;background:var(--cyan);color:var(--deep);font:600 .68rem "JetBrains Mono",monospace;letter-spacing:.06em;padding:6px 12px;border-radius:100px}
+.prcard h3{font-size:1.05rem}
+.prcard .sub{color:var(--mut);font-size:.85rem;margin-top:3px}
+.prcard .price{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1.4rem;margin-top:18px;font-variant-numeric:tabular-nums}
+.prcard .price .per{font-family:"Golos Text",sans-serif;font-weight:400;font-size:.82rem;color:var(--mut)}
+.prcard .price s{color:var(--mut);font-weight:400;font-size:.9rem;margin-left:6px}
+.prcard .anchor{font-family:"JetBrains Mono",monospace;font-size:.73rem;color:var(--mut);margin-top:6px}
+.prcard ul{list-style:none;padding:0;margin:20px 0 24px;display:flex;flex-direction:column;gap:10px}
+.prcard li{display:grid;grid-template-columns:20px 1fr;gap:6px;font-size:.88rem;color:var(--mut)}
+.prcard li::before{content:"✓";color:var(--wet)}
+.prcard .btn{margin-top:auto;text-align:center}
+.prcard .fine{font-size:.76rem;color:var(--mut);margin-top:10px;text-align:center}
+.g7{margin-top:26px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--wet);border-radius:14px;padding:24px 28px}
+.g7 h3{font-size:1rem;margin-bottom:8px}
+.g7 p{font-size:.9rem;color:var(--mut);max-width:72ch}
+.calc{margin-top:26px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px 28px}
+.calc h3{font-size:1.15rem}
+.calc .csub{font-size:.85rem;color:var(--mut);margin-top:6px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:26px}
+@media(max-width:860px){.cgrid{grid-template-columns:1fr}}
+.inrow{margin-bottom:26px}
+.inlab{display:flex;justify-content:space-between;gap:14px;font-size:.86rem;color:var(--mut);margin-bottom:10px}
+.inlab b{color:var(--ink);font-size:.95rem;white-space:nowrap}
+.calc input[type=range]{width:100%;accent-color:var(--cyan);cursor:pointer}
+.orow{display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);font-size:.88rem;color:var(--mut)}
+.orow b{color:var(--ink);white-space:nowrap}
+.orow.roi{border-bottom:0}
+.orow.roi b{color:var(--cyan);font-size:1.25rem}
+.roinote{font-size:.76rem;color:var(--mut);margin-top:4px}
+.assume{font-size:.76rem;color:var(--mut);margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
+.b2g{margin-top:26px;display:grid;grid-template-columns:1fr auto;gap:26px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 28px}
+@media(max-width:760px){.b2g{grid-template-columns:1fr;justify-items:start}}
+.b2g h3{font-size:1rem;margin-bottom:8px}
+.b2g p{font-size:.88rem;color:var(--mut);max-width:72ch}
+.faq{margin-top:40px;max-width:820px}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;padding:16px 0;font-weight:500;color:var(--ink);list-style:none;display:flex;justify-content:space-between;gap:16px;align-items:baseline}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-family:"JetBrains Mono",monospace;color:var(--cyan);flex:0 0 auto}
+.faq details[open] summary::after{content:"−"}
+.faq details p{font-size:.9rem;color:var(--mut);padding:0 0 18px;max-width:68ch}
+.payline{margin-top:36px;font-family:"JetBrains Mono",monospace;font-size:.76rem;letter-spacing:.1em;color:var(--mut)}
+
 </style>
 </head>
 <body>
@@ -318,6 +370,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 <header class="top">
   <a class="logo" href="#">SUV<b>·AI</b></a>
   <div class="right">
+    <a class="mlink" href="#pricing" data-i18n="nav.pricing">Цены</a>
     <nav class="langs" aria-label="Til / Язык / Language">
       <button data-lang="uz">UZ</button><button data-lang="ru">RU</button><button data-lang="en">EN</button>
     </nav>
@@ -588,6 +641,127 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
   </div>
 </section>
 
+<!-- ЦЕНЫ -->
+<section class="sect" id="pricing">
+  <div class="shell">
+    <div class="eyebrow reveal" data-i18n="pr.eyebrow">Цены · сезон-2027</div>
+    <h2 class="reveal" style="max-width:36ch" data-i18n="pr.h2">Подписка стоит 2 часа работы насоса. Экономит 15–25 часов за сезон с гектара.</h2>
+    <p class="lede reveal" data-i18n="pr.lede">Платите за сезон, а не за год. Цена — за гектар, от апреля до октября. Экономию видно в журнале транзакций — её можно пересчитать самому (§5).</p>
+    <div class="chip reveal" data-i18n="pr.season">Сезон-2027 · бронирование открыто · первые 100 фермеров фиксируют цену навсегда</div>
+
+    <div class="price-grid">
+      <div class="prcard reveal">
+        <h3>Bepul</h3>
+        <div class="sub" data-i18n="pr.t1sub">Попробовать на своём поле</div>
+        <div class="price" data-i18n="pr.t1price">0 сум <span class='per'>· навсегда</span></div>
+        <div class="anchor" data-i18n="pr.t1anchor">Для знакомства — и для полей на самотёке весь пилот 2026–27</div>
+        <ul>
+          <li data-i18n="pr.t1i1">1 поле до 3 га</li>
+          <li data-i18n="pr.t1i2">Карта влаги каждые 5 дней (ячейка 20×20 м)</li>
+          <li data-i18n="pr.t1i3">Водный баланс и совет «на сколько часов включить насос»</li>
+          <li data-i18n="pr.t1i4">Обвод границы поля за 30 секунд в Mini App</li>
+          <li data-i18n="pr.t1i5">Все шесть принципов честности — как у всех</li>
+        </ul>
+        <a class="btn b2" href="https://t.me/suv_ai_bot" data-i18n="pr.t1cta">Открыть бота</a>
+        <div class="fine" data-i18n="pr.t1fine">Без карты, без обязательств</div>
+      </div>
+
+      <div class="prcard acc reveal">
+        <div class="pbadge" data-i18n="pr.t2badge">Сезон-2027 · ранний доступ</div>
+        <h3>Fermer</h3>
+        <div class="sub" data-i18n="pr.t2sub">Капельное орошение с насосом</div>
+        <div class="price" data-i18n="pr.t2price">99 000 <span class='per'>сум / га / сезон</span> <s>149 000</s></div>
+        <div class="anchor" data-i18n="pr.t2anchor">≈ 2 часа работы насоса. Или ~16 500 сум/га в месяц</div>
+        <ul>
+          <li data-i18n="pr.t2i1">Все поля, без ограничения площади</li>
+          <li data-i18n="pr.t2i2">Совет каждый день в 06:00 — в часах насоса, не в миллиметрах</li>
+          <li data-i18n="pr.t2i3">Журнал экономии в сумах и м³ — проверяемый (§5)</li>
+          <li data-i18n="pr.t2i4">Уведомление, когда вода не дошла до края поля</li>
+          <li data-i18n="pr.t2i5">Поддержка в Telegram на узбекском и русском</li>
+          <li data-i18n="pr.t2i6">Цена раннего доступа фиксируется за вами навсегда</li>
+        </ul>
+        <a class="btn b1" href="https://t.me/suv_ai_bot?start=season2027" data-i18n="pr.t2cta">Забронировать сезон-2027</a>
+        <div class="fine" data-i18n="pr.t2fine">Гарантия §7: не сэкономили больше, чем заплатили — вернём 100%</div>
+      </div>
+
+      <div class="prcard reveal">
+        <h3>Klaster</h3>
+        <div class="sub" data-i18n="pr.t3sub">Кластеры и агрохолдинги · от 500 га</div>
+        <div class="price" data-i18n="pr.t3price"><span class='per'>от</span> 90 000 <span class='per'>сум / га / сезон</span></div>
+        <div class="anchor" data-i18n="pr.t3anchor">Объёмная цена — считаем под ваш массив полей</div>
+        <ul>
+          <li data-i18n="pr.t3i1">Дашборд агронома: все поля и бригады на одном экране</li>
+          <li data-i18n="pr.t3i2">Отчёт по водосбережению — для субсидий и налога на воду</li>
+          <li data-i18n="pr.t3i3">API и выгрузка данных в вашу систему</li>
+          <li data-i18n="pr.t3i4">Обучение бригад и запуск за 2 недели</li>
+          <li data-i18n="pr.t3i5">Договор, счёт-фактура, оплата перечислением</li>
+        </ul>
+        <a class="btn b2" href="mailto:negmatullaevamir2@gmail.com" data-i18n="pr.t3cta">Обсудить пилот</a>
+        <div class="fine" data-i18n="pr.t3fine">Пилот на 500 га — до оплаты полного массива</div>
+      </div>
+    </div>
+
+    <div class="g7 reveal">
+      <h3 data-i18n="pr.g7h">Седьмой принцип: экономия проверяема — и возвращаема</h3>
+      <p data-i18n="pr.g7p">Мы показываем карту только по измерению (§1) и говорим, когда данных нет (§6). Логично довести это до денег: если по журналу транзакций экономия за сезон оказалась меньше стоимости подписки — возвращаем всю сумму. Риск на нас, не на фермере.</p>
+    </div>
+
+    <div class="calc reveal" id="calc">
+      <h3 data-i18n="pr.ch">Сколько это в деньгах на вашем поле</h3>
+      <p class="csub" data-i18n="pr.csub">Передвиньте ползунки — расчёт по методике водного баланса FAO-56 с поправкой на капиллярный подъём.</p>
+      <div class="cgrid">
+        <div>
+          <div class="inrow">
+            <div class="inlab"><span data-i18n="pr.cin1">Площадь под каплей с насосом, га</span><b class="mono" id="c-ha-v"></b></div>
+            <input type="range" id="c-ha" min="1" max="100" step="1" value="10" aria-labelledby="c-ha-v">
+          </div>
+          <div class="inrow">
+            <div class="inlab"><span data-i18n="pr.cin2">Стоимость часа работы насоса, сум</span><b class="mono" id="c-ph-v"></b></div>
+            <input type="range" id="c-ph" min="20000" max="80000" step="5000" value="45000" aria-labelledby="c-ph-v">
+          </div>
+        </div>
+        <div>
+          <div class="orow"><span data-i18n="pr.co1">Затраты на полив за сезон без SUV·AI</span><b class="mono" id="c-cost"></b></div>
+          <div class="orow"><span data-i18n="pr.co2">Экономия с SUV·AI (15–25%)</span><b class="mono" id="c-save"></b></div>
+          <div class="orow"><span data-i18n="pr.co3">Подписка SUV·AI за сезон</span><b class="mono" id="c-fee"></b></div>
+          <div class="orow roi"><span data-i18n="pr.co4">Возврат на подписку</span><b class="mono" id="c-roi"></b></div>
+          <p class="roinote" data-i18n="pr.roinote">Каждый сум, вложенный в подписку, возвращается экономией электричества и воды — цифры видно в журнале §5</p>
+        </div>
+      </div>
+      <p class="assume" data-i18n="pr.assume">Допущения: насос 60 м³/ч, сезонная норма ~6 500 м³/га (с учётом капиллярного подъёма), экономия советов 15–25% часов полива — как на пилотном саде «Олмазор». Цена подписки — 99 000 сум/га (ранний доступ).</p>
+    </div>
+
+    <div class="b2g reveal">
+      <div>
+        <h3 data-i18n="pr.bh">Государству, донорам и ассоциациям водопользователей</h3>
+        <p data-i18n="pr.bp">Независимый спутниковый учёт «докуда дошла вода» на уровне канала, района и программы. Отчётность для программ водосбережения, дифференцированного налога на воду и проектов международных банков развития. Самотёчные земли — в зоне нашего бесплатного покрытия уже сейчас.</p>
+      </div>
+      <a class="btn b2" href="mailto:negmatullaevamir2@gmail.com" data-i18n="pr.bcta">Написать нам</a>
+    </div>
+
+    <div class="faq reveal">
+      <details open>
+        <summary data-i18n="pr.q1">Почему оплата за сезон, а не за год?</summary>
+        <p data-i18n="pr.a1">Потому что поле работает сезон. Вы платите один раз перед началом полива (февраль–апрель) и закрываете вопрос до октября. Зимой бот бесплатно хранит историю поля и готовит план на следующий сезон.</p>
+      </details>
+      <details>
+        <summary data-i18n="pr.q2">У меня вода из арыка самотёком — мне это зачем?</summary>
+        <p data-i18n="pr.a2">Вам — бесплатно, весь пилотный период. Ваша вода не стоит денег, но карта «докуда дошла вода» экономит главное — урожай на дальнем краю поля и защищает от засоления при переливе. Платить за самотёчные земли должно государство, а не фермер — мы так и строим модель.</p>
+      </details>
+      <details>
+        <summary data-i18n="pr.q3">Как я проверю, что экономия настоящая?</summary>
+        <p data-i18n="pr.a3">Принцип §5: экономику можно пересчитать. Бот ведёт журнал: дата → рекомендованные часы → ваши часы → м³ → сумы. Берёте свои счета за электричество и сверяете. Если за сезон экономия меньше подписки — принцип §7: возвращаем деньги.</p>
+      </details>
+      <details>
+        <summary data-i18n="pr.q4">Что входит в цену раннего доступа?</summary>
+        <p data-i18n="pr.a4">Всё то же, что в полном тарифе Fermer. Разница одна: первые 100 фермеров сезона-2027 платят 99 000 вместо 149 000 сум/га — и эта цена остаётся за ними на все будущие сезоны. Мы получаем первых партнёров, вы — цену основателя.</p>
+      </details>
+    </div>
+
+    <p class="payline reveal" data-i18n="pr.pay">Оплата: Click · Payme · Uzum · Перечисление (юрлица)</p>
+  </div>
+</section>
+
 <!-- КОМАНДА -->
 <section class="sect creed" id="team">
   <div class="shell">
@@ -626,6 +800,67 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 /* Переводы. Русский — в самой разметке и снимается при загрузке. */
 window.SUVAI_I18N = {
 uz: {
+"nav.pricing":"Narxlar",
+"pr.eyebrow":"Narxlar · 2027-mavsum",
+"pr.h2":"Obuna — nasosning 2 soatlik ishi narxida. Mavsumda gektaridan 15–25 soat tejaydi.",
+"pr.lede":"To'lov — yilga emas, mavsumga. Narx — gektariga, apreldan oktabrgacha. Tejamkorlik tranzaksiyalar jurnalida ko'rinadi — uni o'zingiz qayta hisoblashingiz mumkin (§5).",
+"pr.season":"2027-mavsum · bron ochiq · dastlabki 100 fermer narxni abadiy muhrlab oladi",
+"pr.t1sub":"O'z dalangizda sinab ko'ring",
+"pr.t1price":"0 so'm <span class='per'>· abadiy</span>",
+"pr.t1anchor":"Tanishish uchun — va o'z oqimida sug'oriladigan dalalarga butun 2026–27 pilot davomida",
+"pr.t1i1":"3 gagacha 1 ta dala",
+"pr.t1i2":"Har 5 kunda namlik xaritasi (katak 20×20 m)",
+"pr.t1i3":"Suv balansi va «nasosni necha soatga yoqish» maslahati",
+"pr.t1i4":"Mini App'da dala chegarasi — 30 soniyada",
+"pr.t1i5":"Halollikning oltita tamoyili — hammaga birdek",
+"pr.t1cta":"Botni ochish",
+"pr.t1fine":"Kartasiz, majburiyatsiz",
+"pr.t2badge":"2027-mavsum · erta kirish",
+"pr.t2sub":"Nasosli tomchilatib sug'orish",
+"pr.t2price":"99 000 <span class='per'>so'm / ga / mavsum</span> <s>149 000</s>",
+"pr.t2anchor":"≈ nasosning 2 soatlik ishi. Yoki oyiga ~16 500 so'm/ga",
+"pr.t2i1":"Barcha dalalar, maydon cheklovisiz",
+"pr.t2i2":"Har kuni 06:00 da maslahat — millimetrda emas, nasos soatlarida",
+"pr.t2i3":"So'm va m³ hisobidagi tejamkorlik jurnali — tekshirib bo'ladi (§5)",
+"pr.t2i4":"Suv dala chetiga yetmaganida — ogohlantirish",
+"pr.t2i5":"Telegram'da o'zbek va rus tillarida yordam",
+"pr.t2i6":"Erta kirish narxi siz uchun abadiy qoladi",
+"pr.t2cta":"2027-mavsumni bron qilish",
+"pr.t2fine":"§7 kafolati: obunadan ko'p tejamadingizmi — 100% qaytaramiz",
+"pr.t3sub":"Klasterlar va agroxoldinglar · 500 ga dan",
+"pr.t3price":"90 000 <span class='per'>so'm / ga / mavsumdan</span>",
+"pr.t3anchor":"Hajmga qarab narx — dalalaringiz massiviga hisoblaymiz",
+"pr.t3i1":"Agronom paneli: barcha dalalar va brigadalar bitta ekranda",
+"pr.t3i2":"Suv tejash hisoboti — subsidiyalar va suv solig'i uchun",
+"pr.t3i3":"API va ma'lumotlarni tizimingizga yuklab olish",
+"pr.t3i4":"Brigadalarni o'qitish va 2 haftada ishga tushirish",
+"pr.t3i5":"Shartnoma, hisob-faktura, pul o'tkazmasi bilan to'lov",
+"pr.t3cta":"Pilotni muhokama qilish",
+"pr.t3fine":"500 ga pilot — to'liq massiv to'lovidan oldin",
+"pr.g7h":"Yettinchi tamoyil: tejamkorlik tekshiriladi — va qaytariladi",
+"pr.g7p":"Xaritani faqat o'lchov asosida ko'rsatamiz (§1) va ma'lumot yo'q bo'lsa, ochiq aytamiz (§6). Buni pulgacha yetkazish mantiqan to'g'ri: jurnal bo'yicha mavsumdagi tejamkorlik obuna narxidan kam chiqsa — butun summani qaytaramiz. Risk fermerda emas, bizda.",
+"pr.ch":"Bu sizning dalangizda qancha pul bo'ladi",
+"pr.csub":"Surgichlarni suring — hisob FAO-56 suv balansi metodikasi bo'yicha, kapillyar ko'tarilish inobatga olingan.",
+"pr.cin1":"Nasosli tomchi ostidagi maydon, ga",
+"pr.cin2":"Nasos ish soatining narxi, so'm",
+"pr.co1":"SUV·AI siz mavsumiy sug'orish xarajati",
+"pr.co2":"SUV·AI bilan tejamkorlik (15–25%)",
+"pr.co3":"SUV·AI obunasi mavsumga",
+"pr.co4":"Obunaning qaytimi",
+"pr.roinote":"Obunaga qo'yilgan har bir so'm elektr va suv tejamkorligi bo'lib qaytadi — raqamlar §5 jurnalida",
+"pr.assume":"Farazlar: nasos 60 m³/soat, mavsumiy norma ~6 500 m³/ga (kapillyar ko'tarilish bilan), maslahatlar tejami — sug'orish soatlarining 15–25% («Olmazor» pilot bog'idagi kabi). Obuna narxi — 99 000 so'm/ga (erta kirish).",
+"pr.bh":"Davlat, donorlar va suv iste'molchilari uyushmalariga",
+"pr.bp":"«Suv qayergacha yetdi» bo'yicha mustaqil sun'iy yo'ldosh hisobi — kanal, tuman va dastur darajasida. Suv tejash dasturlari, tabaqalashtirilgan suv solig'i va xalqaro rivojlanish banklari loyihalari uchun hisobot. O'z oqimidagi yerlar hozirdanoq bepul qamrovimizda.",
+"pr.bcta":"Bizga yozing",
+"pr.q1":"Nega to'lov yilga emas, mavsumga?",
+"pr.a1":"Chunki dala mavsum bo'yi ishlaydi. Sug'orish boshlanishidan oldin (fevral–aprel) bir marta to'laysiz — oktabrgacha masala yopiq. Qishda bot dala tarixini bepul saqlaydi va kelgusi mavsum rejasini tayyorlaydi.",
+"pr.q2":"Suvim ariqdan o'z oqimida keladi — bu menga nimaga kerak?",
+"pr.a2":"Sizga — bepul, butun pilot davomida. Suvingiz pul turmaydi, lekin «suv qayergacha yetdi» xaritasi eng muhimini asraydi — dala chetidagi hosilni, ortiqcha suvda esa sho'rlanishdan saqlaydi. O'z oqimidagi yerlar uchun fermer emas, davlat to'lashi kerak — modelni shunday quryapmiz.",
+"pr.q3":"Tejamkorlik haqiqiy ekanini qanday tekshiraman?",
+"pr.a3":"§5 tamoyili: iqtisodni qayta hisoblab bo'ladi. Bot jurnal yuritadi: sana → tavsiya etilgan soat → sizning soatlaringiz → m³ → so'm. Elektr hisob-kitobingiz bilan solishtirasiz. Mavsumda tejamkorlik obunadan kam bo'lsa — §7: pulni qaytaramiz.",
+"pr.q4":"Erta kirish narxiga nima kiradi?",
+"pr.a4":"To'liq Fermer tarifidagi hamma narsa. Farq bitta: 2027-mavsumning dastlabki 100 fermeri 149 000 emas, 99 000 so'm/ga to'laydi — va bu narx barcha kelgusi mavsumlarda ularda qoladi. Biz birinchi hamkorlarni olamiz, siz — asoschi narxini.",
+"pr.pay":"To'lov: Click · Payme · Uzum · O'tkazma (yuridik shaxslar)",
 "nav.cta":"Botni ochish",
 "hero.eyebrow":"Pilot ishlayapti · Samarqand viloyati · 2026",
 "hero.h1":"Sun'iy yo'ldosh dalangizda <em>suv qayergacha yetganini</em> ko'radi",
@@ -730,6 +965,67 @@ uz: {
 "foot.l":"SUV AI · har bir dala uchun aqlli sug'orish · pilot 2026"
 },
 en: {
+"nav.pricing":"Pricing",
+"pr.eyebrow":"Pricing · season 2027",
+"pr.h2":"A subscription costs 2 hours of pump time. It saves 15–25 hours per hectare a season.",
+"pr.lede":"Pay per season, not per year. Priced per hectare, April to October. The savings appear in the transaction log — you can recompute them yourself (§5).",
+"pr.season":"Season 2027 · booking open · the first 100 farmers lock their price forever",
+"pr.t1sub":"Try it on your own field",
+"pr.t1price":"0 UZS <span class='per'>· forever</span>",
+"pr.t1anchor":"For getting to know us — and for gravity-fed fields through the whole 2026–27 pilot",
+"pr.t1i1":"1 field up to 3 ha",
+"pr.t1i2":"Moisture map every 5 days (20×20 m cell)",
+"pr.t1i3":"Water balance and “run the pump for N hours” advice",
+"pr.t1i4":"Trace the field boundary in 30 seconds in the Mini App",
+"pr.t1i5":"All six honesty principles — same as for everyone",
+"pr.t1cta":"Open the bot",
+"pr.t1fine":"No card, no commitment",
+"pr.t2badge":"Season 2027 · early access",
+"pr.t2sub":"Drip irrigation with a pump",
+"pr.t2price":"99 000 <span class='per'>UZS / ha / season</span> <s>149 000</s>",
+"pr.t2anchor":"≈ 2 hours of pump time. Or ~16 500 UZS/ha a month",
+"pr.t2i1":"All fields, no area limit",
+"pr.t2i2":"Advice every day at 06:00 — in pump hours, not millimetres",
+"pr.t2i3":"Savings log in UZS and m³ — verifiable (§5)",
+"pr.t2i4":"An alert when water didn't reach the far edge",
+"pr.t2i5":"Telegram support in Uzbek and Russian",
+"pr.t2i6":"Your early-access price stays yours forever",
+"pr.t2cta":"Book season 2027",
+"pr.t2fine":"§7 guarantee: didn't save more than you paid — 100% refund",
+"pr.t3sub":"Clusters and agriholdings · from 500 ha",
+"pr.t3price":"<span class='per'>from</span> 90 000 <span class='per'>UZS / ha / season</span>",
+"pr.t3anchor":"Volume pricing — quoted for your set of fields",
+"pr.t3i1":"Agronomist dashboard: every field and crew on one screen",
+"pr.t3i2":"Water-saving reports — for subsidies and the water tax",
+"pr.t3i3":"API and data export into your systems",
+"pr.t3i4":"Crew training and a two-week rollout",
+"pr.t3i5":"Contract, invoice, payment by bank transfer",
+"pr.t3cta":"Discuss a pilot",
+"pr.t3fine":"A 500-ha pilot — before paying for the full estate",
+"pr.g7h":"The seventh principle: savings are verifiable — and refundable",
+"pr.g7p":"We draw the map only from measurement (§1) and say so when data is missing (§6). It is only logical to extend this to money: if the season's savings in the transaction log turn out less than the subscription — we refund the full amount. The risk is ours, not the farmer's.",
+"pr.ch":"What this means in money on your field",
+"pr.csub":"Drag the sliders — computed by the FAO-56 water-balance method with a correction for capillary rise.",
+"pr.cin1":"Drip area with a pump, ha",
+"pr.cin2":"Cost of one pump hour, UZS",
+"pr.co1":"Season irrigation cost without SUV·AI",
+"pr.co2":"Savings with SUV·AI (15–25%)",
+"pr.co3":"SUV·AI subscription per season",
+"pr.co4":"Return on the subscription",
+"pr.roinote":"Every sum put into the subscription comes back as electricity and water savings — the numbers are in the §5 log",
+"pr.assume":"Assumptions: 60 m³/h pump, seasonal norm ~6 500 m³/ha (capillary rise included), advice saves 15–25% of irrigation hours — as on the Olmazor pilot orchard. Subscription price — 99 000 UZS/ha (early access).",
+"pr.bh":"For government, donors and water-user associations",
+"pr.bp":"Independent satellite accounting of “how far the water reached” at canal, district and programme level. Reporting for water-saving programmes, a differentiated water tax and development-bank projects. Gravity-fed land is already inside our free coverage.",
+"pr.bcta":"Write to us",
+"pr.q1":"Why pay per season and not per year?",
+"pr.a1":"Because a field works by seasons. You pay once before irrigation starts (February–April) and the matter is closed until October. Over winter the bot keeps the field history for free and prepares the next season's plan.",
+"pr.q2":"My water comes from the canal by gravity — why would I need this?",
+"pr.a2":"For you it is free for the whole pilot. Your water costs nothing, but the “how far did the water reach” map saves what matters most — the harvest at the far edge of the field — and protects against salinisation from overwatering. Gravity-fed land should be paid for by the state, not the farmer — that is how we build the model.",
+"pr.q3":"How do I verify the savings are real?",
+"pr.a3":"Principle §5: the economics can be recomputed. The bot keeps a log: date → recommended hours → your hours → m³ → UZS. Take your electricity bills and compare. If a season's savings are below the subscription — principle §7: we refund the money.",
+"pr.q4":"What does the early-access price include?",
+"pr.a4":"Everything in the full Fermer plan. One difference: the first 100 farmers of season 2027 pay 99 000 instead of 149 000 UZS/ha — and that price stays with them for all future seasons. We get first partners, you get a founder's price.",
+"pr.pay":"Payment: Click · Payme · Uzum · Bank transfer (companies)",
 "nav.cta":"Open the bot",
 "hero.eyebrow":"Pilot live · Samarkand region · 2026",
 "hero.h1":"The satellite sees <em>how far the water reached</em> on your field",
@@ -1184,6 +1480,38 @@ document.querySelectorAll(".langs button").forEach(function(b){
   b.addEventListener("click", function(){ setLang(b.getAttribute("data-lang")); });
 });
 setLang(LANG);
+})();
+
+/* ── калькулятор цен: состояние живёт в памяти страницы, без localStorage ── */
+(function(){
+  var PUMP_M3H = 60, NORM_M3_HA = 6500, SAVE_LO = 0.15, SAVE_HI = 0.25, PRICE_HA = 99000;
+  var ha = document.getElementById("c-ha"), ph = document.getElementById("c-ph");
+  if(!ha || !ph) return;
+  var UNITS = {
+    ru:{sum:" сум", ha:" га"},
+    uz:{sum:" so'm", ha:" ga"},
+    en:{sum:" UZS", ha:" ha"}
+  };
+  function fmt(n){
+    return Math.round(n).toLocaleString("ru-RU").replace(/[,\u00a0\u202f]/g," ");
+  }
+  function calc(){
+    var u = UNITS[document.documentElement.lang] || UNITS.ru;
+    var A = +ha.value, P = +ph.value;
+    var cost = A * NORM_M3_HA / PUMP_M3H * P;
+    var lo = cost * SAVE_LO, hi = cost * SAVE_HI, fee = A * PRICE_HA;
+    document.getElementById("c-ha-v").textContent = A + u.ha;
+    document.getElementById("c-ph-v").textContent = fmt(P) + u.sum;
+    document.getElementById("c-cost").textContent = fmt(cost) + u.sum;
+    document.getElementById("c-save").textContent = fmt(lo) + " — " + fmt(hi) + u.sum;
+    document.getElementById("c-fee").textContent = fmt(fee) + u.sum;
+    document.getElementById("c-roi").textContent = "×" + Math.floor(lo/fee) + "–×" + Math.round(hi/fee);
+  }
+  ha.addEventListener("input", calc);
+  ph.addEventListener("input", calc);
+  /* при смене языка setLang уже отработал (его обработчик навешан раньше) — пересобираем числа с новой единицей */
+  document.querySelectorAll(".langs button").forEach(function(b){ b.addEventListener("click", calc); });
+  calc();
 })();
 </script>
 
