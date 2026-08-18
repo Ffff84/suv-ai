@@ -1,0 +1,6 @@
+{
+  "files": ["landing/index.html", "miniapp/draw.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}
