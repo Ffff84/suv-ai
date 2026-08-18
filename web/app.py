@@ -32,6 +32,7 @@ from suv.webauth import AuthError, TelegramUser, verify_init_data
 # Импорт бота даёт расчёт, доступ и справочники одним куском. Модуль
 # импорт-безопасен: run_polling живёт под __main__.
 import bot.main as B
+from suv.economics import cost_of
 from suv.field_status import STATUS_WORD, Status, overall_status
 
 log = logging.getLogger("suv.web")
@@ -206,10 +207,11 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
             "reason": rec.reason_key,
             "pump_hours": (round(rec.gross_m3 / pump.m3_per_hour, 1)
                            if pump and pump.m3_per_hour else None),
-            "pump_cost_uzs": (round(rec.gross_m3 / pump.m3_per_hour
-                                    * pump.uzs_per_hour)
-                              if pump and pump.m3_per_hour
-                              and getattr(pump, "uzs_per_hour", None) else None),
+            # Стоимость — штатным cost_of, а не своей арифметикой: у
+            # насоса нет цены часа, есть цена куба, и считать её тут
+            # заново значило бы завести третью версию экономики.
+            "pump_cost_uzs": (cost_of(rec.gross_m3, pump).uzs
+                              if pump and rec.gross_m3 else None),
         },
         "state": {
             "last_irrigation": last_irr.isoformat() if last_irr else None,
