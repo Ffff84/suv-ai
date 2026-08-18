@@ -141,13 +141,14 @@ def _menu(chat_id: int) -> ReplyKeyboardMarkup:
     extra: list = []
     if chat_id in _FIELD_STATUS:
         extra.append(BTN_DALA)
-    # Кнопка кабинета появляется, только если домен задан: web_app без
-    # https Telegram не откроет, а мёртвая кнопка хуже отсутствующей —
-    # то же правило, что у карты обводки.
+    # Кнопка кабинета — ОБЫЧНАЯ текстовая, не web_app. Причина
+    # проверена на Telegram Desktop 9.6: приложениям из reply-клавиатуры
+    # он не передаёт tgWebAppData (в hash приезжают только параметры
+    # темы), и кабинет не может подтвердить личность. Поэтому нажатие
+    # обрабатывает kabinet(), отвечающий inline-кнопкой — этот способ
+    # запуска несёт подпись на всех клиентах.
     if chat_id in _CABINET and CABINET_URL:
-        from telegram import WebAppInfo
-        extra.append(KeyboardButton(BTN_KABINET,
-                                    web_app=WebAppInfo(CABINET_URL)))
+        extra.append(BTN_KABINET)
     if extra:
         rows.append(extra)
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
@@ -1976,6 +1977,25 @@ async def _escape_to_yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> i
     return ConversationHandler.END
 
 
+async def kabinet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Открыть веб-кабинет. Отвечаем inline-кнопкой, а не открываем из
+    reply-клавиатуры: только inline-запуск гарантированно передаёт
+    странице подпись Telegram (initData) на всех клиентах — Desktop
+    для кнопок нижней клавиатуры её не шлёт вовсе."""
+    chat = update.effective_chat.id
+    if chat not in _CABINET or not CABINET_URL:
+        # Кнопка могла залипнуть в старой клавиатуре — отвечаем внятно.
+        await update.message.reply_text(
+            "Kabinet hozircha yopiq sinovda.", reply_markup=_menu(chat))
+        return
+    from telegram import WebAppInfo
+    await update.message.reply_text(
+        "Dala kabineti: maslahat, 14 kunlik reja, sug'orishlar va hisob "
+        "tarixi — bitta ekranda.",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+            "🖥 Kabinetni ochish", web_app=WebAppInfo(CABINET_URL))]]))
+
+
 async def _escape_to_dala(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     await dala_holati(update, ctx)
     return ConversationHandler.END
@@ -2033,6 +2053,7 @@ def main() -> None:
     # текст обрывал бы регистрацию.
     app.add_handler(CommandHandler("dala", dala_holati))
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_DALA)}$"), dala_holati))
+    app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_KABINET)}$"), kabinet))
     # Обводка контура. Все три текстовые кнопки живут только в режиме
     # рисования: их хендлеры молча выходят, если режим не включён, —
     # поэтому в MENU_FILTER они не добавляются и мастер не задевают.

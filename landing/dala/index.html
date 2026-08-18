@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SUV AI — dala kabineti</title>
-<meta name="suv-build" content="4">
+<meta name="suv-build" content="5">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0A1A17">
@@ -81,15 +81,20 @@ section.card .hint{color:var(--mut);font-size:.8rem;margin-top:4px}
 h3.sec{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem;
   margin:30px 0 12px}
 
-/* вкладки — кабинет большой, одним свитком его не прочесть */
-.tabs{display:flex;gap:8px;overflow-x:auto;margin:20px 0 18px;
-  padding-bottom:4px;-webkit-overflow-scrolling:touch}
-.tabs button{white-space:nowrap;border:1px solid var(--line);border-radius:100px;
-  padding:9px 16px;font-size:.8rem;color:var(--mut);background:var(--panel);
-  transition:transform .2s}
-.tabs button[aria-selected="true"]{background:var(--cyan);color:var(--deep);
-  border-color:var(--cyan);font-weight:600}
-.tabs button:hover{transform:translateY(-1px)}
+/* раскрывающиеся блоки: сводка сразу, детали по нажатию — тот же
+   details/summary, что в FAQ лендинга */
+details.acc{background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;margin-bottom:12px;overflow:hidden}
+.acc summary{list-style:none;cursor:pointer;display:grid;
+  grid-template-columns:14px 1fr auto;gap:12px;align-items:center;
+  padding:15px 18px}
+.acc summary::-webkit-details-marker{display:none}
+.acc .ttl{font-weight:600;font-size:.9rem}
+.acc .sum{color:var(--mut);font-size:.8rem;margin-top:3px}
+.acc .sum b{font-family:"JetBrains Mono",monospace;font-weight:500;color:var(--ink)}
+.acc .chev{color:var(--cyan);font-size:.8rem;transition:transform .2s}
+.acc[open] .chev{transform:rotate(90deg)}
+.acc .bd{border-top:1px solid var(--line);padding:14px 18px 18px}
 
 /* план на 14 дней: полоса дефицита в долю порога */
 .day{display:grid;grid-template-columns:64px 1fr 62px;gap:10px;align-items:center;
@@ -310,47 +315,21 @@ function chart(journal){
     '<div class="sub" style="margin:10px 0 0;font-size:.78rem">' + esc(T.chartCap) + '</div></div>';
 }
 
-/* ── экран поля: вкладками, иначе одним свитком не прочесть ── */
-var CUR = null, TAB = "now";
+/* ── экран поля: сводки сразу, детали по нажатию ── */
 
-function tabs(){
-  var t = [["now",T.tabNow],["plan",T.tabPlan],["water",T.tabWater],
-           ["money",T.tabMoney],["log",T.tabLog]];
-  return '<div class="tabs" role="tablist">' + t.map(function(x){
-    return '<button role="tab" data-tab="' + x[0] + '" aria-selected="' +
-           (TAB === x[0]) + '">' + esc(x[1]) + '</button>'; }).join("") + '</div>';
+function acc(dot, title, summary, body, open){
+  var d = dot == null
+    ? '<span class="dot" style="background:var(--line)"></span>'
+    : '<span class="dot s' + dot + '"></span>';
+  return '<details class="acc"' + (open ? ' open' : '') + '><summary>' + d +
+    '<span><span class="ttl">' + esc(title) + '</span>' +
+    (summary ? '<div class="sum">' + summary + '</div>' : '') + '</span>' +
+    '<span class="chev">▶</span></summary>' +
+    '<div class="bd">' + body + '</div></details>';
 }
 
-/* Вкладка «Сейчас»: совет и разбор по секциям — то же, что в чате. */
-function tabNow(d){
-  var a = d.advice, s = d.state, h = "";
-  var when = T.noNeed;
-  if (a.action_day) {
-    when = a.days_until === 0 ? T.today : a.days_until === 1 ? T.tomorrow
-         : (L === "ru" ? "Через " + a.days_until + " " + T.inDays
-            : L === "en" ? "In " + a.days_until + " " + T.inDays
-            : a.days_until + " " + T.inDays);
-  }
-  h += '<div class="advice"><div class="cap">' + esc(T.advice) + '</div>' +
-       '<div class="when">' + esc(when) + '</div>';
-  if (a.action_day) {
-    h += '<div class="vol"><b class="mono">' + num(a.gross_m3) + '</b> m³';
-    if (a.pump_hours != null) h += ' · <b class="mono">' + a.pump_hours + '</b> ' + esc(T.hours);
-    if (a.pump_cost_uzs != null) h += ' · <b class="mono">' + num(a.pump_cost_uzs) + '</b> so\'m';
-    h += ' · <span class="mono">' + esc(a.action_day) + '</span></div>';
-  }
-  h += '</div>';
-  if (!s.anchored) h += '<div class="warnbox">' + esc(T.noAnchor) + '</div>';
-  if (s.degraded)  h += '<div class="warnbox">' + esc(T.degraded) + '</div>';
-
-  h += '<h3 class="sec">' + esc(T.state) + '</h3>';
-  d.sections.forEach(function(sec){
-    h += '<section class="card"><span class="dot s' + sec.status + '" style="margin-top:5px"></span>' +
-         '<span class="body"><h2>' + esc(sec.title) + '</h2><p>' + esc(sec.line) + '</p>' +
-         (sec.hint ? '<p class="hint">' + esc(sec.hint) + '</p>' : '') + '</span></section>';
-  });
-
-  h += '<h3 class="sec">' + esc(T.nums) + '</h3><div class="grid">';
+function numsBody(d){
+  var s = d.state, h = '<div class="grid" style="margin:0">';
   function cell(k, v, sm){ return '<div class="cell"><div class="k">' + esc(k) +
     '</div><div class="v">' + v + (sm ? ' <small>' + esc(sm) + '</small>' : '') + '</div></div>'; }
   h += cell(T.ndvi, s.ndvi != null ? s.ndvi.toFixed(3) : "—", s.ndvi_date || "");
@@ -365,11 +344,8 @@ function tabNow(d){
   return h + '</div>';
 }
 
-/* Вкладка «План»: каждый день до полива — сколько влаги ушло из запаса.
-   Полоса — доля порога; когда она полная, поле у предела. */
-function tabPlan(d){
-  if (!d.plan || !d.plan.length) return '<div class="note">—</div>';
-  var h = '<div class="chart" style="padding:14px 16px">';
+function planBody(d){
+  var h = '';
   d.plan.forEach(function(p){
     var share = p.raw_mm ? Math.min(1, p.depletion_mm / p.raw_mm) : 0;
     var cls = share >= 1 ? "alert" : share >= .75 ? "warn" : "";
@@ -382,29 +358,22 @@ function tabPlan(d){
          '<span class="v">' + (p.irrigate ? '<span class="tag">SUV</span>'
                                           : p.depletion_mm) + '</span></div>';
   });
-  return h + '</div><div class="sub" style="margin-top:12px;font-size:.8rem">' +
+  return h + '<div class="sub" style="margin:12px 0 0;font-size:.8rem">' +
          esc(T.planCap) + '</div>';
 }
 
-/* Вкладка «Поливы»: что фермер реально сделал, по его отметкам. */
-function tabWater(d){
-  if (!d.irrigations || !d.irrigations.length)
-    return '<div class="note">' + esc(T.noIrr) + '</div>';
-  var h = '<div class="chart" style="padding:6px 16px">';
+function waterBody(d){
+  var h = '';
   d.irrigations.forEach(function(i){
     h += '<div class="rowline"><span class="mono">' + esc(i.day) + '</span>' +
          '<b>' + (i.m3 != null ? num(i.m3) + " m³" : "—") + '</b></div>';
   });
-  return h + '</div><div class="sub" style="margin-top:12px;font-size:.8rem">' +
+  return h + '<div class="sub" style="margin:12px 0 0;font-size:.8rem">' +
          esc(T.irrCap) + '</div>';
 }
 
-/* Вкладка «Экономика»: цифры И их оговорки. Без флагов verified и
-   has_baseline числа читались бы как измеренные — а они расчётные. */
-function tabMoney(d){
-  var sv = d.savings;
-  if (!sv) return '<div class="note">—</div>';
-  var h = '<div class="chart" style="padding:6px 16px">';
+function moneyBody(d){
+  var sv = d.savings, h = '';
   function row(k, v){ h += '<div class="rowline"><span>' + esc(k) + '</span><b>' + v + '</b></div>'; }
   row(T.recs, sv.recommendations);
   row(T.followed, sv.followed);
@@ -413,15 +382,12 @@ function tabMoney(d){
     row(T.baseline, num(sv.baseline_m3) + " m³");
     row(T.saved, num(sv.saved_m3) + " m³");
   }
-  h += '</div>';
   if (!sv.has_baseline) h += '<div class="warnbox">' + esc(T.noBaseline) + '</div>';
   if (!sv.verified) h += '<div class="warnbox">' + esc(T.notVerified) + '</div>';
   return h;
 }
 
-/* Вкладка «История»: как менялся расчёт день ото дня. */
-function tabLog(d){
-  if (!d.journal || d.journal.length < 2) return '<div class="note">—</div>';
+function logBody(d){
   var h = chart(d.journal);
   h += '<div class="scroll" style="margin-top:14px"><table><thead><tr><th>' + esc(T.jDate) +
        '</th><th>' + esc(T.jAdvice) + '</th><th>' + esc(T.jDef) + '</th></tr></thead><tbody>';
@@ -433,27 +399,80 @@ function tabLog(d){
   return h + '</tbody></table></div>';
 }
 
-function paint(){
-  var d = CUR, f = d.field;
-  var body = TAB === "plan" ? tabPlan(d) : TAB === "water" ? tabWater(d)
-           : TAB === "money" ? tabMoney(d) : TAB === "log" ? tabLog(d) : tabNow(d);
-  root.innerHTML =
-    '<h1>' + esc(f.name) + '</h1><div class="sub">' + esc(f.crop) + ' · ' +
-      esc(f.hectares) + ' ' + esc(T.ga) + '</div>' +
-    '<div class="overall"><span class="dot s' + d.overall + '"></span>' +
-      '<span class="txt">' + esc((d.sections[0] && d.sections[0].status_word) || "") +
-      '</span></div>' + tabs() + body;
-  root.querySelectorAll("[data-tab]").forEach(function(b){
-    b.addEventListener("click", function(){
-      TAB = b.getAttribute("data-tab"); paint(); window.scrollTo(0, 0);
-    });
-  });
-}
-
 function renderField(d){
   back.hidden = false;
-  CUR = d; TAB = "now";
-  paint();
+  var f = d.field, a = d.advice, s = d.state;
+  var when = T.noNeed;
+  if (a.action_day) {
+    when = a.days_until === 0 ? T.today : a.days_until === 1 ? T.tomorrow
+         : (L === "ru" ? "Через " + a.days_until + " " + T.inDays
+            : L === "en" ? "In " + a.days_until + " " + T.inDays
+            : a.days_until + " " + T.inDays);
+  }
+  var h = '<h1>' + esc(f.name) + '</h1><div class="sub">' + esc(f.crop) + ' · ' +
+          esc(f.hectares) + ' ' + esc(T.ga) + '</div>';
+
+  /* совет — всегда развёрнут: ради него фермер и зашёл */
+  h += '<div class="advice"><div class="cap">' + esc(T.advice) + '</div>' +
+       '<div class="when">' + esc(when) + '</div>';
+  if (a.action_day) {
+    h += '<div class="vol"><b class="mono">' + num(a.gross_m3) + '</b> m³';
+    if (a.pump_hours != null) h += ' · <b class="mono">' + a.pump_hours + '</b> ' + esc(T.hours);
+    if (a.pump_cost_uzs != null) h += ' · <b class="mono">' + num(a.pump_cost_uzs) + '</b> so\'m';
+    h += ' · <span class="mono">' + esc(a.action_day) + '</span></div>';
+  }
+  h += '</div>';
+  if (!s.anchored) h += '<div class="warnbox" style="margin:0 0 12px">' + esc(T.noAnchor) + '</div>';
+  if (s.degraded)  h += '<div class="warnbox" style="margin:0 0 12px">' + esc(T.degraded) + '</div>';
+
+  /* состояние: строка-сводка каждой секции видна сразу, подсказка — по
+     нажатию; секция без подсказки остаётся простой карточкой */
+  d.sections.forEach(function(sec){
+    if (sec.hint) {
+      h += acc(sec.status, sec.title, esc(sec.line),
+               '<p style="font-size:.9rem">' + esc(sec.hint) + '</p>');
+    } else {
+      h += '<section class="card"><span class="dot s' + sec.status +
+           '" style="margin-top:5px"></span><span class="body"><h2>' +
+           esc(sec.title) + '</h2><p>' + esc(sec.line) + '</p></span></section>';
+    }
+  });
+
+  /* дальше — блоки со сводками-цифрами */
+  var sm = [];
+  if (s.ndvi != null) sm.push('NDVI <b>' + s.ndvi.toFixed(2) + '</b>');
+  if (s.depletion_mm != null && s.raw_mm != null)
+    sm.push('<b>' + s.depletion_mm + '</b>/<b>' + s.raw_mm + '</b> mm');
+  h += acc(null, T.nums, sm.join(' · '), numsBody(d));
+
+  if (d.plan && d.plan.length) {
+    var irr = null;
+    for (var i = 0; i < d.plan.length; i++)
+      if (d.plan[i].irrigate) { irr = d.plan[i]; break; }
+    var lastP = d.plan[d.plan.length - 1];
+    var psum = irr ? 'SUV <b>' + esc(irr.day.slice(5)) + '</b> · <b>' +
+                     num(irr.gross_m3) + '</b> m³'
+                   : '<b>' + lastP.depletion_mm + '</b>/<b>' + lastP.raw_mm +
+                     '</b> mm · ' + esc(lastP.day.slice(5));
+    h += acc(null, T.tabPlan, psum, planBody(d));
+  }
+
+  if (d.irrigations && d.irrigations.length)
+    h += acc(null, T.tabWater,
+             '<b>' + d.irrigations.length + '</b> · ' + esc(d.irrigations[0].day),
+             waterBody(d));
+
+  if (d.savings)
+    h += acc(null, T.tabMoney,
+             T.metered + ' <b>' + num(d.savings.metered_m3) + '</b> m³',
+             moneyBody(d));
+
+  if (d.journal && d.journal.length > 1)
+    h += acc(null, T.tabLog,
+             '<b>' + d.journal.length + '</b> · ' + esc(d.journal[0].generated_on),
+             logBody(d));
+
+  root.innerHTML = h;
   window.scrollTo(0, 0);
 }
 
