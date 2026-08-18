@@ -48,6 +48,11 @@ article .lede b{color:var(--ink);font-weight:500}
 article ul,article ol{margin:0 0 16px;padding-left:22px}
 article li{margin-bottom:8px}
 article b,article strong{font-weight:600}
+figure{margin:0 0 34px}
+figure img{width:100%;height:auto;display:block;border-radius:14px;
+  box-shadow:0 30px 60px rgba(0,0,0,.45)}
+figcaption{font-size:.78rem;color:var(--mut);margin-top:12px;line-height:1.5}
+figcaption .src{display:block;font-family:"JetBrains Mono",monospace;font-size:.7rem;margin-top:5px}
 .tbl{overflow-x:auto;margin:22px 0}
 article table{border-collapse:collapse;width:100%;font-size:.92rem}
 article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
@@ -65,6 +70,8 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-siz
 .post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
   border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
 .post:hover{transform:translateY(-2px)}
+.post .thumb{width:calc(100% + 56px);margin:-26px -28px 18px;aspect-ratio:1200/630;
+  object-fit:cover;border-radius:13px 13px 0 0;display:block}
 .post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
 .post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
 .post .meta{margin:0}
@@ -87,16 +94,19 @@ if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
 <p class="meta">Разборы реальных полей, водный баланс FAO-56 и экономика
 полива — без обещаний сверх измеренного.</p>
 <a class="post" href="/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
+  <img class="thumb" src="/blog/img/orchard-rows.webp" alt="" width="1200" height="630" loading="lazy">
   <h2>Когда поливать яблоневый сад: водный баланс вместо глаза</h2>
   <p>Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.</p>
   <p class="meta">18 августа 2026 · 5 мин</p>
 </a>
 <a class="post" href="/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html">
+  <img class="thumb" src="/blog/img/sentinel2-fields.webp" alt="" width="1200" height="630" loading="lazy">
   <h2>Водный стресс сада на снимках NDMI: разбор июля 2025</h2>
   <p>За десять дней июля 2025 яблоневый сад потерял 57% воды в листе — NDMI упал с 0,337 до 0,144. Хронология по Sentinel-2, четыре проверки и слова фермера.</p>
   <p class="meta">18 августа 2026 · 6 мин</p>
 </a>
 <a class="post" href="/blog/skolko-stoit-chas-nasosa.html">
+  <img class="thumb" src="/blog/img/irrigation-pump.webp" alt="" width="1200" height="630" loading="lazy">
   <h2>Сколько стоит час насоса: экономика капельного полива</h2>
   <p>Час насоса на пилотном поле стоит 45 000 сум, сезон гектара сада — ~108 часов. Считаем экономику капельного полива и что даёт экономия 15–25% часов.</p>
   <p class="meta">18 августа 2026 · 5 мин</p>

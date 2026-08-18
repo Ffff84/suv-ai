@@ -13,10 +13,10 @@
 <meta property="og:title" content="Когда поливать яблоневый сад: водный баланс вместо глаза">
 <meta property="og:description" content="Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.">
 <meta property="og:url" content="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
-<meta property="og:image" content="https://suv-ai.online/og.jpg">
+<meta property="og:image" content="https://suv-ai.online/blog/img/orchard-rows.webp">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/fonts/fonts.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Когда поливать яблоневый сад: водный баланс вместо глаза", "description": "Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.", "datePublished": "2026-08-18", "dateModified": "2026-08-18", "inLanguage": "ru", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html", "image": "https://suv-ai.online/og.jpg"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Когда поливать яблоневый сад: водный баланс вместо глаза", "description": "Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.", "datePublished": "2026-08-18", "dateModified": "2026-08-18", "inLanguage": "ru", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html", "image": "https://suv-ai.online/blog/img/orchard-rows.webp"}</script>
 <style>
 :root{
   --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
@@ -49,6 +49,11 @@ article .lede b{color:var(--ink);font-weight:500}
 article ul,article ol{margin:0 0 16px;padding-left:22px}
 article li{margin-bottom:8px}
 article b,article strong{font-weight:600}
+figure{margin:0 0 34px}
+figure img{width:100%;height:auto;display:block;border-radius:14px;
+  box-shadow:0 30px 60px rgba(0,0,0,.45)}
+figcaption{font-size:.78rem;color:var(--mut);margin-top:12px;line-height:1.5}
+figcaption .src{display:block;font-family:"JetBrains Mono",monospace;font-size:.7rem;margin-top:5px}
 .tbl{overflow-x:auto;margin:22px 0}
 article table{border-collapse:collapse;width:100%;font-size:.92rem}
 article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
@@ -66,6 +71,8 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-siz
 .post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
   border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
 .post:hover{transform:translateY(-2px)}
+.post .thumb{width:calc(100% + 56px);margin:-26px -28px 18px;aspect-ratio:1200/630;
+  object-fit:cover;border-radius:13px 13px 0 0;display:block}
 .post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
 .post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
 .post .meta{margin:0}
@@ -86,6 +93,7 @@ if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
 <div class="eyebrow">Блог · SUV AI</div>
 <h1>Когда поливать яблоневый сад: водный баланс вместо глаза</h1>
 <p class="meta">18 августа 2026 · 5 мин чтения</p>
+<figure><img src="/blog/img/orchard-rows.webp" alt="Междурядья яблоневого сада — вдоль таких рядов идёт капельная линия" width="1200" height="630"><figcaption>Междурядья яблоневого сада — вдоль таких рядов идёт капельная линия. Фотография иллюстративная: это не сад пилота.<span class="src">Фото: Muffet · CC BY 2.0 · <a href="https://commons.wikimedia.org/wiki/File:Nagog_Hill_Orchard_row.jpg" rel="noopener">Wikimedia Commons</a></span></figcaption></figure>
 <article>
 <p class="lede">Яблоня не жалуется, пока может терпеть. К тому дню, когда листья повисают и глаз наконец замечает беду, дефицит влаги копится днями, а не часами — и часть сезона уже потеряна. Разберём, как этот дефицит накапливается день за днём, почему видимое увядание — поздний сигнал, что такое водный баланс по FAO-56 простыми словами и как он превращается в конкретную дату полива и часы работы насоса.</p>
 
