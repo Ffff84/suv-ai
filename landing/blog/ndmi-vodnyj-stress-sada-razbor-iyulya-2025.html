@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Водный стресс сада на снимках NDMI: разбор июля 2025</title>
+<meta name="description" content="За десять дней июля 2025 яблоневый сад потерял 57% воды в листе — NDMI упал с 0,337 до 0,144. Хронология по Sentinel-2, четыре проверки и слова фермера.">
+<link rel="canonical" href="https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SUV AI">
+<meta property="og:title" content="Водный стресс сада на снимках NDMI: разбор июля 2025">
+<meta property="og:description" content="За десять дней июля 2025 яблоневый сад потерял 57% воды в листе — NDMI упал с 0,337 до 0,144. Хронология по Sentinel-2, четыре проверки и слова фермера.">
+<meta property="og:url" content="https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html">
+<meta property="og:image" content="https://suv-ai.online/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Водный стресс сада на снимках NDMI: разбор июля 2025", "description": "За десять дней июля 2025 яблоневый сад потерял 57% воды в листе — NDMI упал с 0,337 до 0,144. Хронология по Sentinel-2, четыре проверки и слова фермера.", "datePublished": "2026-08-18", "dateModified": "2026-08-18", "inLanguage": "ru", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html", "image": "https://suv-ai.online/og.jpg"}</script>
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);font:17px/1.7 "Golos Text",system-ui,sans-serif}
+a{color:var(--cyan)}
+.shell{max-width:660px;margin:0 auto;padding:0 24px}
+header.top{padding:22px 0;border-bottom:1px solid var(--line)}
+header.top .shell{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none}
+.logo b{color:var(--cyan)}
+.back{font-size:.85rem;text-decoration:none}
+main{padding:56px 0 90px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.5rem,4.4vw,2.2rem);line-height:1.2;text-wrap:balance;margin-bottom:14px}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:40px}
+article h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.25rem;margin:44px 0 14px;line-height:1.25}
+article h3{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem;margin:30px 0 10px}
+article p{margin:0 0 16px}
+article .lede{font-size:1.08rem;color:var(--mut);margin-bottom:28px}
+article .lede b{color:var(--ink);font-weight:500}
+article ul,article ol{margin:0 0 16px;padding-left:22px}
+article li{margin-bottom:8px}
+article b,article strong{font-weight:600}
+.tbl{overflow-x:auto;margin:22px 0}
+article table{border-collapse:collapse;width:100%;font-size:.92rem}
+article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+article th{font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+article td b,article .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.cta{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.cta p{color:var(--mut);font-size:.92rem;margin:0 0 14px}
+.btn{display:inline-block;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 22px;
+  border-radius:100px;background:var(--cyan);color:var(--deep);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible{outline-offset:2px;border-radius:100px}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-size:.82rem}
+/* индекс */
+.post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
+.post:hover{transform:translateY(-2px)}
+.post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
+.post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
+.post .meta{margin:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>
+(function(){var t=localStorage.getItem("suvai-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
+</script>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="logo" href="/">SUV<b>·AI</b></a>
+  <a class="back" href="/blog/">← Все статьи</a>
+</div></header>
+<main><div class="shell">
+<div class="eyebrow">Блог · SUV AI</div>
+<h1>Водный стресс сада на снимках NDMI: разбор июля 2025</h1>
+<p class="meta">18 августа 2026 · 6 мин чтения</p>
+<article>
+<p class="lede">Ещё 19 июля 2025 года яблоневый сад Olmazor в Самаркандской области выглядел на спутниковых снимках лучше, чем в любой из трёх предыдущих сезонов: индекс влажности листа NDMI держался на 0,15 выше нормы 2022–2024 годов. К 29 июля тот же сад потерял 57% воды в листе. До конца сезона он так и не восстановился — и никто не заметил обвала вовремя. Ниже полный разбор этих десяти дней: хронология по снимкам Sentinel-2, четыре проверки альтернативных объяснений, слова фермера и расписание поливов, которое посчитал бы движок водного баланса, если бы работал тем летом.</p>
+
+<h2>Хронология: десять дней, после которых сад не восстановился</h2>
+<p>Сад Olmazor — 2,52 гектара яблонь на капельном поливе, насос 60 м³/ч. Мы наблюдаем его со спутников Sentinel-2: свежая сцена появляется раз в 3–5 дней, в облачную погоду реже; карта влажности строится с ячейкой 20×20 метров.</p>
+<p>За сезон 2025 года по саду набрана 41 сцена. Для сравнения мы подняли архив — 99 сцен за 2022–2024 годы — и осреднили его по декадам. Получилась «норма» сада: то, как он обычно проживает лето. Норма оказалась устойчивой: NDMI 0,19–0,24 весь июль и август, три года подряд.</p>
+<p>На этом фоне 2025 год выглядел так.</p>
+<div class="tbl">
+<table>
+<thead>
+<tr><th>Период</th><th>NDMI сада</th><th>Норма 2022–2024</th><th>Что это значит</th></tr>
+</thead>
+<tbody>
+<tr><td>До 19 июля 2025</td><td>0,337</td><td>0,19–0,24</td><td>Сад на 0,15 выше нормы трёх лет</td></tr>
+<tr><td>29 июля 2025</td><td>0,144</td><td>0,19–0,24</td><td>−57% воды в листе за десять дней</td></tr>
+<tr><td>Август 2025</td><td>без восстановления</td><td>0,19–0,24</td><td>Сад не вернулся к норме до конца сезона</td></tr>
+</tbody>
+</table>
+</div>
+<p>Обвал на 57% за десять дней — это не сезонное колебание. За три архивных года ничего похожего в этом саду не происходило ни разу.</p>
+
+<h2>Что такое NDMI и чем он отличается от NDVI</h2>
+<p>NDMI (Normalized Difference Moisture Index) — спектральный индекс, который считается по ближнему и коротковолновому инфракрасному каналам спутника. Вода в листе поглощает коротковолновое инфракрасное излучение, поэтому чем меньше воды в кроне, тем ниже индекс. Грубо говоря, NDMI отвечает на вопрос «сколько воды дерево держит в листьях прямо сейчас».</p>
+<p>Более известный NDVI устроен иначе: он реагирует на хлорофилл — на «зелёность» и объём биомассы. Дерево, которому не хватает воды, теряет её из листа раньше, чем лист начинает терять цвет. Поэтому при водном стрессе NDMI просаживается первым, а NDVI догоняет позже.</p>
+<p>Эта разница — не академическая деталь. Между моментом «лист теряет воду» и моментом «повреждение видно» проходят дни. Это и есть окно, в которое полив ещё может изменить исход.</p>
+
+<h2>Четыре проверки: почему это именно вода</h2>
+<p>Резкий обвал индекса — ещё не доказательство недолива. Прежде чем утверждать что-либо, мы проверили четыре альтернативных объяснения.</p>
+<h3>«Может, так бывает каждый год?»</h3>
+<p>Нет. В 99 сценах за 2022–2024 годы обвала в этих датах нет ни в одном сезоне: NDMI держится в коридоре 0,19–0,24 весь июль и август. 2025-й — единственный год с таким провалом.</p>
+<h3>«Может, это шум данных?»</h3>
+<p>Мы сравнили NDMI с независимым индексом NDVI. Оба обвалились в одном и том же десятидневном окне. Два индекса, которые считаются по разным спектральным каналам, практически не могут одновременно показать один и тот же ложный сигнал — с деревьями действительно что-то произошло.</p>
+<h3>«Может, виновата погода?»</h3>
+<p>Погодный архив однозначен: с июля по сентябрь 2025 года здесь выпало 0 мм осадков — при том, что сад в это время испаряет около 7,7 мм в день. Вся вода, которую сад получал, приходила из полива. Значит, если воды стало меньше, то меньше её стало именно в поливе.</p>
+<h3>«Может, это болезнь или вредитель?»</h3>
+<p>Против этого говорит порядок событий. NDMI просел раньше, чем NDVI: сначала лист потерял воду и только потом зелёность. Такая последовательность — характерная подпись именно водного стресса.</p>
+
+<h2>Что сказал фермер</h2>
+<p>Сад обрабатывает Фаррух Урунов, фермер-партнёр нашего пилота. Мы показали ему график и спросили, что происходило в конце июля, не подсказывая ответа. Его версия совпала с данными независимо: сад был недолит, а узнал он об этом поздно — когда ущерб уже случился.</p>
+<p>Это ключевая деталь всей истории. Проблема была не в том, что фермер не умеет поливать. Проблема в том, что сигнал о нехватке воды пришёл слишком поздно — когда его уже нельзя было отработать насосом.</p>
+
+<h2>Что сказал бы расчёт</h2>
+<p>Мы прогнали по этому саду движок водного баланса FAO-56 — методику расчёта испарения и потребности культур, принятую ФАО, — на архиве погоды того самого сезона. Эталонное испарение ET0 считалось по среднесуточному ветру, как требует методика.</p>
+<p>Расчёт выдал бы поливы 17, 19, 23, 26 и 30 июля. Первые три совета пришлись бы до того, как ущерб стал необратимым. Три предупреждения — в том формате, в котором их выдаёт бот: не «дефицит влаги в корневой зоне», а «включите насос на столько-то часов».</p>
+<p>Здесь нужна честность и про сам расчёт. Даты поливов устойчивы: при любых разумных допущениях они сдвигаются не больше чем на ±1–2 дня. Объём воды — нет: без калибровки под конкретное поле он гуляет до ±33%. Поэтому мы говорим прямо: бот отвечает на вопрос «когда поливать» точнее, чем на вопрос «сколько лить».</p>
+
+<h2>Чего этот разбор не доказывает</h2>
+<p>Чтобы история осталась честной, границы называем сами.</p>
+<ul>
+<li><strong>Мы не знаем ущерб в тоннах.</strong> Урожай этого сада в 2025 году мы не взвешивали, и никакой индекс не пересчитывается в ящики яблок. «−57% воды в листе» — это про состояние деревьев, а не про потерянные деньги.</li>
+<li><strong>Перелив спутник не видит.</strong> NDMI ловит нехватку воды в листе; дерево, которое залили сверх меры, на снимке выглядит нормально. Если ваша проблема — лишняя вода, этот метод её не покажет.</li>
+<li><strong>Снимки приходят раз в 3–5 дней, в облачность реже.</strong> Десятидневный обвал мы разглядели, потому что окно оказалось длинным. Более короткое событие может проскочить между сценами.</li>
+</ul>
+<p>И последнее. Перед публикацией мы прогнали этот разбор через три раунда самопроверки и опровергли 38 из 109 собственных утверждений. В статье — то, что устояло.</p>
+
+<h2>Что изменилось после разбора</h2>
+<p>Сад Olmazor — одно из двух полей пилота SUV AI. Сейчас по нему каждое утро в 06:00 в Telegram-бот @suv_ai_bot приходит совет: на сколько часов сегодня включить насос. Обвести границы своего поля в мини-приложении занимает около 30 секунд; бот говорит на узбекском, русском и английском.</p>
+<p>Мы не обещаем, что спутник заметит всё, — чего он не видит, перечислено выше. Мы обещаем другое: расчёт по архиву погоды того сезона дал бы три предупреждения до необратимого ущерба — а не ноль. Теперь эти расчёты приходят фермеру каждое утро. Подробности — на suv-ai.online.</p>
+</article>
+<div class="cta">
+  <p>Бот считает водный баланс вашего поля каждое утро и отвечает одним
+  сообщением: когда поливать и на сколько часов включать насос. Для полей
+  на самотёке — бесплатно весь пилот.</p>
+  <a class="btn" href="https://t.me/suv_ai_bot?start=blog">Открыть @suv_ai_bot</a>
+</div>
+</div></main>
+<footer><div class="shell">SUV AI · умный полив для каждого поля · <a href="https://t.me/suv_ai_bot">@suv_ai_bot</a></div></footer>
+</body>
+</html>

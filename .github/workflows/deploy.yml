@@ -128,6 +128,14 @@ jobs:
                   mkdir -p /var/www/suv-ai/fonts
                   cp -r landing/fonts/. /var/www/suv-ai/fonts/ 2>/dev/null || true
                 fi
+                if [ -d landing/blog ]; then
+                  mkdir -p /var/www/suv-ai/blog
+                  cp -r landing/blog/. /var/www/suv-ai/blog/ 2>/dev/null || true
+                fi
+                # SEO-файлы в корне: robots, sitemap, favicon, og-картинка
+                for f in robots.txt sitemap.xml favicon.svg og.jpg; do
+                  [ -f "landing/$f" ] && cp "landing/$f" "/var/www/suv-ai/$f"
+                done
                 echo "Лендинг обновлён"
               fi
             fi

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Блог SUV AI — полив по данным: разборы полей и водный баланс</title>
+<meta name="description" content="Статьи о поливе по данным: водный стресс на спутниковых снимках, расчёт даты полива по FAO-56, экономика капельного орошения в Узбекистане.">
+<link rel="canonical" href="https://suv-ai.online/blog/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SUV AI">
+<meta property="og:title" content="Блог SUV AI — полив по данным: разборы полей и водный баланс">
+<meta property="og:description" content="Статьи о поливе по данным: водный стресс на спутниковых снимках, расчёт даты полива по FAO-56, экономика капельного орошения в Узбекистане.">
+<meta property="og:url" content="https://suv-ai.online/blog/">
+<meta property="og:image" content="https://suv-ai.online/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);font:17px/1.7 "Golos Text",system-ui,sans-serif}
+a{color:var(--cyan)}
+.shell{max-width:660px;margin:0 auto;padding:0 24px}
+header.top{padding:22px 0;border-bottom:1px solid var(--line)}
+header.top .shell{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none}
+.logo b{color:var(--cyan)}
+.back{font-size:.85rem;text-decoration:none}
+main{padding:56px 0 90px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.5rem,4.4vw,2.2rem);line-height:1.2;text-wrap:balance;margin-bottom:14px}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:40px}
+article h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.25rem;margin:44px 0 14px;line-height:1.25}
+article h3{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem;margin:30px 0 10px}
+article p{margin:0 0 16px}
+article .lede{font-size:1.08rem;color:var(--mut);margin-bottom:28px}
+article .lede b{color:var(--ink);font-weight:500}
+article ul,article ol{margin:0 0 16px;padding-left:22px}
+article li{margin-bottom:8px}
+article b,article strong{font-weight:600}
+.tbl{overflow-x:auto;margin:22px 0}
+article table{border-collapse:collapse;width:100%;font-size:.92rem}
+article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+article th{font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+article td b,article .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.cta{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.cta p{color:var(--mut);font-size:.92rem;margin:0 0 14px}
+.btn{display:inline-block;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 22px;
+  border-radius:100px;background:var(--cyan);color:var(--deep);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible{outline-offset:2px;border-radius:100px}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-size:.82rem}
+/* индекс */
+.post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
+.post:hover{transform:translateY(-2px)}
+.post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
+.post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
+.post .meta{margin:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>
+(function(){var t=localStorage.getItem("suvai-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
+</script>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="logo" href="/">SUV<b>·AI</b></a>
+  <a class="back" href="/blog/">← Все статьи</a>
+</div></header>
+<main><div class="shell">
+<div class="eyebrow">Блог</div>
+<h1>Как поливать по данным, а не на глаз</h1>
+<p class="meta">Разборы реальных полей, водный баланс FAO-56 и экономика
+полива — без обещаний сверх измеренного.</p>
+<a class="post" href="/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
+  <h2>Когда поливать яблоневый сад: водный баланс вместо глаза</h2>
+  <p>Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.</p>
+  <p class="meta">18 августа 2026 · 5 мин</p>
+</a>
+<a class="post" href="/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html">
+  <h2>Водный стресс сада на снимках NDMI: разбор июля 2025</h2>
+  <p>За десять дней июля 2025 яблоневый сад потерял 57% воды в листе — NDMI упал с 0,337 до 0,144. Хронология по Sentinel-2, четыре проверки и слова фермера.</p>
+  <p class="meta">18 августа 2026 · 6 мин</p>
+</a>
+<a class="post" href="/blog/skolko-stoit-chas-nasosa.html">
+  <h2>Сколько стоит час насоса: экономика капельного полива</h2>
+  <p>Час насоса на пилотном поле стоит 45 000 сум, сезон гектара сада — ~108 часов. Считаем экономику капельного полива и что даёт экономия 15–25% часов.</p>
+  <p class="meta">18 августа 2026 · 5 мин</p>
+</a>
+</div></main>
+<footer><div class="shell">SUV AI · умный полив для каждого поля · <a href="https://t.me/suv_ai_bot">@suv_ai_bot</a></div></footer>
+</body>
+</html>

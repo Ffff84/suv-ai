@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Когда поливать яблоневый сад: водный баланс вместо глаза</title>
+<meta name="description" content="Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.">
+<link rel="canonical" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SUV AI">
+<meta property="og:title" content="Когда поливать яблоневый сад: водный баланс вместо глаза">
+<meta property="og:description" content="Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.">
+<meta property="og:url" content="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
+<meta property="og:image" content="https://suv-ai.online/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Когда поливать яблоневый сад: водный баланс вместо глаза", "description": "Как водный баланс FAO-56 превращает погоду и снимки Sentinel-2 в дату полива и часы работы насоса. Разбор реального сезона в Самаркандской области.", "datePublished": "2026-08-18", "dateModified": "2026-08-18", "inLanguage": "ru", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html", "image": "https://suv-ai.online/og.jpg"}</script>
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);font:17px/1.7 "Golos Text",system-ui,sans-serif}
+a{color:var(--cyan)}
+.shell{max-width:660px;margin:0 auto;padding:0 24px}
+header.top{padding:22px 0;border-bottom:1px solid var(--line)}
+header.top .shell{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none}
+.logo b{color:var(--cyan)}
+.back{font-size:.85rem;text-decoration:none}
+main{padding:56px 0 90px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.5rem,4.4vw,2.2rem);line-height:1.2;text-wrap:balance;margin-bottom:14px}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:40px}
+article h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.25rem;margin:44px 0 14px;line-height:1.25}
+article h3{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem;margin:30px 0 10px}
+article p{margin:0 0 16px}
+article .lede{font-size:1.08rem;color:var(--mut);margin-bottom:28px}
+article .lede b{color:var(--ink);font-weight:500}
+article ul,article ol{margin:0 0 16px;padding-left:22px}
+article li{margin-bottom:8px}
+article b,article strong{font-weight:600}
+.tbl{overflow-x:auto;margin:22px 0}
+article table{border-collapse:collapse;width:100%;font-size:.92rem}
+article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+article th{font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+article td b,article .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.cta{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.cta p{color:var(--mut);font-size:.92rem;margin:0 0 14px}
+.btn{display:inline-block;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 22px;
+  border-radius:100px;background:var(--cyan);color:var(--deep);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible{outline-offset:2px;border-radius:100px}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-size:.82rem}
+/* индекс */
+.post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
+.post:hover{transform:translateY(-2px)}
+.post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
+.post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
+.post .meta{margin:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>
+(function(){var t=localStorage.getItem("suvai-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
+</script>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="logo" href="/">SUV<b>·AI</b></a>
+  <a class="back" href="/blog/">← Все статьи</a>
+</div></header>
+<main><div class="shell">
+<div class="eyebrow">Блог · SUV AI</div>
+<h1>Когда поливать яблоневый сад: водный баланс вместо глаза</h1>
+<p class="meta">18 августа 2026 · 5 мин чтения</p>
+<article>
+<p class="lede">Яблоня не жалуется, пока может терпеть. К тому дню, когда листья повисают и глаз наконец замечает беду, дефицит влаги копится днями, а не часами — и часть сезона уже потеряна. Разберём, как этот дефицит накапливается день за днём, почему видимое увядание — поздний сигнал, что такое водный баланс по FAO-56 простыми словами и как он превращается в конкретную дату полива и часы работы насоса.</p>
+
+<h2>Куда уходит вода: несколько миллиметров каждый день</h2>
+<p>Каждый жаркий день сад тратит воду двумя путями. Первый — испарение с поверхности почвы. Второй — транспирация: дерево прокачивает воду через листья, чтобы охлаждаться и наливать плоды. Вместе это называется эвапотранспирацией, и в разгар лета она не останавливается: солнце встало — расход пошёл.</p>
+<p>Если дождя нет, весь расход идёт из одного источника — запаса влаги в корневой зоне. В нашем пилоте в Самаркандской области спрос яблоневого сада в июле доходил до 7,7 мм в день. Семь миллиметров звучат безобидно, но списываются они ежедневно, без выходных: неделя без полива — больше 50 мм из корневой зоны. А с июля по сентябрь 2025 года дождей в том саду выпало ровно 0 мм.</p>
+<p>Дефицит влаги — не событие, а накопление. Он не наступает в какой-то один день — он собирается по миллиметрам, как долг по процентам.</p>
+
+<h2>Почему глаз опаздывает</h2>
+<p>Дерево отвечает на нехватку воды поэтапно, и видимые признаки — последний этап, а не первый.</p>
+<div class="tbl"><table>
+<thead><tr><th>Этап</th><th>Что происходит с деревом</th><th>Видно ли глазом</th></tr></thead>
+<tbody>
+<tr><td>Запас тает</td><td>Дерево пьёт как обычно, корни достают воду легко</td><td>Нет</td></tr>
+<tr><td>Вода даётся труднее</td><td>Устьица на листьях прикрываются, фотосинтез и рост замедляются</td><td>Нет</td></tr>
+<tr><td>Запас у предела</td><td>Лист теряет упругость и повисает — дерево жертвует ростом ради выживания</td><td>Да — но поздно</td></tr>
+</tbody>
+</table></div>
+<p>К моменту, когда увядание заметно с края поля, дерево уже не первый день живёт в режиме экономии. Полив в этот день спасает дерево, но не возвращает упущенный рост.</p>
+<p>В нашем пилоте это видно в цифрах. С 19 по 29 июля 2025 года индекс влагосодержания листвы NDMI в саду Olmazor упал с 0,337 до 0,144 — минус 57% воды в листе за десять дней, без восстановления до конца сезона. Причём до 19 июля сад шёл на +0,15 выше собственной нормы трёх лет: по 99 снимкам Sentinel-2 за 2022–2024 годы NDMI весь июль–август держался в коридоре 0,19–0,24. Хороший сад, хороший сезон — и десять дней, которые его перечеркнули. Фермер подтвердил независимо от нас: недолил, а узнал поздно.</p>
+<p>Самое неприятное: обвал произошёл между двумя взглядами на поле. Глаз не следит за садом непрерывно, а испарение работает непрерывно.</p>
+
+<h2>Водный баланс FAO-56 — простыми словами</h2>
+<p>FAO-56 — методика Продовольственной и сельскохозяйственной организации ООН для расчёта потребности культур в воде. Звучит громоздко, но по сути это обычная бухгалтерия, как банковский счёт:</p>
+<ul>
+<li><strong>Приход</strong> — дождь и полив.</li>
+<li><strong>Расход</strong> — испарение с почвы плюс транспирация листьев.</li>
+<li><strong>Остаток</strong> — запас влаги в корневой зоне.</li>
+</ul>
+<p>Расход считается в два шага. Сначала по погоде — температуре, солнцу, влажности воздуха и ветру — вычисляется эталонная испаряемость ET0 (методика требует брать среднесуточный ветер, и мы считаем именно так). Затем ET0 корректируется коэффициентом культуры: взрослый сад в разгар сезона пьёт не так, как весной.</p>
+<p>Каждый день модель списывает со счёта расчётный расход и зачисляет дождь и поливы. Когда остаток подходит к порогу, ниже которого корням трудно добывать воду, — пора поливать. Не «когда листья повиснут», а «когда счёт подошёл к нулю».</p>
+<p>Именно это делает наш бот: ведёт баланс по вашему полю каждый день, а раз в 3–5 дней (в облачность реже) сверяет модель со снимками Sentinel-2 — карта влажности строится по ячейкам 20×20 м.</p>
+
+<h2>Из миллиметров — в дату и часы насоса</h2>
+<p>Дефицит в миллиметрах — язык агронома. Фермеру нужен ответ в других единицах: когда включать насос и на сколько часов. Перевод прямой: миллиметры дефицита умножаем на площадь поля — получаем кубометры воды; кубометры делим на производительность насоса — получаем часы.</p>
+<p>В саду Olmazor (2,52 га, капельный полив) стоит насос на 60 м³/ч; час его работы обходится в 45 000 сум. Сезонная норма для капли в наших условиях — порядка 6 500 м³ на гектар с учётом капиллярного подъёма, то есть около 108 часов работы насоса на гектар за сезон. Совет приходит в Telegram каждое утро в 06:00 в готовом виде: «сегодня включите насос на столько-то часов». По нашим расчётам, советы экономят 15–25% часов полива за сезон — и эту экономику можно пересчитать самостоятельно по журналу поливов.</p>
+<p>Могло ли это спасти сезон-2025? Мы прогнали расчёт по архиву погоды того года. Расписание дало бы поливы 17, 19, 23, 26 и 30 июля — три предупреждения пришли бы до того, как ущерб стал необратимым.</p>
+
+<h2>Что мы знаем точно, а что — нет</h2>
+<p>Границы возможностей называем сами:</p>
+<ul>
+<li>Дата полива устойчива: при любых разумных допущениях модели она сдвигается максимум на ±1–2 дня. На вопрос «когда» бот отвечает надёжно.</li>
+<li>Объём воды без калибровки под конкретное поле гуляет до ±33%. Поэтому «сколько» — ориентир, который уточняется по ходу сезона.</li>
+<li>Перелив спутник не видит. Если вы льёте лишнее, снимок этого не покажет — говорим об этом прямо.</li>
+</ul>
+<p>Прежде чем публиковать разбор сезона-2025, мы прогнали собственные выводы через три раунда самопроверки и опровергли 38 из 109 своих же утверждений. Здесь осталось только то, что выдержало проверку.</p>
+
+<h2>С чего начать</h2>
+<p>Обведите границу поля в Mini App бота @suv_ai_bot — это занимает около 30 секунд. Бот говорит на узбекском, русском и английском; каждое утро в 06:00 приходит совет по вашему полю.</p>
+<p>Для полей на капельном поливе с насосом ранний доступ стоит 99 000 сум/га за сезон (полная цена — 149 000). Если поле поливается самотёком из канала — как виноградник Uzumzor в нашем пилоте, где залив идёт сутками, — участие бесплатно на весь пилот 2026–27. И правило, под которым подписываемся: не сэкономили вам больше стоимости подписки — вернём деньги.</p>
+<p>Подробности — на suv-ai.online.</p>
+</article>
+<div class="cta">
+  <p>Бот считает водный баланс вашего поля каждое утро и отвечает одним
+  сообщением: когда поливать и на сколько часов включать насос. Для полей
+  на самотёке — бесплатно весь пилот.</p>
+  <a class="btn" href="https://t.me/suv_ai_bot?start=blog">Открыть @suv_ai_bot</a>
+</div>
+</div></main>
+<footer><div class="shell">SUV AI · умный полив для каждого поля · <a href="https://t.me/suv_ai_bot">@suv_ai_bot</a></div></footer>
+</body>
+</html>

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /apply/
+Disallow: /draw.html
+
+Sitemap: https://suv-ai.online/sitemap.xml

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сколько стоит час насоса: экономика капельного полива</title>
+<meta name="description" content="Час насоса на пилотном поле стоит 45 000 сум, сезон гектара сада — ~108 часов. Считаем экономику капельного полива и что даёт экономия 15–25% часов.">
+<link rel="canonical" href="https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SUV AI">
+<meta property="og:title" content="Сколько стоит час насоса: экономика капельного полива">
+<meta property="og:description" content="Час насоса на пилотном поле стоит 45 000 сум, сезон гектара сада — ~108 часов. Считаем экономику капельного полива и что даёт экономия 15–25% часов.">
+<meta property="og:url" content="https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html">
+<meta property="og:image" content="https://suv-ai.online/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Сколько стоит час насоса: экономика капельного полива", "description": "Час насоса на пилотном поле стоит 45 000 сум, сезон гектара сада — ~108 часов. Считаем экономику капельного полива и что даёт экономия 15–25% часов.", "datePublished": "2026-08-18", "dateModified": "2026-08-18", "inLanguage": "ru", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html", "image": "https://suv-ai.online/og.jpg"}</script>
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);font:17px/1.7 "Golos Text",system-ui,sans-serif}
+a{color:var(--cyan)}
+.shell{max-width:660px;margin:0 auto;padding:0 24px}
+header.top{padding:22px 0;border-bottom:1px solid var(--line)}
+header.top .shell{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none}
+.logo b{color:var(--cyan)}
+.back{font-size:.85rem;text-decoration:none}
+main{padding:56px 0 90px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.5rem,4.4vw,2.2rem);line-height:1.2;text-wrap:balance;margin-bottom:14px}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:40px}
+article h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.25rem;margin:44px 0 14px;line-height:1.25}
+article h3{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem;margin:30px 0 10px}
+article p{margin:0 0 16px}
+article .lede{font-size:1.08rem;color:var(--mut);margin-bottom:28px}
+article .lede b{color:var(--ink);font-weight:500}
+article ul,article ol{margin:0 0 16px;padding-left:22px}
+article li{margin-bottom:8px}
+article b,article strong{font-weight:600}
+.tbl{overflow-x:auto;margin:22px 0}
+article table{border-collapse:collapse;width:100%;font-size:.92rem}
+article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+article th{font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+article td b,article .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.cta{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.cta p{color:var(--mut);font-size:.92rem;margin:0 0 14px}
+.btn{display:inline-block;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 22px;
+  border-radius:100px;background:var(--cyan);color:var(--deep);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible{outline-offset:2px;border-radius:100px}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-size:.82rem}
+/* индекс */
+.post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
+.post:hover{transform:translateY(-2px)}
+.post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
+.post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
+.post .meta{margin:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>
+(function(){var t=localStorage.getItem("suvai-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
+</script>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="logo" href="/">SUV<b>·AI</b></a>
+  <a class="back" href="/blog/">← Все статьи</a>
+</div></header>
+<main><div class="shell">
+<div class="eyebrow">Блог · SUV AI</div>
+<h1>Сколько стоит час насоса: экономика капельного полива</h1>
+<p class="meta">18 августа 2026 · 5 мин чтения</p>
+<article>
+<p class="lede">Полив можно измерять в кубометрах, в сутках у канала или в миллиметрах. Но если у вас капельная система с насосом, удобнее всего одна единица — час работы насоса. У часа есть цена, и весь сезон полива складывается в конкретную сумму. На нашем пилотном поле в Самаркандской области час насоса стоит 45&nbsp;000 сум. Посчитаем, сколько таких часов нужно гектару сада за сезон и что меняет экономия 15–25% этих часов.</p>
+
+<h2>Откуда берутся 6&nbsp;500 кубометров на гектар</h2>
+<p>Сад расходует воду двумя путями: деревья испаряют её листьями, почва — поверхностью. Вместе это называется эвапотранспирацией, и считают её по методике FAO-56 — стандарту Продовольственной организации ООН, на котором работает и наш движок водного баланса. В разгар лета спрос яблоневого сада доходит до 7,7&nbsp;мм в день — столько мы насчитали в июле 2025-го на пилотном поле Olmazor, когда дождей не было совсем: с июля по сентябрь выпало 0&nbsp;мм.</p>
+<p>За сезон это складывается примерно в 6&nbsp;500&nbsp;м³ воды на гектар. Цифра уже учитывает капиллярный подъём: часть влаги дерево дотягивает снизу, от грунтовых вод, и эту воду насосу качать не нужно.</p>
+
+<h2>Переводим кубометры в часы и сумы</h2>
+<p>Насос на Olmazor даёт 60&nbsp;м³ в час. Дальше — деление столбиком.</p>
+<div class="tbl">
+<table>
+<thead>
+<tr><th>Показатель</th><th>Значение</th><th>Откуда цифра</th></tr>
+</thead>
+<tbody>
+<tr><td>Сезонная норма воды</td><td>~6&nbsp;500&nbsp;м³/га</td><td>водный баланс FAO-56, с учётом капиллярного подъёма</td></tr>
+<tr><td>Производительность насоса</td><td>60&nbsp;м³/ч</td><td>насос на пилотном поле Olmazor</td></tr>
+<tr><td>Часов насоса за сезон</td><td>~108&nbsp;ч/га</td><td>6&nbsp;500&nbsp;÷&nbsp;60</td></tr>
+<tr><td>Цена часа</td><td>45&nbsp;000&nbsp;сум</td><td>фактическая цена на пилоте</td></tr>
+<tr><td>Сезон полива, один гектар</td><td>~4&nbsp;860&nbsp;000&nbsp;сум</td><td>108&nbsp;×&nbsp;45&nbsp;000</td></tr>
+</tbody>
+</table>
+</div>
+<p>Olmazor — это 2,52 гектара. Значит, сезон полива на этом поле — примерно 273 часа насоса, или около 12,3&nbsp;млн сум. Не абстрактная «стоимость орошения», а конкретная строка расходов на работу насоса.</p>
+
+<h2>Что значит сэкономить 15–25% часов</h2>
+<p>Экономия на поливе — это не «поливать меньше». Дереву нужно столько воды, сколько нужно, и недолив обходится дороже любой экономии — сезон-2025 на этом же поле мы уже разбирали. Экономия — это не включать насос, когда в корневой зоне ещё достаточно влаги. Вода, ушедшая ниже корней, для дерева потеряна, а насос за неё уже отработал. Наш совет приходит каждое утро в 06:00 в формате «на сколько часов включить насос», и по нашим расчётам такие советы экономят 15–25% часов полива за сезон.</p>
+<div class="tbl">
+<table>
+<thead>
+<tr><th>Сценарий</th><th>Часов меньше</th><th>В деньгах (арифметика)</th></tr>
+</thead>
+<tbody>
+<tr><td>Экономия 15%, один гектар</td><td>~16&nbsp;ч</td><td>~730&nbsp;000&nbsp;сум</td></tr>
+<tr><td>Экономия 25%, один гектар</td><td>~27&nbsp;ч</td><td>~1&nbsp;215&nbsp;000&nbsp;сум</td></tr>
+<tr><td>Olmazor, 2,52 га, диапазон 15–25%</td><td>41–68&nbsp;ч</td><td>~1,8–3,1&nbsp;млн сум</td></tr>
+</tbody>
+</table>
+</div>
+<p>Правая колонка — именно арифметика: часы, умноженные на цену часа. Это не подтверждённый результат, и ниже мы объясняем, почему пока не имеем права называть его иначе.</p>
+
+<h2>Три оговорки, которые мы называем сами</h2>
+<h3>Объём воды — с допуском до ±33%</h3>
+<p>Без калибровки под конкретное поле движок водного баланса оценивает объём воды с разбросом до ±33%. При этом даты полива устойчивы: при любых разумных допущениях они сдвигаются лишь на ±1–2 дня. Поэтому бот отвечает на вопрос «когда включить насос» точнее, чем «сколько лить», — и все суммы в таблицах выше наследуют этот допуск.</p>
+<h3>Экономия в сумах ещё не актирована</h3>
+<p>15–25% часов — расчётная оценка, а не закрытый акт: пилотный сезон ещё идёт. Когда он закончится, экономику можно будет пересчитать по журналу поливов — это наш принцип №5. И принцип №7: если советы не сэкономили вам больше стоимости подписки, мы возвращаем деньги.</p>
+<h3>Спутник не видит перелив</h3>
+<p>Снимки Sentinel-2 приходят раз в 3–5 дней, в облачность реже. Они показывают, когда дереву не хватает воды, — но обратного, что воды слишком много, спутник не видит. Это ограничение метода, и мы говорим о нём прямо, а не ждём, пока вы заметите сами.</p>
+
+<h2>Что почём в итоге</h2>
+<p>Подписка раннего доступа стоит 99&nbsp;000 сум за гектар за сезон — по цене примерно 2,2 часа работы насоса из ~108. Полная цена после раннего доступа — 149&nbsp;000 сум. Для полей на самотёке — как наш второй пилотный участок, виноградник Uzumzor, куда вода приходит из канала заливом, — бот бесплатен на весь пилот 2026–27: там нет насоса, и считать часы нечем.</p>
+<p>Начать просто: обвести границу поля в Mini App — это занимает около 30 секунд — и получать утренний совет в 06:00 на узбекском, русском или английском. Бот — <strong>@suv_ai_bot</strong>, подробности — на suv-ai.online. А если по итогам сезона журнал поливов покажет, что арифметика из этой статьи не сошлась, — вы прочитаете об этом здесь же.</p>
+</article>
+<div class="cta">
+  <p>Бот считает водный баланс вашего поля каждое утро и отвечает одним
+  сообщением: когда поливать и на сколько часов включать насос. Для полей
+  на самотёке — бесплатно весь пилот.</p>
+  <a class="btn" href="https://t.me/suv_ai_bot?start=blog">Открыть @suv_ai_bot</a>
+</div>
+</div></main>
+<footer><div class="shell">SUV AI · умный полив для каждого поля · <a href="https://t.me/suv_ai_bot">@suv_ai_bot</a></div></footer>
+</body>
+</html>
