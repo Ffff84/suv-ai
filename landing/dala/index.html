@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SUV AI — dala kabineti</title>
+<meta name="suv-build" content="4">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="theme-color" content="#0A1A17">
@@ -248,10 +249,20 @@ function api(path){
     .then(function(r){ if(!r.ok) throw new Error("http-" + r.status); return r.json(); });
 }
 
+function diag(){
+  var h = location.hash || "", q = location.search || "";
+  return "build 4 · tg:" + (tg ? "yes" : "no") +
+         " · init:" + (tg && tg.initData ? tg.initData.length : 0) +
+         " · hash:" + h.length + " · q:" + q.length +
+         " · v:" + ((tg && tg.version) || "-") +
+         " · p:" + ((tg && tg.platform) || "-");
+}
+
 function note(title, hint, withBtn){
   root.innerHTML = '<div class="note"><b>' + esc(title) + '</b>' + esc(hint) +
     (withBtn ? '<br><a class="btn" href="https://t.me/suv_ai_bot">' + esc(T.open) + '</a>' : '') +
-    '</div>';
+    '<div class="mono" style="margin-top:16px;font-size:.68rem;opacity:.75">' +
+    esc(diag()) + '</div></div>';
   back.hidden = true;
 }
 
