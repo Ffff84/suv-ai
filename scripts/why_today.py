@@ -16,6 +16,12 @@
 упирается в догадки. Здесь видно причину: сдвинулся ли Kc, подорожало ли
 испарение, не потерялся ли якорь.
 
+С флагом --history печатает журнал прошлых рекомендаций по полю:
+когда какая дата советовалась и какой версией движка. Это ground truth,
+по которому видно, сдвинул дату новый код или обновившийся прогноз, —
+реконструкция «прогнать старый код на сегодняшней погоде» такого
+различить не может.
+
 Ничего не меняет — только считает и печатает.
 """
 
@@ -35,6 +41,33 @@ from datetime import date
 
 WD = ("понедельник", "вторник", "среда", "четверг", "пятница",
       "суббота", "воскресенье")
+WD2 = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
+
+
+def _history(field_id: str, limit: int) -> None:
+    """Что бот советовал по этому полю раньше — прямо из журнала."""
+    import sqlite3
+    from suv.ledger import Ledger
+
+    with sqlite3.connect(Ledger(os.environ["SUV_DB"]).path) as c:
+        rows = c.execute(
+            """SELECT generated_on, action_day, et0_mm, kc, depletion_mm,
+                      raw_mm, engine_version
+               FROM recommendations WHERE field_id=?
+               ORDER BY id DESC LIMIT ?""", (field_id, limit)).fetchall()
+    if not rows:
+        print("     журнал пуст — рекомендаций по полю ещё не записано")
+        return
+    print(f"     журнал (последние {len(rows)}):")
+    print("       посчитано   советовало   ET0    Kc     дефицит/порог  движок")
+    for gen, act, et0, kc, dep, raw, ver in rows:
+        day = act or "—"
+        wd = ""
+        if act:
+            wd = " (%s)" % WD2[date.fromisoformat(act).weekday()]
+        print("       %-11s %s%-6s %-6s %-6s %5.1f/%-6.1f %s"
+              % (gen[:10], day, wd, round(et0 or 0, 2), round(kc or 0, 3),
+                 dep or 0, raw or 0, ver))
 
 
 def main() -> int:
@@ -42,6 +75,8 @@ def main() -> int:
     ap.add_argument("--db", default=os.environ.get("SUV_DB", "suv.db"))
     ap.add_argument("--all", action="store_true",
                     help="включая поля, заведённые через /start")
+    ap.add_argument("--history", type=int, nargs="?", const=15, default=0,
+                    metavar="N", help="журнал последних N рекомендаций")
     args = ap.parse_args()
     os.environ["SUV_DB"] = args.db
 
@@ -96,6 +131,8 @@ def main() -> int:
             print("     ! погода не пришла — расчёт по климатическим нормам")
         if not anchored:
             print("     ! якоря нет — дата полива заведомо оптимистична")
+        if args.history:
+            _history(fid, args.history)
         print()
 
     print("  " + "-" * 58)
