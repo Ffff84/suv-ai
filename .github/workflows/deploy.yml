@@ -136,6 +136,12 @@ jobs:
                 for f in robots.txt sitemap.xml favicon.svg og.jpg; do
                   [ -f "landing/$f" ] && cp "landing/$f" "/var/www/suv-ai/$f"
                 done
+                # Файлы подтверждения прав поисковиков: имя выдаёт сам
+                # сервис, поэтому копируем по маске — иначе очередной
+                # деплой снимет подтверждение вместе с файлом.
+                for f in landing/yandex_*.html landing/google*.html; do
+                  [ -f "$f" ] && cp "$f" /var/www/suv-ai/
+                done
                 echo "Лендинг обновлён"
               fi
             fi
