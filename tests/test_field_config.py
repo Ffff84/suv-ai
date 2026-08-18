@@ -168,27 +168,46 @@ def test_drawn_contour_is_not_a_divergence(tmp_path):
     assert diff_row(cfg, _row(led, cfg["field_id"])) == []
 
 
-def test_declared_and_measured_area_are_compared(tmp_path):
-    """Боевые данные 17.08.2026: у сада заявлено 2,0 га, а обмер контура
-    дал 2,52 — четверть воды мимо, и заметили случайно. Обе цифры целы
-    намеренно, но спорить молча они не должны.
+def test_declared_and_measured_area_are_compared():
+    """Заявленная площадь против обмеренной по контуру.
 
-    Виноградник (1,46 против 1,5) обязан молчать: палец на карте точнее
-    и не бывает, а ложная тревога отучает смотреть.
+    Боевой случай 18.08.2026: у сада стояло 2,0 га, обмер контура дал
+    2,52 — четверть воды мимо, и заметили случайно. Проверка идёт на
+    явных числах, а не на живом конфиге: конфиг чинится (2,52 уже
+    вписаны), а правило остаётся.
     """
     from suv.field_config import area_mismatch
-    apple = _load(ROOT / "fields" / "olma.json")
-    assert area_mismatch(apple, {"area_ha": 2.52})
-    assert "2.52" in area_mismatch(apple, {"area_ha": 2.52})
-    assert area_mismatch(apple, {"area_ha": 2.1}) is None
+    cfg = {"hectares": 2.0}
+    assert area_mismatch(cfg, {"area_ha": 2.52})
+    assert "2.52" in area_mismatch(cfg, {"area_ha": 2.52})
+    assert "+26%" in area_mismatch(cfg, {"area_ha": 2.52})
 
-    vine = _load(ROOT / "fields" / "uzum.json")
-    assert area_mismatch(vine, {"area_ha": 1.46}) is None
-    assert area_mismatch(vine, {"area_ha": 3.0})     # старая ошибка с 3 га
+    # Палец на карте точнее не бывает — на мелочь не тревожим.
+    assert area_mismatch(cfg, {"area_ha": 2.1}) is None
+    assert area_mismatch({"hectares": 1.5}, {"area_ha": 1.46}) is None
+    # Недобор тоже расхождение: старая ошибка виноградника была 3 против 1,5.
+    assert area_mismatch({"hectares": 3.0}, {"area_ha": 1.46})
 
     # Нет контура или нет строки — сравнивать нечего, не выдумываем.
-    assert area_mismatch(vine, {"area_ha": None}) is None
-    assert area_mismatch(vine, None) is None
+    assert area_mismatch(cfg, {"area_ha": None}) is None
+    assert area_mismatch(cfg, None) is None
+
+
+@pytest.mark.parametrize("path", CONFIGS, ids=lambda p: p.name)
+def test_repo_configs_agree_with_their_measured_contours(path):
+    """Площади в конфигах проекта сходятся с обмером их контуров.
+
+    Контуры сняты с боевого сервера 18.08.2026. Тест держит исправление
+    сада (2,0 -> 2,52) и ловит следующее такое расхождение до того, как
+    оно четыре месяца проживёт в проде.
+    """
+    from suv.field_config import area_mismatch
+    measured = {"FAR-OLMA": 2.52, "FAR-UZUM": 1.46}
+    cfg = _load(path)
+    area = measured.get(cfg["field_id"])
+    if area is None:
+        pytest.skip(f"контур {cfg['field_id']} с сервера не снимали")
+    assert area_mismatch(cfg, {"area_ha": area}) is None
 
 
 def test_area_mismatch_is_not_a_divergence(tmp_path):
