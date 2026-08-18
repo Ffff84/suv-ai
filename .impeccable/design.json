@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-18T13:40:00+05:00",
+  "title": "Design System: SUV AI",
+  "extensions": {
+    "colorMeta": {
+      "night-water": { "role": "neutral", "displayName": "Ночная вода", "canonical": "#0A1A17", "tonalRamp": ["#050D0B", "#0A1A17", "#0E211D", "#102420", "#1D3630", "#3A5A50", "#7E938C", "#E9F2EE"] },
+      "canal-cyan": { "role": "primary", "displayName": "Канал-циан", "canonical": "#4FC8D4", "tonalRamp": ["#0B2E33", "#12454D", "#1B6570", "#2A8D9B", "#4FC8D4", "#7BD7E0", "#AEE7ED", "#DFF6F8"] },
+      "dry-clay": { "role": "secondary", "displayName": "Сухая глина", "canonical": "#D96C3D", "tonalRamp": ["#3A1B0E", "#5C2A15", "#8A3F1F", "#B5542B", "#D96C3D", "#E4906B", "#EFB79E", "#F9DFD2"] },
+      "midday-straw": { "role": "secondary", "displayName": "Полуденная солома", "canonical": "#E8C558", "tonalRamp": ["#3D3312", "#5F4F1C", "#8F772B", "#BC9D3E", "#E8C558", "#EED383", "#F4E2AE", "#FAF1D8"] },
+      "wet-leaf": { "role": "secondary", "displayName": "Влажный лист", "canonical": "#63C06B", "tonalRamp": ["#14301A", "#1F4A28", "#2F6E3A", "#46974F", "#63C06B", "#8AD190", "#B1E1B5", "#D8F0DA"] },
+      "ink": { "role": "neutral", "displayName": "Чернила", "canonical": "#E9F2EE", "tonalRamp": ["#0A1A17", "#1D3630", "#3A5A50", "#5C7A70", "#7E938C", "#A8BAB2", "#CBD9D3", "#E9F2EE"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Герой страницы; em внутри — цианом." },
+      "headline": { "displayName": "Headline", "purpose": "Заголовки секций, max-width 24ch, balance." },
+      "body": { "displayName": "Body", "purpose": "Основной текст; lede 1.02rem muted 58ch." },
+      "label": { "displayName": "Label / Mono", "purpose": "Только измеренное и адресуемое: числа, даты, оси, eyebrow." }
+    },
+    "shadows": [
+      { "name": "artifact", "value": "0 40px 80px rgba(0,0,0,.5)", "purpose": "Только артефакты-доказательства: карта влажности, телефон, фото, видео." },
+      { "name": "artifact-accent", "value": "0 30px 70px rgba(0,0,0,.35)", "purpose": "Единственное UI-исключение: акцентная тарифная карточка Fermer." }
+    ],
+    "motion": [
+      { "name": "ease-authored", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Авторские моменты: наполнение борозды, дорисовка кривой разбора." },
+      { "name": "reveal", "value": "opacity .7s ease, transform .7s ease; from translateY(26px)", "purpose": "Дыхание страницы: подъём содержимого при входе во вьюпорт." },
+      { "name": "hover-lift", "value": "transform .2s; translateY(-2px)", "purpose": "Единственная реакция кнопок на hover." }
+    ],
+    "breakpoints": [
+      { "name": "stack-split", "value": "900px", "purpose": "Развороты текст+артефакт складываются в колонку." },
+      { "name": "grid-collapse", "value": "760px", "purpose": "Сетки карточек 2–3 колонки → одна." },
+      { "name": "compact", "value": "520px", "purpose": "KPI в одну колонку, пункт меню прячется." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Единственная громкая кнопка экрана — канал-циан, пилюля, подъём на hover.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Открыть бота</a>",
+      "css": ".ds-btn-primary { display:inline-block; text-decoration:none; font:600 .95rem 'Golos Text', system-ui, sans-serif; padding:14px 26px; border-radius:100px; background:var(--cyan, #4FC8D4); color:var(--deep, #0A1A17); transition:transform .2s; } .ds-btn-primary:hover { transform:translateY(-2px); } .ds-btn-primary:focus-visible { outline:2px solid var(--cyan, #4FC8D4); outline-offset:3px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Тихая кнопка: 1px линия, текст чернилами, тот же подъём.",
+      "html": "<a class=\"ds-btn-ghost\" href=\"#\">Смотреть, как это работает ↓</a>",
+      "css": ".ds-btn-ghost { display:inline-block; text-decoration:none; font:600 .95rem 'Golos Text', system-ui, sans-serif; padding:14px 26px; border-radius:100px; border:1px solid var(--line, #1D3630); color:var(--ink, #E9F2EE); transition:transform .2s; } .ds-btn-ghost:hover { transform:translateY(-2px); }"
+    },
+    {
+      "name": "Eyebrow",
+      "kind": "custom",
+      "refersTo": "label",
+      "description": "Подпись секции: mono, разрядка, черта-борозда слева.",
+      "html": "<div class=\"ds-eyebrow\">Разбор · сад Фарруха · сезон-2025</div>",
+      "css": ".ds-eyebrow { font-family:'JetBrains Mono', monospace; font-size:.72rem; letter-spacing:.22em; text-transform:uppercase; color:var(--cyan, #4FC8D4); display:flex; align-items:center; gap:10px; } .ds-eyebrow::before { content:''; width:26px; height:1px; background:var(--cyan, #4FC8D4); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Плашка факта: панель + линия, значения mono чернилами.",
+      "html": "<span class=\"ds-chip\">Сезон-2027 · бронирование открыто · <b class=\"ds-chip-v\">первые 100</b></span>",
+      "css": ".ds-chip { display:inline-flex; align-items:center; gap:8px; background:var(--panel, #102420); border:1px solid var(--line, #1D3630); border-radius:100px; padding:8px 16px; font:400 .85rem 'Golos Text', system-ui, sans-serif; color:var(--mut, #7E938C); } .ds-chip-v { font-family:'JetBrains Mono', monospace; font-weight:600; color:var(--ink, #E9F2EE); }"
+    },
+    {
+      "name": "Panel Card",
+      "kind": "card",
+      "refersTo": "card-panel",
+      "description": "Несущая карточка: панель, 1px линия, 14px, без тени.",
+      "html": "<div class=\"ds-card\"><h3>Olmazor</h3><div class=\"ds-card-sub\">яблоневый сад · капля · насос</div><p>Каждый сэкономленный куб сразу превращается в деньги фермера.</p></div>",
+      "css": ".ds-card { background:var(--panel, #102420); border:1px solid var(--line, #1D3630); border-radius:14px; padding:26px; color:var(--ink, #E9F2EE); font:400 .9rem/1.55 'Golos Text', system-ui, sans-serif; max-width:340px; } .ds-card h3 { font:500 1.05rem 'Unbounded', sans-serif; margin:0 0 4px; } .ds-card-sub { color:var(--mut, #7E938C); font-size:.85rem; margin-bottom:14px; } .ds-card p { color:var(--mut, #7E938C); margin:0; border-top:1px solid var(--line, #1D3630); padding-top:12px; }"
+    },
+    {
+      "name": "KPI Tile",
+      "kind": "custom",
+      "refersTo": "card-panel",
+      "description": "Приборная плашка числа: дисплейная цифра, ось смысла тонкой чертой снизу.",
+      "html": "<div class=\"ds-kpi\"><b>−57%</b><span class=\"ds-kpi-what\">воды в листе за десять дней</span></div>",
+      "css": ".ds-kpi { position:relative; overflow:hidden; background:var(--panel, #102420); border:1px solid var(--line, #1D3630); border-radius:14px; padding:26px 24px; max-width:260px; } .ds-kpi b { font:700 2rem 'Unbounded', sans-serif; color:var(--ink, #E9F2EE); font-variant-numeric:tabular-nums; display:block; } .ds-kpi-what { font:400 .88rem 'Golos Text', system-ui, sans-serif; color:var(--mut, #7E938C); margin-top:10px; display:block; } .ds-kpi::after { content:''; position:absolute; left:0; right:0; bottom:0; height:3px; background:linear-gradient(90deg, var(--dry, #D96C3D), var(--mid, #E8C558), var(--wet, #63C06B)); }"
+    },
+    {
+      "name": "Language Switch",
+      "kind": "nav",
+      "refersTo": "button-ghost",
+      "description": "Пилюля из mono-кнопок; активная — панель + чернила.",
+      "html": "<nav class=\"ds-langs\"><button>UZ</button><button class=\"on\">RU</button><button>EN</button></nav>",
+      "css": ".ds-langs { display:inline-flex; border:1px solid var(--line, #1D3630); border-radius:100px; overflow:hidden; } .ds-langs button { font:600 .75rem 'JetBrains Mono', monospace; letter-spacing:.08em; background:none; border:0; color:var(--mut, #7E938C); padding:9px 12px; cursor:pointer; } .ds-langs button:hover { color:var(--ink, #E9F2EE); } .ds-langs button.on { background:var(--panel, #102420); color:var(--ink, #E9F2EE); }"
+    },
+    {
+      "name": "Verdict Strike",
+      "kind": "custom",
+      "refersTo": "label",
+      "description": "Фирменная форма честности: опровергнутая гипотеза зачёркнута глиной.",
+      "html": "<h3 class=\"ds-verdict\"><s>Покос или съём урожая</s></h3>",
+      "css": ".ds-verdict { font:500 1.02rem 'Unbounded', sans-serif; margin:0; } .ds-verdict s { color:var(--mut, #7E938C); font-weight:400; text-decoration:line-through; text-decoration-color:var(--dry, #D96C3D); text-decoration-thickness:2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Ночной арык",
+    "overview": "Тёмная вода глубинных зелёных тонов — сцена, по которой течёт единственный голубой канал: интерактив. Сайт живёт ночью не ради моды, а потому что спутник и полив живут в темноте раннего утра; свет здесь — это данные. Смысл несёт ось «сухо→влажно» (глина → солома → лист): она появляется только там, где речь о воде и вердиктах, и нигде как украшение. Характер компонентов — приборная точность, спокойная рука: измерительный прибор, которому доверяют.",
+    "keyCharacteristics": [
+      "ночная вода как фон, канал-циан как единственный голос интерактива",
+      "ось dry→mid→wet только для смысла (влажность, вердикты), не для декора",
+      "моноширинный шрифт помечает измеренное: даты, числа, координаты",
+      "тональные слои вместо теней; тень — привилегия артефактов",
+      "reveal-подъём как дыхание страницы, один авторский момент на секцию"
+    ],
+    "rules": [
+      { "name": "Правило одного канала", "body": "Циан — единственный голос интерактива и занимает малую долю любого экрана. Второй акцентный цвет для кнопок или ссылок не вводится никогда.", "section": "colors" },
+      { "name": "Правило оси смысла", "body": "Градиент dry→mid→wet появляется только там, где пиксели значат влажность или вердикт. Декоративное применение оси — ложь интерфейса.", "section": "colors" },
+      { "name": "Правило моно-измерения", "body": "JetBrains Mono ставится только на измеренное или адресуемое: числа, даты, координаты, команды, подписи приборов. Моно как «технический костюм» для обычного текста запрещён.", "section": "typography" },
+      { "name": "Правило тени артефакта", "body": "Тень отбрасывает то, что существует в физическом мире или доказывает: приборы, снимки, экраны. Кнопки, карточки и панели интерфейса живут в тональных слоях без теней.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do ставить моно на каждое измеренное число и дату (tabular-nums).",
+      "Do держать секции на ритме 120px и раковине 1180px.",
+      "Do использовать ось dry→mid→wet, когда пиксели значат влажность или вердикт — и подписывать, что именно измерено.",
+      "Do давать каждой секции не больше одного авторского момента движения на cubic-bezier(.2,.8,.2,1).",
+      "Do зачёркивать опровергнутое линией 2px цвета глины — это фирменная форма честности."
+    ],
+    "donts": [
+      "Don't вводить второй цвет интерактива или красить hover — подъём на 2px и есть реакция.",
+      "Don't давать тени кнопкам, карточкам и панелям — тень только у артефактов-доказательств (и у одной акцентной тарифной карточки).",
+      "Don't использовать градиент оси влажности как декор фона, рамок или текста.",
+      "Don't ставить цветные толстые рамки (border-left 3px и подобные) — вердикты выражаются зачёркиванием, коридорами нормы и цветом линии данных.",
+      "Don't обещать пикселями то, чего нет в данных: фейковые счётчики, выдуманные графики и «примерные» карты без подписи об этом запрещены принципами продукта (§1, §6)."
+    ]
+  }
+}
