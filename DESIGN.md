@@ -44,12 +44,43 @@ typography:
     fontSize: "0.72rem"
     fontWeight: 400
     letterSpacing: "0.22em"
+  app-micro:
+    fontFamily: "JetBrains Mono, monospace"
+    fontSize: "0.68rem"
+    fontWeight: 400
+  app-small:
+    fontFamily: "Golos Text, system-ui, sans-serif"
+    fontSize: "0.8rem"
+    fontWeight: 400
+  app-base:
+    fontFamily: "Golos Text, system-ui, sans-serif"
+    fontSize: "0.9rem"
+    fontWeight: 400
+  app-lead:
+    fontFamily: "Unbounded, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 500
+  app-stat:
+    fontFamily: "JetBrains Mono, monospace"
+    fontSize: "1.05rem"
+    fontWeight: 400
+  app-title:
+    fontFamily: "Unbounded, sans-serif"
+    fontSize: "clamp(1.25rem, 5vw, 1.6rem)"
+    fontWeight: 500
+  app-hero:
+    fontFamily: "Unbounded, sans-serif"
+    fontSize: "clamp(1.4rem, 6vw, 1.9rem)"
+    fontWeight: 700
 rounded:
   pill: "100px"
   card: "14px"
   inner: "12px"
+  key: "8px"
   tag: "6px"
   legend: "4px"
+  bar: "5px"
+  hair: "2px"
   frame: "16px"
   screen: "22px"
   phone: "34px"
@@ -166,11 +197,19 @@ components:
 
 **Шкала кабинета (Operate).** Веб-кабинет фермера — не витрина, а
 прибор: экран маленький, солнце яркое, читают стоя в поле. Поэтому у
-него своя, более плотная шкала: заголовок поля clamp(1.25–1.6rem),
-совет 1.4–1.9rem, заголовки секций 0.95rem, тело 0.9rem, подписи
-плашек 0.68rem моно. Это документированное отклонение от витринной
-шкалы, а не дрейф: две поверхности с разными задачами и разной
-дистанцией чтения.
+него своя, более плотная шкала — ровно пять ступеней плюс два clamp:
+
+- **app-micro** (0.68rem, моно): метки плашек, теги, шапки таблиц;
+- **app-small** (0.8rem): подписи, сноски, плотные строки плана;
+- **app-base** (0.9rem): текст секций и карточек;
+- **app-lead** (1rem, Unbounded): заголовки секций и имя поля в списке;
+- **app-stat** (1.05rem, моно): значения приборных плашек;
+- имя поля clamp(1.25–1.6rem), день полива clamp(1.4–1.9rem).
+
+Пять ступеней — не прихоть: первая сборка кабинета набрала пятнадцать
+почти неразличимых размеров (0.82 / 0.83 / 0.85 / 0.88), и это была не
+шкала, а стихийный набор. Ближе 0.1rem глаз разницы не видит, а система
+теряет право называться системой.
 
 ### Named Rules
 **Правило моно-измерения.** JetBrains Mono ставится только на

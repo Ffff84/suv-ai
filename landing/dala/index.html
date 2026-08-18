@@ -34,21 +34,21 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 header.top{position:sticky;top:0;z-index:5;background:var(--deep);
   border-bottom:1px solid var(--line);padding:12px 0}
 header.top .shell{display:flex;align-items:center;gap:12px;min-height:32px}
-.brand{font-family:"Unbounded",sans-serif;font-weight:700;font-size:.95rem;
+.brand{font-family:"Unbounded",sans-serif;font-weight:700;font-size:.9rem;
   text-decoration:none;color:var(--ink)}
 .brand b{color:var(--cyan)}
-.back{font-size:.85rem;color:var(--cyan);margin-left:auto}
+.back{font-size:.8rem;color:var(--cyan);margin-left:auto}
 
 main{padding:22px 0 60px}
 h1{font-family:"Unbounded",sans-serif;font-weight:500;
   font-size:clamp(1.25rem,5vw,1.6rem);line-height:1.2;margin-bottom:4px}
-.sub{color:var(--mut);font-size:.88rem;margin-bottom:22px}
+.sub{color:var(--mut);font-size:.9rem;margin-bottom:22px}
 
 /* состояние поля — единственное крупное пятно экрана */
 .overall{display:flex;align-items:center;gap:14px;background:var(--panel);
   border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px}
 .dot{width:14px;height:14px;border-radius:50%;flex:0 0 auto}
-.overall .txt{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem}
+.overall .txt{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem}
 .s0{background:var(--mut)}.s1{background:var(--wet)}
 .s2{background:var(--mid)}.s3{background:var(--dry)}
 
@@ -57,7 +57,7 @@ h1{font-family:"Unbounded",sans-serif;font-weight:500;
   padding:20px;margin-bottom:22px}
 .advice .when{font-family:"Unbounded",sans-serif;font-weight:700;
   font-size:clamp(1.4rem,6vw,1.9rem);line-height:1.15}
-.advice .cap{font-family:"JetBrains Mono",monospace;font-size:.7rem;
+.advice .cap{font-family:"JetBrains Mono",monospace;font-size:.68rem;
   letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin-bottom:8px}
 .advice .vol{color:var(--mut);font-size:.9rem;margin-top:8px}
 .advice .vol b{color:var(--ink);font-weight:500}
@@ -66,17 +66,17 @@ section.card{background:var(--panel);border:1px solid var(--line);
   border-radius:14px;padding:16px 18px;margin-bottom:12px;
   display:grid;grid-template-columns:14px 1fr;gap:12px;align-items:start}
 section.card .body{min-width:0}
-section.card h2{font-size:.95rem;font-weight:600;margin-bottom:4px;
+section.card h2{font-size:.9rem;font-weight:600;margin-bottom:4px;
   font-family:"Golos Text",sans-serif}
 section.card p{font-size:.9rem}
-section.card .hint{color:var(--mut);font-size:.83rem;margin-top:4px}
+section.card .hint{color:var(--mut);font-size:.8rem;margin-top:4px}
 
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:22px 0}
 .cell{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .cell .k{font-family:"JetBrains Mono",monospace;font-size:.68rem;
   letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
 .cell .v{font-family:"JetBrains Mono",monospace;font-size:1.05rem;margin-top:5px}
-.cell .v small{color:var(--mut);font-size:.72rem}
+.cell .v small{color:var(--mut);font-size:.68rem}
 
 h3.sec{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem;
   margin:30px 0 12px}
@@ -85,7 +85,7 @@ h3.sec{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem;
 .tabs{display:flex;gap:8px;overflow-x:auto;margin:20px 0 18px;
   padding-bottom:4px;-webkit-overflow-scrolling:touch}
 .tabs button{white-space:nowrap;border:1px solid var(--line);border-radius:100px;
-  padding:9px 16px;font-size:.85rem;color:var(--mut);background:var(--panel);
+  padding:9px 16px;font-size:.8rem;color:var(--mut);background:var(--panel);
   transition:transform .2s}
 .tabs button[aria-selected="true"]{background:var(--cyan);color:var(--deep);
   border-color:var(--cyan);font-weight:600}
@@ -95,30 +95,30 @@ h3.sec{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem;
 .day{display:grid;grid-template-columns:64px 1fr 62px;gap:10px;align-items:center;
   padding:9px 0;border-bottom:1px solid var(--line)}
 .day:last-child{border-bottom:0}
-.day .d{font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--mut)}
+.day .d{font-family:"JetBrains Mono",monospace;font-size:.8rem;color:var(--mut)}
 .day .bar{height:9px;border-radius:5px;background:var(--line);position:relative;overflow:hidden}
 .day .bar i{position:absolute;inset:0 auto 0 0;border-radius:5px;background:var(--wet)}
 .day .bar i.warn{background:var(--mid)}
 .day .bar i.alert{background:var(--dry)}
-.day .v{font-family:"JetBrains Mono",monospace;font-size:.74rem;text-align:right}
+.day .v{font-family:"JetBrains Mono",monospace;font-size:.8rem;text-align:right}
 .day.irr{background:rgba(79,200,212,.07);border-radius:8px;padding-left:6px;padding-right:6px}
 .day .tag{font-family:"JetBrains Mono",monospace;font-size:.68rem;color:var(--cyan);
   letter-spacing:.1em}
 .rowline{display:flex;justify-content:space-between;gap:14px;padding:11px 0;
-  border-bottom:1px solid var(--line);font-size:.88rem}
+  border-bottom:1px solid var(--line);font-size:.9rem}
 .rowline:last-child{border-bottom:0}
 .rowline b{font-family:"JetBrains Mono",monospace;font-weight:500}
 .warnbox{border:1px solid var(--mid);border-radius:12px;padding:12px 14px;
-  font-size:.82rem;color:var(--mut);margin-top:12px}
+  font-size:.8rem;color:var(--mut);margin-top:12px}
 .chart{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
 .chart svg{width:100%;height:auto;display:block}
 .chart text{font-family:"JetBrains Mono",monospace;font-size:12px;fill:var(--mut)}
-.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.76rem;color:var(--mut);margin-top:10px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.8rem;color:var(--mut);margin-top:10px}
 .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
 
-table{border-collapse:collapse;width:100%;font-size:.82rem}
+table{border-collapse:collapse;width:100%;font-size:.8rem}
 th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;white-space:nowrap}
-th{font-family:"JetBrains Mono",monospace;font-size:.66rem;letter-spacing:.08em;
+th{font-family:"JetBrains Mono",monospace;font-size:.68rem;letter-spacing:.08em;
   text-transform:uppercase;color:var(--mut);font-weight:400}
 td{font-family:"JetBrains Mono",monospace}
 .scroll{overflow-x:auto}
@@ -129,7 +129,7 @@ td{font-family:"JetBrains Mono",monospace}
   padding:18px 20px;margin-bottom:12px;transition:transform .2s}
 .field-btn:hover{transform:translateY(-2px)}
 .field-btn .nm{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem}
-.field-btn .meta{color:var(--mut);font-size:.82rem;margin-top:3px}
+.field-btn .meta{color:var(--mut);font-size:.8rem;margin-top:3px}
 .field-btn .chev{margin-left:auto;color:var(--cyan)}
 
 .note{background:var(--panel);border:1px solid var(--line);border-radius:14px;
@@ -137,7 +137,7 @@ td{font-family:"JetBrains Mono",monospace}
 .note b{color:var(--ink);font-weight:500;display:block;margin-bottom:8px;
   font-family:"Unbounded",sans-serif}
 .note .btn{display:inline-block;margin-top:14px;background:var(--cyan);color:var(--deep);
-  border-radius:100px;padding:11px 20px;font-weight:600;font-size:.88rem;text-decoration:none}
+  border-radius:100px;padding:11px 20px;font-weight:600;font-size:.9rem;text-decoration:none}
 .skel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   height:74px;margin-bottom:12px;opacity:.5}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
