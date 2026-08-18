@@ -44,7 +44,7 @@ from suv.field_shape import area_ha as polygon_area_ha
 from suv.field_photo import can_show_photo
 from suv.field_shape import from_geojson_ring
 from suv.field_shape import inlet_edge as polygon_inlet_edge
-from suv.field_shape import side_labels as polygon_side_labels
+from suv.field_shape import inlet_options as polygon_inlet_options
 from suv.field_shape import to_geojson_ring
 from suv.field_shape import validate as validate_shape
 from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
@@ -133,9 +133,12 @@ REC_MAX_AGE_DAYS = 7
 
 # Утренний автопуш: фермер читает до выхода в поле.
 PUSH_HOUR_TASHKENT = 6
-# В спокойные дни бот молчит, если совет уходил недавно: ежедневный
-# «поливать не надо» превращается в спам, и его перестают читать.
-PUSH_QUIET_DAYS = 3
+# Сообщение приходит КАЖДОЕ утро — решение Амира 17.08.2026: тишина
+# читается фермером как «бот умер», а не как «всё в порядке». Единица
+# здесь значит «молчим, только если совет уже уходил сегодня» (кнопкой
+# или этим же пушем — от повтора защищает). Вернуть прежний ритм «раз в
+# три дня» можно, снова поставив 3.
+PUSH_QUIET_DAYS = 1
 
 # Bosib qoldirsa ham — ro'yxatdan o'tish savoliga javob bermay, menyu
 # tugmasini bossa, vizard shu yerda to'xtab qolmasligi kerak.
@@ -306,7 +309,7 @@ async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await update.message.reply_text(
         "Dala saqlandi.\n\n"
-        "Har 3 kunda sizga sug'orish bo'yicha xabar yuboraman.\n"
+        "Har kuni ertalab sizga sug'orish bo'yicha xabar yuboraman.\n"
         f"Hozir tekshirish uchun pastdagi “{BTN_SUV}” tugmasini bosing.",
         reply_markup=_menu(chat))
     return ConversationHandler.END
@@ -342,6 +345,50 @@ def _last_irrigation(field_id: str, seeded: str | None) -> date | None:
     return date.fromisoformat(seeded) if seeded else None
 
 
+def _rewind(fld: Field, last_irr: date | None, series: list, gap: int,
+            today: date) -> tuple[WaterBalanceState, list]:
+    """Прокрутить историю по готовому ряду погоды и отдать прогноз.
+
+    В день полива профиль считается наполненным (дефицит 0). Это НЕ
+    самоочевидно, и однажды это уже пытались «починить»: движок
+    ограничивает один капельный сеанс 25 мм net (MAX_APPLICATION_MM), а
+    порог RAW у яблони под 90 мм, откуда следовал вывод, что после
+    полива остаётся долг ~72 мм. Проверка на живой погоде показала, что
+    вывод неверен, потому что неверна посылка: Фаррух поливает НЕ по
+    порогу, а по расписанию раз в четыре дня, и за эти четыре дня
+    накапливается ~23 мм — их сеанс в 25.9 мм net перекрывает целиком.
+    Подстановка RAF-остатка давала 2778 м³ на две недели против 1808 м³
+    настоящей потребности: перелив в полтора раза, а на засоленной земле
+    лишняя перколяция поднимает соль к корням.
+
+    Остаётся известное ограничение, и оно противоположного знака: если
+    фермер идёт по РАСТЯНУТЫМ интервалам самого бота, то к моменту
+    полива дефицит и правда больше того, что даёт один сеанс капли, и
+    ноль его занижает. Честно это лечится не догадкой о дефиците, а
+    прокруткой баланса СКВОЗЬ все подтверждённые поливы — по журналу
+    actions, без сброса состояния. Пока такой прокрутки нет, ноль честнее
+    выдуманного остатка.
+    """
+    history, future = series[:gap], series[gap:]
+    if not future:  # ряд обрезался на дырах в архиве — прогноза нет
+        raise ValueError("weather series has no forecast part")
+
+    state = WaterBalanceState(0.0, 0.20)
+    if history and last_irr:
+        # Стартуем с первого дня ИСТОРИИ, а не с last_irr: при разрыве
+        # дольше 92 дней (предел архива) история покрывает последние 92
+        # дня, и метки last_irr..last_irr+91 сдвигали фазы культуры и
+        # Kc относительно погоды реальных дат.
+        plan = simulate(fld, history, state,
+                        today - timedelta(days=len(history)),
+                        apply_irrigation=False)
+        last = plan[-1]
+        zr = (last.taw_mm / fld.soil.available_water_mm_per_m
+              if last.taw_mm else 0.20)
+        state = WaterBalanceState(last.depletion_mm, zr)
+    return state, future
+
+
 def _warm_state(fld: Field, last_irr: date | None,
                 today: date) -> tuple[WaterBalanceState, list]:
     """
@@ -356,18 +403,7 @@ def _warm_state(fld: Field, last_irr: date | None,
     gap = max(0, min(gap, 92))  # 92 — предел архива Open-Meteo
 
     series = fetch_forecast(fld.lat, fld.lon, days=14, past_days=gap)
-    history, future = series[:gap], series[gap:]
-    if not future:  # ряд обрезался на дырах в архиве — прогноза нет
-        raise ValueError("weather series has no forecast part")
-
-    state = WaterBalanceState(0.0, 0.20)
-    if history and last_irr:
-        plan = simulate(fld, history, state, last_irr, apply_irrigation=False)
-        last = plan[-1]
-        zr = (last.taw_mm / fld.soil.available_water_mm_per_m
-              if last.taw_mm else 0.20)
-        state = WaterBalanceState(last.depletion_mm, zr)
-    return state, future
+    return _rewind(fld, last_irr, series, gap, today)
 
 
 # Поле без даты последнего полива считается «только что политым» — это
@@ -403,25 +439,39 @@ def _compute_rec(row, today: date):
 
     Общий путь для кнопки «Suv holati» и утреннего автопуша — совет
     обязан быть одинаковым, каким бы способом фермер его ни получил.
-    Возвращает (rec, pump, anchored): anchored=False — расчёту не от
-    чего отталкиваться, полю приписана полная влагоёмкость.
+    Возвращает (rec, pump, anchored, degraded): anchored=False — расчёту
+    не от чего отталкиваться; degraded=True — живая погода не пришла и
+    расчёт сделан по климатическим нормам, о чём фермеру говорится
+    прямо, а журнал KPI такую рекомендацию не записывает.
     """
     fld = _build_field(row)
 
     from suv.enrich import attach_ndvi
     # Обведённый контур сразу идёт в дело: без него спутник усредняет
-    # NDVI по квадрату 400x400 м вокруг точки и захватывает соседнюю
+    # NDVI по квадрату 200x200 м вокруг точки и может захватить соседнюю
     # культуру и дорогу. С контуром замер идёт ровно по полю.
     log.info("%s: %s", fld.field_id,
              attach_ndvi(fld, polygon=_field_polygon(row)))
 
-    last_irr = _last_irrigation(fld.field_id, row["last_irrigation_date"])
+    last_irr = _last_irrigation(fld.field_id,
+                                row["last_irrigation_date"])
+    degraded = False
     try:
         state, forecast = _warm_state(fld, last_irr, today)
     except Exception as exc:  # noqa: BLE001
-        log.warning("weather feed failed for %s: %s", fld.field_id, exc)
-        state = WaterBalanceState(0.0, 0.20)
-        forecast = season(STATIONS["samarkand"], today, 14)
+        # Погода не пришла. Раньше сюда молча подставлялось «поле только
+        # что полито» + нормали: реальный дефицит стирался в ноль,
+        # urgent не наступал, и утренний пуш «поливай сегодня» тонул —
+        # ровно в тот день, когда поле сохло. Теперь та же отмотка от
+        # последнего полива идёт по климатическим НОРМАМ, а сообщение
+        # честно предупреждает о приблизительности (degraded).
+        log.warning("weather feed failed for %s: %s — считаю по нормам",
+                    fld.field_id, exc)
+        degraded = True
+        gap = max(0, min((today - last_irr).days if last_irr else 0, 92))
+        series = season(STATIONS["samarkand"],
+                        today - timedelta(days=gap), gap + 14)
+        state, forecast = _rewind(fld, last_irr, series, gap, today)
 
     rec = recommend(fld, forecast, state, today)
 
@@ -431,14 +481,23 @@ def _compute_rec(row, today: date):
         pump = PumpProfile(row["pump_kwh_per_hour"], row["pump_m3_per_hour"],
                            row["pump_cost_per_hour_uzs"] or 0.0,
                            row["pump_lift_m"] or 0.0)
-    return rec, pump, last_irr is not None
+    return rec, pump, last_irr is not None, degraded
 
 
-def _rec_message(rec, pump, lang: str, anchored: bool = True) -> str:
+WEATHER_DOWN_UZ = ("⚠️ Ob-havo xizmati javob bermadi — hisob ko'p yillik "
+                   "me'yorlar bo'yicha, taxminiy.")
+WEATHER_DOWN_RU = ("⚠️ Прогноз погоды недоступен — расчёт по климатическим "
+                   "нормам, приблизительный.")
+
+
+def _rec_message(rec, pump, lang: str, anchored: bool = True,
+                 degraded: bool = False) -> str:
     msg = recommendation_text(rec, lang, pump=pump)
     warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
     if warn:
         msg += "\n\n" + warn
+    if degraded:
+        msg += "\n\n" + (WEATHER_DOWN_UZ if lang == "uz" else WEATHER_DOWN_RU)
     if not anchored:
         msg += "\n\n" + (NO_ANCHOR_UZ if lang == "uz" else NO_ANCHOR_RU)
     return msg
@@ -467,12 +526,21 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     today = date.today()
     ctx.user_data.setdefault("last_rec_ids", {})
     for row in rows:
-        rec, pump, anchored = _compute_rec(row, today)
+        rec, pump, anchored, degraded = _compute_rec(row, today)
+        # Пишем в журнал и деградированный совет тоже. Пробовали не
+        # писать — «это не тот расчёт, за который мы отвечаем», — и
+        # порвали цепочку: без rid в last_rec_ids кнопка «✅ Suv berdim»
+        # утыкалась в позавчерашнюю рекомендацию, has_action отвечал
+        # «уже записано», и полив фермера пропадал вместе с якорем
+        # водного баланса. Правило журнала прямое: храним то, что
+        # СКАЗАЛИ фермеру. Сказали — значит записываем; о приблизительности
+        # предупреждает сам текст сообщения.
         if not observer:
             rid = LEDGER.log_recommendation(rec, __version__)
             ctx.user_data["last_rec_ids"][rec.field.field_id] = rid
         await update.message.reply_text(
-            _rec_message(rec, pump, lang, anchored=anchored),
+            _rec_message(rec, pump, lang, anchored=anchored,
+                         degraded=degraded),
             reply_markup=_menu(update.effective_chat.id))
 
 
@@ -569,7 +637,17 @@ def _log_one(ctx: ContextTypes.DEFAULT_TYPE, field_id: str, rid: int,
     «Oxirgi: bugun».
     """
     ctx.user_data.get("fs_cache", {}).pop(field_id, None)
+    # Кэш карточки у ОСТАЛЬНЫХ (наблюдатель) сбрасывается меткой в
+    # bot_data — user_data чужого чата отсюда не достать.
+    ctx.application.bot_data.setdefault("fs_dirty", {})[field_id] = \
+        time.monotonic()
     row = _field_row(field_id)
+    name = row["name"] if row else field_id
+    # Двойной тап по кнопке на медленном интернете — два callback'а.
+    # Второй INSERT задваивал metered, и /tejaldi занижал экономию на
+    # весь объём лишней строки.
+    if LEDGER.has_action(rid):
+        return f"{name}: allaqachon yozib olingan."
     m3 = None
     if hours is not None and row and row["pump_m3_per_hour"]:
         m3 = hours * row["pump_m3_per_hour"]
@@ -577,7 +655,6 @@ def _log_one(ctx: ContextTypes.DEFAULT_TYPE, field_id: str, rid: int,
     LEDGER.log_action(rid, followed=True, actual_day=actual,
                       actual_m3=m3, source="farmer",
                       note=f"{hours:g} soat" if hours is not None else None)
-    name = row["name"] if row else field_id
     when = " (kecha)" if days_ago else ""
     if hours is not None:
         return f"{name}: yozib oldim{when}, {hours:g} soat. Rahmat!"
@@ -747,7 +824,7 @@ FS_CACHE_TTL_S = 600.0
 
 
 def _fs_data(row, ctx):
-    """(rec, pump, anchored, forecast) по полю, с TTL-кэшем на чат.
+    """(rec, pump, anchored, degraded, forecast) по полю, с TTL на чат.
 
     Прогноз для секции погоды берётся отдельным быстрым запросом, а не
     протаскивается через _compute_rec: общий путь /suv и автопуша
@@ -755,29 +832,38 @@ def _fs_data(row, ctx):
     """
     cache = ctx.user_data.setdefault("fs_cache", {})
     hit = cache.get(row["field_id"])
-    if hit and time.monotonic() - hit[0] < FS_CACHE_TTL_S:
+    # Метка «поле изменилось» лежит в bot_data, потому что user_data —
+    # личный: отметка полива Фарруха сбрасывала кэш только ему, и
+    # карточка наблюдателя ещё десять минут советовала полить поле,
+    # которое сам же показывала политым сегодня.
+    dirty = (getattr(ctx, "application", None)
+             and ctx.application.bot_data.get("fs_dirty", {})
+                 .get(row["field_id"], 0.0)) or 0.0
+    if hit and time.monotonic() - hit[0] < FS_CACHE_TTL_S and hit[0] >= dirty:
         return hit[1]
-    rec, pump, anchored = _compute_rec(row, date.today())
+    rec, pump, anchored, degraded = _compute_rec(row, date.today())
     try:
         forecast = fetch_forecast(row["lat"], row["lon"], days=3)
     except Exception as exc:  # noqa: BLE001 — погода не роняет карточку
         log.warning("dala: прогноз для %s не пришёл: %s",
                     row["field_id"], exc)
         forecast = []
-    data = (rec, pump, anchored, forecast)
+    data = (rec, pump, anchored, degraded, forecast)
     cache[row["field_id"]] = (time.monotonic(), data)
     return data
 
 
 def _fs_sections(row, ctx, lang: str) -> list:
-    rec, pump, _anchored, forecast = _fs_data(row, ctx)
-    last_irr = _last_irrigation(row["field_id"], row["last_irrigation_date"])
+    rec, pump, _anchored, degraded, forecast = _fs_data(row, ctx)
+    last_irr = _last_irrigation(row["field_id"],
+                                row["last_irrigation_date"])
     try:
         season_m3 = LEDGER.savings(row["field_id"]).metered_m3
     except KeyError:
         season_m3 = 0.0
     return assemble(
-        water_section(rec, last_irr, date.today(), pump, lang),
+        water_section(rec, last_irr, date.today(), pump, lang,
+                      degraded=degraded),
         uniformity_section(row["irrigation_method"], row["area_ha"],
                            has_reach=False, lang=lang,
                            declared_ha=row["hectares"],
@@ -1371,13 +1457,19 @@ def _build_photo(row, lang: str):
 
     days = scene.candidate_days(token, box)
     if not days:
-        return None, gate(None, None), "", ""
+        return None, gate(None, None), "", "", ""
+    latest_seen = days[0].isoformat()
 
     last = gate(days[0], None)
     for day in days[:PHOTO_MAX_TRIES]:
         v = gate(day, None)
         if not v.ok:
-            last = v
+            # Уже добытый ИЗМЕРЕННЫЙ вердикт (например «поле в облаках»
+            # по свежему кадру) не затираем возрастом более старого дня:
+            # фермер получал «последний снимок слишком старый», хотя
+            # трёхдневный снимок есть — просто поле под облаком.
+            if last.ok:
+                last = v
             break  # дальше только старее — искать смысла нет
         sc = scene.fetch(box, day, token)
         stats = photo_render.measure(sc, ring)
@@ -1403,11 +1495,12 @@ def _build_photo(row, lang: str):
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=90)
         buf.seek(0)
-        return (buf, last, day.isoformat(), f"🌾 {row['name']}\n\n{caption}")
+        return (buf, last, day.isoformat(),
+                f"🌾 {row['name']}\n\n{caption}", latest_seen)
 
     if last.ok:  # все попытки вышли, но причина не названа
         last = gate(days[0], 0.0)
-    return None, last, "", ""
+    return None, last, "", "", latest_seen
 
 
 async def photo_callback(update: Update,
@@ -1433,11 +1526,13 @@ async def photo_callback(update: Update,
                        else "Готовлю снимок…")
     await ctx.bot.send_chat_action(chat, ChatAction.UPLOAD_PHOTO)
 
-    # Ключ кэша: версия отрисовки + контур. Версия обязательна — без
-    # неё выкатка нового вида фото ничего не меняет для фермера, пока
-    # спутник не пройдёт заново: кэш видит ту же дату и тот же контур.
-    from suv.photo_render import STYLE_VERSION
-    key = f"v{STYLE_VERSION}:{_contour_fingerprint(row)}"
+    # Ключ кэша: версия отрисовки + язык + контур. Версия обязательна —
+    # без неё выкатка нового вида фото ничего не меняет для фермера,
+    # пока спутник не пройдёт заново. Язык обязателен тоже: без него
+    # подпись навсегда оставалась на языке первого нажавшего — Фаррух
+    # получал снимок своего поля с русской подписью наблюдателя.
+    from suv.photo_render import STYLE_VERSION, when_word
+    key = f"v{STYLE_VERSION}:{lang}:{_contour_fingerprint(row)}"
     # Дату свежего кадра спрашиваем у каталога. Сравнивать сохранённую
     # дату саму с собой бессмысленно: такой «кэш» никогда не заметил бы
     # нового снимка и отдавал бы августовскую картинку до конца сезона.
@@ -1446,14 +1541,21 @@ async def photo_callback(update: Update,
     if cached:
         # Повторное нажатие отдаёт готовый file_id мгновенно (ТЗ §4.5).
         # Подпись обязательна и здесь: фото без даты снимка фермер
-        # прочитает как сегодняшнее (§1.2).
-        file_id, caption = cached
+        # прочитает как сегодняшнее (§1.2). Относительное слово при
+        # этом пересчитывается: сохранённое «(kecha)» через три дня —
+        # неправда, а читают его раньше, чем цифры даты.
+        file_id, caption, scene_iso = cached
+        if caption and scene_iso:
+            word = when_word(date.fromisoformat(scene_iso), date.today(),
+                             lang == "uz")
+            caption = re.sub(r"(🛰[^:\n]+: \d{2}\.\d{2}) \([^)]*\)",
+                             rf"\1 ({word})", caption, count=1)
         await ctx.bot.send_photo(chat, file_id, caption=caption or None)
         return
 
     try:
-        buf, verdict, scene_day, caption = await asyncio.to_thread(
-            _build_photo, row, lang)
+        buf, verdict, scene_day, caption, latest_seen = \
+            await asyncio.to_thread(_build_photo, row, lang)
     except Exception as exc:  # noqa: BLE001 — сеть и Copernicus падают
         log.warning("фото %s не собралось: %s", fid, exc)
         await ctx.bot.send_message(
@@ -1470,7 +1572,13 @@ async def photo_callback(update: Update,
 
     msg = await ctx.bot.send_photo(chat, buf, caption=caption)
     if msg and msg.photo:
-        LEDGER.save_photo(fid, msg.photo[-1].file_id, scene_day, key, caption)
+        # latest_seen — дата каталога на момент сборки. Без неё кэш не
+        # срабатывал НИКОГДА, пока свежий проход облачный: фото законно
+        # собрано по старому чистому дню, дата не равна каталожной, и
+        # каждое нажатие шло в 30-60-секундную пересборку той же
+        # картинки, сжигая квоту Copernicus.
+        LEDGER.save_photo(fid, msg.photo[-1].file_id, scene_day, key,
+                          caption, latest_seen=latest_seen or scene_day)
         ctx.user_data.get("fs_cache", {}).pop(fid, None)
 
 
@@ -1501,11 +1609,17 @@ def _contour_fingerprint(row) -> str:
 
 
 def _inlet_choices(row, lang: str):
-    """Стороны поля с уникальными подписями, самые длинные первыми."""
+    """Откуда может заходить вода: стороны поля и ворота между ними.
+
+    Ворота — короткий торец, который склейка убирает внутрь длинной
+    межи. Без них список молча терял единственный верный ответ: на
+    винограднике Фарруха вода заходит с северо-востока через межу в
+    33 метра, и северо-востока в кнопках не было вовсе.
+    """
     ring = _field_polygon(row)
     if not ring:
         return [], 0
-    all_sides = polygon_side_labels(from_geojson_ring(ring), lang)
+    all_sides = polygon_inlet_options(from_geojson_ring(ring), lang)
     return all_sides[:INLET_MAX_CHOICES], len(all_sides)
 
 
@@ -1603,6 +1717,7 @@ async def inlet_callback(update: Update,
     await query.answer()
     LEDGER.save_inlet(fid, i, j)
     ctx.user_data.get("fs_cache", {}).pop(fid, None)
+    ctx.application.bot_data.setdefault("fs_dirty", {})[fid] = time.monotonic()
     log.info("сторона входа воды: %s -> вершины %d,%d (%s)",
              fid, i, j, edge.name("ru"))
     # Возвращаемся на карточку: экран правит одно сообщение, и оставить
@@ -1648,8 +1763,9 @@ async def draw_confirm_callback(update: Update,
     ha = polygon_area_ha(pts)
     LEDGER.save_polygon(fid, ring, ha, pending["source"])
     # Карточка обязана перестать говорить «чегара чизилмаган» сразу,
-    # а не через десять минут TTL.
+    # а не через десять минут TTL, — и у наблюдателя тоже.
     ctx.user_data.get("fs_cache", {}).pop(fid, None)
+    ctx.application.bot_data.setdefault("fs_dirty", {})[fid] = time.monotonic()
     log.info("контур сохранён: %s, %.2f га, источник %s",
              fid, ha, pending["source"])
 
@@ -1698,8 +1814,15 @@ def _last_rec_date(chat_id: int) -> date | None:
     return date.fromisoformat(row[0]) if row and row[0] else None
 
 
-async def daily_push(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Утренний обход всех владельцев полей."""
+async def daily_push(ctx: ContextTypes.DEFAULT_TYPE,
+                     only_if_silent_today: bool = False) -> None:
+    """Утренний обход всех владельцев полей.
+
+    only_if_silent_today — режим догона после рестарта: слать только
+    тем, у кого сегодня ещё не было ни одной рекомендации (ни пушем, ни
+    кнопкой). Без этого каждый деплой в течение дня повторял бы
+    владельцу уже отправленное утреннее сообщение.
+    """
     today = date.today()
     import sqlite3
     with sqlite3.connect(LEDGER.path) as c:
@@ -1708,44 +1831,89 @@ async def daily_push(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             "WHERE owner_chat_id IS NOT NULL")]
 
     for chat in owners:
-        if _ALLOWED and chat not in _ALLOWED:
-            continue  # поле в базе есть, а доступа у владельца больше нет
-        rows = _owner_fields(chat)
-        if not rows:
-            continue
+        # Ошибка на одном владельце не смеет оставить без утреннего
+        # сообщения остальных: раньше исключение из любой строки ниже
+        # (sqlite locked, битая строка поля) убивало весь обход, и
+        # хвост списка молча оставался без пуша.
+        try:
+            await _push_owner(ctx, chat, today, only_if_silent_today)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("push: владелец %s пропущен: %s", chat, exc)
 
-        recs = []
-        for row in rows:
-            try:
-                recs.append(_compute_rec(row, today))
-            except Exception as exc:  # noqa: BLE001
-                log.warning("push: расчёт %s не удался: %s",
-                            row["field_id"], exc)
-        if not recs:
-            continue
 
-        urgent = any(rec.action_day is not None and rec.days_until <= 1
-                     for rec, _p, _a in recs)
-        if not push_due(urgent, _last_rec_date(chat), today):
-            log.info("push: %s — спокойный день, молчим", chat)
-            continue
+async def _push_owner(ctx, chat: int, today: date,
+                      only_if_silent_today: bool) -> None:
+    if _ALLOWED and chat not in _ALLOWED:
+        return  # поле в базе есть, а доступа у владельца больше нет
+    rows = _owner_fields(chat)
+    if not rows:
+        return
+    last_rec = _last_rec_date(chat)
+    if only_if_silent_today and last_rec == today:
+        return  # догон: сегодня уже что-то уходило
 
-        ud = ctx.application.user_data[chat]
-        ud.setdefault("last_rec_ids", {})
-        for rec, pump, anchored in recs:
-            try:
-                await ctx.bot.send_message(
-                    chat, _rec_message(rec, pump, "uz", anchored=anchored),
-                    reply_markup=_menu(chat))
-            except Exception as exc:  # noqa: BLE001
-                log.warning("push: отправка %s не удалась: %s", chat, exc)
-                continue
-            # В журнал — только доставленное: недоставленный совет не
-            # должен ни считаться «мы сказали», ни глушить завтрашний пуш.
+    recs = []
+    for row in rows:
+        try:
+            recs.append(_compute_rec(row, today))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("push: расчёт %s не удался: %s",
+                        row["field_id"], exc)
+    if not recs:
+        return
+
+    # Деградированный расчёт в срочности УЧАСТВУЕТ. Пробовали исключать —
+    # мол, он построен на нормах, а не на данных, — но так «поливай
+    # сегодня» терялось ровно в тот день, когда погодный сервис лежит, а
+    # поле сохнет. Промолчать тут дороже, чем предупредить лишний раз:
+    # о приблизительности расчёта фермеру говорит сам текст.
+    urgent = any(rec.action_day is not None and rec.days_until <= 1
+                 for rec, _p, _a, _degraded in recs)
+    if not push_due(urgent, last_rec, today):
+        log.info("push: %s — сегодня уже слали, молчим", chat)
+        return
+
+    ud = ctx.application.user_data[chat]
+    ud.setdefault("last_rec_ids", {})
+    for rec, pump, anchored, degraded in recs:
+        try:
+            await ctx.bot.send_message(
+                chat, _rec_message(rec, pump, "uz", anchored=anchored,
+                                   degraded=degraded),
+                reply_markup=_menu(chat))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("push: отправка %s не удалась: %s", chat, exc)
+            continue
+        # В журнал — всё ДОСТАВЛЕННОЕ, включая расчёт по нормам: правило
+        # журнала «храним то, что сказали фермеру», и на этой же записи
+        # держатся кнопка «✅ Suv berdim» (rid) и защита догона от
+        # дублей. Недоставленное не пишем — оно и не сказано. Ошибка
+        # записи не роняет обход: завтра пуш просто повторится.
+        try:
             rid = LEDGER.log_recommendation(rec, __version__)
             ud["last_rec_ids"][rec.field.field_id] = rid
-        log.info("push: %s — отправлено (%d полей, срочно=%s)",
-                 chat, len(recs), urgent)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("push: журнал по %s не записан: %s",
+                        rec.field.field_id, exc)
+    log.info("push: %s — отправлено (%d полей, срочно=%s)",
+             chat, len(recs), urgent)
+
+
+async def push_catchup(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Догнать утренний пуш, пропущенный из-за рестарта.
+
+    Деплой перезапускает службу на каждый push в main; попади рестарт
+    на 06:00 — job в памяти APScheduler исчезает вместе с процессом, и
+    новый процесс молча ставил следующий запуск на завтра. Утро целиком
+    выпадало, и в логах об этом не было ни строки.
+    """
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    now = _dt.datetime.now(ZoneInfo("Asia/Tashkent"))
+    if now.hour < PUSH_HOUR_TASHKENT:
+        return  # до утреннего часа пуш ещё впереди, догонять нечего
+    log.info("push: проверяю, не пропущен ли утренний обход")
+    await daily_push(ctx, only_if_silent_today=True)
 
 
 # ---------------------------------------------------------------- wiring
@@ -1863,6 +2031,10 @@ def main() -> None:
             daily_push,
             time=_dt.time(PUSH_HOUR_TASHKENT, 0,
                           tzinfo=ZoneInfo("Asia/Tashkent")))
+        # Догон на старте: рестарт (деплой идёт на каждый push в main)
+        # поверх 06:00 съедал утренний обход целиком — job живёт в
+        # памяти процесса и вместе с ним умирает.
+        app.job_queue.run_once(push_catchup, when=15)
         log.info("автопуш включён: ежедневно %02d:00 Asia/Tashkent",
                  PUSH_HOUR_TASHKENT)
     else:

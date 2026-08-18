@@ -194,6 +194,10 @@ def blended_kc(calendar_kc: float, ndvi_kc: float | None,
     if ndvi_age_days > 14:
         return calendar_kc, "calendar (imagery stale)"
 
-    weight = 0.70 * max(0.0, 1.0 - ndvi_age_days / 14.0)
+    # Возраст бывает и отрицательным: warm-start гонит симуляцию по дням
+    # ДО даты снимка, и без ограничения сверху вес превышал 100% —
+    # blended_kc(0.95, 0.55, -11) давал 0.45, ниже ОБОИХ источников.
+    # Снимок из будущего относительно моделируемого дня весит как свежий.
+    weight = 0.70 * max(0.0, min(1.0, 1.0 - ndvi_age_days / 14.0))
     kc = calendar_kc * (1 - weight) + ndvi_kc * weight
     return round(kc, 3), f"calendar+satellite ({int(weight * 100)}% satellite)"

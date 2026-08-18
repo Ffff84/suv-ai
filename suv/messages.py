@@ -66,15 +66,19 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
             return (f"{f.name}\n\n"
                     f"Bu hafta sug'orish shart emas.\n"
                     f"{REASON_UZ.get(rec.reason_key, '')}\n\n"
-                    f"Keyingi tekshiruv — 3 kundan keyin.")
+                    f"Keyingi tekshiruv — ertaga ertalab.")
         return (f"{f.name}\n\n"
                 f"На этой неделе полив не требуется.\n"
                 f"{REASON_RU.get(rec.reason_key, '')}\n\n"
-                f"Следующая проверка — через 3 дня.")
+                f"Следующая проверка — завтра утром.")
 
     hours = None
     if pump is not None and getattr(pump, "m3_per_hour", 0):
-        hours = rec.gross_m3 / pump.m3_per_hour
+        # Округляем ДО расчёта денег. Фермеру говорят целые часы, и
+        # стоимость обязана сходиться именно с ними: инструкция «10
+        # soat» при цене за 9.6 часа читалась как ошибка бота в деньгах
+        # — Фаррух цену часа знает наизусть, это его собственный замер.
+        hours = round(rec.gross_m3 / pump.m3_per_hour)
 
     day = rec.action_day
     # Дата в скобках обязательна: в 14-дневном окне прогноза каждый день
@@ -131,6 +135,14 @@ def salinity_warning(level: str, lang: str = "uz") -> str | None:
 
 
 def savings_text(summary, lang: str = "uz") -> str:
+    if not getattr(summary, "has_baseline", True):
+        # Без прежнего расхода экономию не с чем сравнивать. «0 м³»
+        # здесь — не правда, а отсутствие данных, и говорить надо это.
+        if lang == "uz":
+            return ("Tejamkorlikni hisoblash uchun avvalgi sarf kerak.\n"
+                    "Bir sug'orishda qancha suv ketishini ayting.")
+        return ("Экономию посчитать не с чем: прежний расход не задан.\n"
+                "Впишите baseline_m3_per_ha в конфиг поля.")
     if lang == "uz":
         v = "Tasdiqlangan" if summary.verified else "Fermer ma'lumoti"
         return (f"Mavsum boshidan: {_num(summary.saved_m3)} m³ suv tejaldi.\n"

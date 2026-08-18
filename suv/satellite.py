@@ -13,6 +13,7 @@ distinction is deliberate and should survive into the pitch.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -25,20 +26,28 @@ PROCESS_URL = "https://sh.dataspace.copernicus.eu/api/v1/process"
 
 # Mean NDVI over the field polygon, cloud-masked via the scene
 # classification band. Returns a single number per request.
+#
+# Три канала, а не два: «чистый пиксель» и «пиксель внутри полигона» —
+# разные вещи. Раньше оба сливались в один бэнд, и доля облачности
+# считалась от ВСЕГО прямоугольника кадра: вытянутое поле, занимающее
+# треть своего bbox, выбраковывалось как «в облаках» при чистом небе —
+# ровно та ошибка, которую field_photo.stats_over_field запрещает со
+# ссылкой на ТЗ §4.2. Третий бэнд отделяет геометрию от погоды.
 EVALSCRIPT = """
 //VERSION=3
 function setup() {
   return {
     input: [{bands: ["B04", "B08", "SCL", "dataMask"]}],
-    output: {bands: 2, sampleType: "FLOAT32"}
+    output: {bands: 3, sampleType: "FLOAT32"}
   };
 }
 function evaluatePixel(s) {
+  if (s.dataMask == 0) return [0, 0, 0];
   // SCL 3=cloud shadow, 8/9=cloud medium/high, 10=cirrus, 11=snow
   var bad = (s.SCL == 3 || s.SCL == 8 || s.SCL == 9 || s.SCL == 10 || s.SCL == 11);
-  if (bad || s.dataMask == 0) return [0, 0];
+  if (bad) return [0, 0, 1];
   var ndvi = (s.B08 - s.B04) / (s.B08 + s.B04);
-  return [ndvi, 1];
+  return [ndvi, 1, 1];
 }
 """
 
@@ -103,7 +112,15 @@ def fetch_ndvi(polygon: list[list[float]], token: str,
     r = requests.post(PROCESS_URL, json=body, timeout=60,
                       headers={"Authorization": f"Bearer {token}"})
     r.raise_for_status()
-    observed = _latest_scene_date(polygon, token, start, today) or today
+    observed = _latest_scene_date(polygon, token, start, today)
+    if observed is None:
+        # Каталог не ответил — датируем НАЧАЛОМ окна, а не сегодняшним
+        # днём. «or today» здесь возвращал ровно ту ошибку, от которой
+        # _latest_scene_date защищает: 12-дневный NDVI получал вес
+        # свежего (70% вместо 10%) всякий раз, когда каталог таймаутил,
+        # а process-запрос проходил. Консервативная дата занижает вес —
+        # это честная цена за неизвестность.
+        observed = start
     return _reduce_tiff(r.content, observed)
 
 
@@ -136,35 +153,53 @@ def _latest_scene_date(polygon: list[list[float]], token: str,
         dates = [f["properties"]["datetime"][:10]
                  for f in r.json().get("features", [])]
         return date.fromisoformat(max(dates)) if dates else None
-    except Exception:  # noqa: BLE001 — деградация, не отказ
+    except Exception as exc:  # noqa: BLE001 — деградация, не отказ
+        logging.getLogger("suv.satellite").warning(
+            "каталог сцен не ответил (%s: %s) — датирую снимок началом окна",
+            type(exc).__name__, exc)
         return None
 
 
 def _reduce_tiff(content: bytes, observed_on: date) -> NdviReading | None:
-    """Average the valid pixels of the returned 2-band GeoTIFF."""
+    """Average the cloud-free pixels of the returned 3-band GeoTIFF.
+
+    Доля облачности — от пикселей ВНУТРИ полигона (бэнд 3), не от всего
+    растра: иначе она мерила бы, какую часть прямоугольника занимает
+    поле, и вытянутый участок отвергался бы в ясный день.
+    """
     try:
-        import numpy as np
+        import numpy as np  # noqa: F401 — rasterio без него не читает
         import rasterio
         from io import BytesIO
         with rasterio.open(BytesIO(content)) as src:
             ndvi = src.read(1).astype("float32")
-            mask = src.read(2).astype("float32")
+            clear = src.read(2).astype("float32") > 0
+            inside = src.read(3).astype("float32") > 0
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise RuntimeError("fetch_ndvi needs rasterio + numpy installed") from exc
 
-    valid = mask > 0
-    frac = float(valid.mean())
+    in_field = int(inside.sum())
+    if not in_field:
+        return None
+    frac = float(clear.sum()) / in_field
     if frac < 0.30:
         return None  # too clouded to trust
-    return NdviReading(value=float(ndvi[valid].mean()),
+    return NdviReading(value=float(ndvi[clear].mean()),
                        observed_on=observed_on, valid_fraction=frac)
 
 
 def bbox_polygon(lat: float, lon: float, size_m: float = 200.0) -> list[list[float]]:
     """Square polygon around a point — good enough to demo before a
-    farmer has drawn his real field boundary."""
-    dlat = size_m / 111_320.0
-    dlon = size_m / (111_320.0 * max(0.2, abs(__import__("math").cos(__import__("math").radians(lat)))))
+    farmer has drawn his real field boundary.
+
+    size_m — СТОРОНА квадрата, как обещают README и field.example.json.
+    Раньше это была полусторона: «квадрат 200 м» выходил 400x400 м =
+    16 га, и NDVI двухгектарного сада на 7/8 состоял из соседних
+    участков и дороги.
+    """
+    half = size_m / 2.0
+    dlat = half / 111_320.0
+    dlon = half / (111_320.0 * max(0.2, abs(__import__("math").cos(__import__("math").radians(lat)))))
     return [
         [lon - dlon, lat - dlat], [lon + dlon, lat - dlat],
         [lon + dlon, lat + dlat], [lon - dlon, lat + dlat],

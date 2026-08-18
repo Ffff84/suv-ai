@@ -111,7 +111,7 @@ FAR_DATE_DAYS = 7
 
 def water_section(rec, last_irr: date | None, today: date,
                   pump: PumpProfile | None = None,
-                  lang: str = "uz") -> Section:
+                  lang: str = "uz", degraded: bool = False) -> Section:
     """Секция полива поверх готовой рекомендации FAO-56 движка.
 
     Совет здесь ОБЯЗАН совпадать с тем, что фермер получает по кнопке
@@ -156,7 +156,15 @@ def water_section(rec, last_irr: date | None, today: date,
         if rec.days_until >= FAR_DATE_DAYS:
             line += " · taxminiy" if uz else " · ориентировочно"
 
-    if last_irr is None:
+    if degraded:
+        # Погода не пришла, считали по многолетним нормам. Карточка —
+        # третий экран с тем же расчётом, и молчать здесь значит выдать
+        # предположение за факт ровно там, куда фермер смотрит чаще
+        # всего: сообщение и /suv об этом предупреждают, карточка тоже.
+        hint = ("Ob-havo xizmati javob bermadi — hisob me'yorlar bo'yicha."
+                if uz else
+                "Прогноз недоступен — расчёт по климатическим нормам.")
+    elif last_irr is None:
         # Тот же честный компромисс, что и в рекомендации: без якоря
         # расчёт приблизительный, и молчать об этом нельзя.
         hint = ("Oxirgi sug'orish sanasi noma'lum — hisob taxminiy." if uz

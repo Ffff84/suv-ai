@@ -25,7 +25,12 @@ DAILY_VARS = [
     "temperature_2m_max",
     "temperature_2m_min",
     "relative_humidity_2m_mean",
-    "wind_speed_10m_max",
+    # Именно СРЕДНИЙ ветер: FAO-56 ур. 6 берёт среднесуточную скорость.
+    # Здесь стоял wind_speed_10m_max, и аэродинамический член Пенмана
+    # раздувался от суточного порыва — ET0 завышался на 10-25% каждый
+    # день, а с ним и все советуемые кубометры. Для продукта, который
+    # продаёт экономию воды, это была системная ошибка не в ту сторону.
+    "wind_speed_10m_mean",
     "shortwave_radiation_sum",
     "precipitation_sum",
 ]
@@ -70,7 +75,7 @@ def parse_daily(d: dict) -> list[DailyWeather]:
             t_max=t_max,
             t_min=t_min,
             rh_mean=d["relative_humidity_2m_mean"][i],
-            wind_2m=wind_10m_to_2m(d["wind_speed_10m_max"][i]),
+            wind_2m=wind_10m_to_2m(d["wind_speed_10m_mean"][i]),
             # Open-Meteo returns MJ/m2 already for shortwave_radiation_sum
             solar_rad=d["shortwave_radiation_sum"][i],
             rainfall=d["precipitation_sum"][i] or 0.0,

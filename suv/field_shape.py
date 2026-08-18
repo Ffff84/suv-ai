@@ -322,6 +322,16 @@ SIDE_DEVIATION_FRAC = 0.25
 # доля превращается в сантиметры, и любое дрожание рвёт её на куски.
 SIDE_DEVIATION_MIN_M = 8.0
 
+# Отрезок, смотрящий поперёк стороны, — не её виляние, а ДРУГАЯ сторона.
+# Допуск отклонения растёт с размером поля, и у полосы 400x35 м вдоль
+# канала он превышал ширину: оба торца склеивались с длинными межами, в
+# списке «откуда заходит вода» оставались только юг и север, а канал у
+# торца выбрать было нельзя. Отклонение от хорды этот случай не ловит
+# (у склеенного угла оно те же ~9% длины, что у честно виляющей межи),
+# а вот нормаль отрезка против нормали хорды — ловит: у виляния разница
+# до ~55°, у настоящего угла ~90°. Порог между ними:
+SIDE_ORTHOGONAL_DEG = 70.0
+
 
 def _angle_gap(a: float, b: float) -> float:
     """Разница двух азимутов, 0..180."""
@@ -390,6 +400,8 @@ def edges(points: list[tuple[float, float]]) -> list[Edge]:
                                xy[(i + 1) % n][1] - xy[i][1]) for i in range(n))
     allowed = max(SIDE_DEVIATION_MIN_M, SIDE_DEVIATION_FRAC * perimeter / 4.0)
 
+    seg_len = [outward(i, (i + 1) % n)[1] for i in range(n)]
+
     out: list[Edge] = []
     k = 0
     while k < n:
@@ -399,6 +411,18 @@ def edges(points: list[tuple[float, float]]) -> list[Edge]:
         while length < n - k:
             cand_end = (i + length + 1) % n
             if deviation(i, cand_end, length + 1) > allowed:
+                break
+            # В цепочке не место НАСТОЯЩЕМУ отрезку, смотрящему поперёк
+            # её хорды: это торец поля, а не зигзаг межи. Проверяются ВСЕ
+            # отрезки цепочки — торец прячется и первым (короткий торец +
+            # длинная межа дают хорду вдоль межи, и «поперёк» оказывается
+            # начало). Короткие (< 8 м) шипы GPS-дрожания пропускаем —
+            # они могут смотреть куда угодно.
+            chord = outward(i, cand_end)[0]
+            if any(seg_len[(i + t) % n] >= SIDE_DEVIATION_MIN_M
+                   and _angle_gap(seg[(i + t) % n], chord)
+                       >= SIDE_ORTHOGONAL_DEG
+                   for t in range(length + 1)):
                 break
             run_end = cand_end
             length += 1
@@ -418,8 +442,103 @@ def side_labels(points: list[tuple[float, float]],
     с севера». Поэтому совпавшие подписи уточняются положением стороны
     на поле: «shimol · 200 m (g'arbroq)».
     """
-    uz = lang == "uz"
+    return _labelled(edges(points), points, lang)
+
+
+# Ворота короче этого — не сторона, а дрожание GPS: предлагать их
+# кнопкой значит топить настоящие межи в шуме.
+MIN_GATE_M = 12.0
+
+# Ворота — это СРЕЗАННЫЙ УГОЛ: граница поворачивает к ним и от них в
+# одну и ту же сторону (восток -> северо-восток -> север). Зубец
+# виляющей межи поворачивает туда и сразу обратно, а плавная дуга
+# поворачивает понемногу. Отсюда два условия: одинаковый знак поворота
+# и оба поворота круче этого порога. Без них семиточечная северная межа
+# снова давала бы семь кнопок — то самое, от чего склейка и спасает.
+GATE_TURN_MIN_DEG = 35.0
+
+
+def _turn(from_deg: float, to_deg: float) -> float:
+    """Поворот со знаком, -180..180: куда и насколько вильнула граница."""
+    return ((to_deg - from_deg + 180.0) % 360.0) - 180.0
+
+
+def inlet_options(points: list[tuple[float, float]],
+                  lang: str = "uz") -> list[tuple[Edge, str]]:
+    """Что предложить фермеру в вопросе «откуда заходит вода».
+
+    Склеенные стороны — и ОТДЕЛЬНО ворота: короткие отрезки, чьё
+    направление не совпадает со стороной, внутрь которой их убрала
+    склейка. Без них список врал по умолчанию: на винограднике пилота
+    вода заходит с северо-востока через межу в 33 метра, спрятанную
+    внутри длинной «восточной» стороны, и северо-востока в списке не
+    было вообще. Нажать было нечего, и вход пришлось записывать руками
+    прямо в базу — а любая перечерченная граница его снова стирала.
+
+    Склейку при этом не трогаем: двадцать точек обхода не должны давать
+    двадцать кнопок. Ворота лишь ДОБАВЛЯЮТСЯ к сторонам, и только те,
+    что фермер и правда назовёт иначе.
+    """
+    n = len(points)
+    if n < 3:
+        return []
     sides = edges(points)
+    known = {(e.i, e.j) for e in sides}
+    by_name = {}
+    for e in sides:
+        for t in range((e.j - e.i) % n):
+            by_name[(e.i + t) % n] = e.name(lang)
+
+    raws = [inlet_edge(points, (i, (i + 1) % n)) for i in range(n)]
+    gates: list[Edge] = []
+    for i, raw in enumerate(raws):
+        if (i, (i + 1) % n) in known:
+            continue          # этот отрезок и так отдельная сторона
+        if raw is None or raw.length_m < MIN_GATE_M:
+            continue
+        if raw.name(lang) == by_name.get(i):
+            continue          # смотрит туда же, куда его сторона
+        before, after = _neighbour(raws, i, -1), _neighbour(raws, i, 1)
+        if before is None or after is None:
+            continue
+        in_turn = _turn(before.bearing, raw.bearing)
+        out_turn = _turn(raw.bearing, after.bearing)
+        if (in_turn * out_turn <= 0
+                or abs(in_turn) < GATE_TURN_MIN_DEG
+                or abs(out_turn) < GATE_TURN_MIN_DEG):
+            continue          # зубец виляния или плавная дуга, не угол
+        gates.append(raw)
+
+    # Сортируем всё вместе по длине: вода чаще заходит с канала вдоль
+    # длинной межи, а ворота по построению короче своей стороны и встают
+    # ниже неё — но выше сторон, которые короче самих ворот.
+    both = sorted(sides + gates, key=lambda e: -e.length_m)
+    return _labelled(both, points, lang)
+
+
+def _neighbour(raws: list, i: int, step: int):
+    """Ближайший сосед отрезка i, который не GPS-шум.
+
+    Соседей берём НЕ подряд: двойной тап пальцем в Mini App оставляет
+    рядом с воротами отрезок в полметра, и поворот, который у настоящего
+    угла один и резкий, разбивается им надвое — обе половины проваливают
+    порог, и ворота исчезают из списка. На настоящем винограднике это
+    теряло вход воды в половине случаев. Порог шума тот же, что у
+    склейки сторон (SIDE_DEVIATION_MIN_M): короче — телефон врёт.
+    """
+    n = len(raws)
+    for k in range(1, n):
+        cand = raws[(i + step * k) % n]
+        if cand is not None and cand.length_m >= SIDE_DEVIATION_MIN_M:
+            return cand
+    return None
+
+
+def _labelled(items: list[Edge], points: list[tuple[float, float]],
+              lang: str) -> list[tuple[Edge, str]]:
+    """Подписи, различимые между собой, в порядке переданных рёбер."""
+    uz = lang == "uz"
+    sides = items
     if not sides:
         return []
     xy = to_local_m(points)

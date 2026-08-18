@@ -250,17 +250,29 @@ def _with_legend(img, stats: MoistureStats | None, uz: bool):
     return out
 
 
+def when_word(scene_day: date, today: date, uz: bool) -> str:
+    """«bugun/kecha/N kun oldin» — ВСЕГДА от сегодняшнего дня.
+
+    Функция отдельная, потому что слово живёт дольше подписи: кэш фото
+    хранит подпись целиком, и «(kecha)» в ней через три дня становилось
+    неправдой — фермер читал трёхдневный замер влажности как вчерашний.
+    Отдающий из кэша пересчитывает слово этой же функцией.
+    """
+    ago = (today - scene_day).days
+    if uz:
+        return ("bugun" if ago == 0 else "kecha" if ago == 1
+                else f"{ago} kun oldin")
+    return ("сегодня" if ago == 0 else "вчера" if ago == 1
+            else f"{ago} дн. назад")
+
+
 def _caption(scene_day: date | None, today: date, stats: MoistureStats | None,
              field_name: str, area_ha: float | None, uz: bool,
              contour_is_real: bool, archival_base: bool = False) -> str:
     """Подпись под фото. Дата снимка обязательна (ТЗ §1.2)."""
     lines: list[str] = []
     if scene_day:
-        ago = (today - scene_day).days
-        when = ("bugun" if ago == 0 else "kecha" if ago == 1
-                else f"{ago} kun oldin") if uz else (
-            "сегодня" if ago == 0 else "вчера" if ago == 1
-            else f"{ago} дн. назад")
+        when = when_word(scene_day, today, uz)
         what = ("Namlik o'lchovi" if uz else "Замер влажности") \
             if archival_base else ("Surat" if uz else "Снимок")
         lines.append(f"🛰 {what}: "

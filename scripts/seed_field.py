@@ -15,6 +15,11 @@
 
 Chat ID узнать просто: напишите боту /start, он появится в логах.
 Или напишите @userinfobot в Telegram — он пришлёт ваш ID.
+
+Что именно из конфига едет в базу — решает suv/field_config.to_row, и
+тот же мэппинг читает scripts/check_fields.py, когда сверяет базу с
+конфигом. Один список на запись и на проверку: иначе колонка,
+добавленная только сюда, для чекера навсегда осталась бы невидимой.
 """
 
 from __future__ import annotations
@@ -23,7 +28,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -32,59 +36,93 @@ from suv.config import load_env
 load_env()
 
 from suv.crop import CROPS
+from suv.field_config import declared_inlet, resolve_inlet, to_row
 from suv.ledger import Ledger
 from suv.soil import SOILS
+
+
+def _restore_inlet(ledger: Ledger, cfg: dict) -> str:
+    """Вернуть на место сторону входа воды, если она задана в конфиге.
+
+    Индексы вершин в базе слетают при каждом перечерчивании контура — так
+    задумано, на новой границе они указывают куда попало. Но само знание
+    «вода заходит с северо-востока» от этого не устаревает, поэтому оно
+    лежит румбом в конфиге, а ребро под него ищется по нынешнему контуру.
+    """
+    want = declared_inlet(cfg)
+    if not want:
+        return ""
+    import json
+    import sqlite3
+    with sqlite3.connect(ledger.path) as c:
+        c.row_factory = sqlite3.Row
+        r = c.execute("SELECT polygon_geojson FROM fields WHERE field_id=?",
+                      (cfg["field_id"],)).fetchone()
+    ring = json.loads(r["polygon_geojson"]) if r and r["polygon_geojson"] else None
+    if not ring:
+        return (f"  ! вход воды «{want}» записать не на что: контур не "
+                f"обведён.\n    Обведите поле в боте и пересейте — встанет.")
+    pair = resolve_inlet(ring, want)
+    if pair is None:
+        return (f"  ! стороны «{want}» на контуре нет — вход НЕ записан.\n"
+                f"    Проверьте румб в конфиге или обводку поля.")
+    ledger.save_inlet(cfg["field_id"], *pair)
+    return f"  вход воды: с {want}а (вершины {pair[0]},{pair[1]})"
+
+
+def _known_owner(ledger: Ledger, field_id: str) -> int | None:
+    """Владелец уже заведённого поля."""
+    import sqlite3
+    with sqlite3.connect(ledger.path) as c:
+        r = c.execute("SELECT owner_chat_id FROM fields WHERE field_id=?",
+                      (field_id,)).fetchone()
+    return r[0] if r and r[0] else None
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Завести поле в базе бота")
     ap.add_argument("config", help="например fields/olma.json")
-    ap.add_argument("--chat", type=int, required=True,
-                    help="Telegram chat_id владельца поля")
+    # Не required: пересев — рутинный шаг деплоя, а chat_id владельца в
+    # базе уже лежит. Требовать его каждый раз значит гонять человека за
+    # числом, которое система знает сама, — и он либо вставит команду с
+    # заглушкой (проверено на живом сервере 17.08.2026), либо не
+    # пересеет вовсе, и конфиг с базой снова разъедутся.
+    ap.add_argument("--chat", type=int,
+                    help="Telegram chat_id владельца; для уже заведённого "
+                         "поля не нужен — берётся из базы")
     ap.add_argument("--db", default=os.environ.get("SUV_DB", "suv.db"))
     args = ap.parse_args()
 
     cfg = json.load(open(args.config, encoding="utf-8"))
 
-    if cfg["crop"] not in CROPS:
-        raise SystemExit(f"Культура '{cfg['crop']}' неизвестна")
-    if cfg["soil"] not in SOILS:
-        raise SystemExit(f"Почва '{cfg['soil']}' неизвестна")
-    date.fromisoformat(cfg["planting_date"])  # проверка формата
+    try:
+        row = to_row(cfg)          # он же проверит культуру, почву и дату
+    except ValueError as exc:
+        raise SystemExit(f"{args.config}: {exc}")
 
-    pump = cfg.get("pump") or {}
     ledger = Ledger(args.db)
-    ledger.upsert_field(
-        field_id=cfg["field_id"],
-        name=cfg["name"],
-        owner_chat_id=args.chat,
-        hectares=float(cfg["hectares"]),
-        lat=float(cfg["lat"]),
-        lon=float(cfg["lon"]),
-        elevation_m=float(cfg["elevation_m"]),
-        crop_key=cfg["crop"],
-        soil_key=cfg["soil"],
-        planting_date=cfg["planting_date"],
-        irrigation_method=cfg["irrigation_method"],
-        water_table_depth_m=float(cfg.get("water_table_depth_m") or 0.0),
-        baseline_m3_per_ha=cfg.get("baseline_m3_per_ha"),
-        baseline_interval_days=cfg.get("baseline_interval_days") or 30,
-        pump_kwh_per_hour=pump.get("kwh_per_hour"),
-        pump_m3_per_hour=pump.get("m3_per_hour"),
-        pump_cost_per_hour_uzs=pump.get("cost_per_hour_uzs"),
-        pump_lift_m=pump.get("lift_m"),
-        # Точка отсчёта водного баланса: без неё бот считает поле
-        # «только что политым» и откладывает первый совет.
-        last_irrigation_date=cfg.get("last_irrigation_date"),
-    )
+    # owner_chat_id единственный приходит не из конфига: chat_id фермера
+    # в git не место.
+    chat = args.chat or _known_owner(ledger, cfg["field_id"])
+    if chat is None:
+        raise SystemExit(
+            f"Поле {cfg['field_id']} в базе {args.db} не заведено, и владелец "
+            f"неизвестен.\nУкажите его числом: --chat 123456789 (chat_id "
+            f"фермера видно в логах бота после его /start,\nлибо @userinfobot "
+            f"в Telegram пришлёт свой).")
+    ledger.upsert_field(owner_chat_id=chat, **row)
+    inlet_note = _restore_inlet(ledger, cfg)
 
-    src = "насос" if pump else "самотёк"
+    src = "насос" if cfg.get("pump") else "самотёк"
     print(f"Поле записано в {args.db}")
     print(f"  {cfg['field_id']} · {cfg['name']} · {cfg['hectares']} га · "
           f"{CROPS[cfg['crop']].name_ru}")
     print(f"  {SOILS[cfg['soil']].name_ru} · {cfg['irrigation_method']} · {src}")
     print(f"  грунтовые воды {cfg.get('water_table_depth_m') or 0} м")
-    print(f"  владелец: chat_id {args.chat}")
+    print(f"  владелец: chat_id {chat}"
+          f"{'' if args.chat else ' (из базы)'}")
+    if inlet_note:
+        print(inlet_note)
     if cfg.get("last_irrigation_date"):
         print(f"  последний полив: {cfg['last_irrigation_date']}")
     else:

@@ -1,8 +1,10 @@
 """
 Логика утреннего автопуша: когда бот пишет сам, а когда молчит.
 
-Правило одно, но с двумя сторонами: срочное доходит всегда (поле не
-должно сохнуть из-за забытой кнопки), спокойное — не превращается в спам.
+С 17.08.2026 сообщение приходит каждое утро (решение Амира: тишина
+читается фермером как «бот умер»). Молчание осталось только одно —
+когда совет уже уходил СЕГОДНЯ: пуш не должен дублировать сам себя
+после рестарта или нажатую час назад кнопку.
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ TODAY = date(2026, 8, 11)
 
 
 def test_urgent_always_pushes():
-    """«Поливать сегодня/завтра» шлётся даже если вчера уже слали."""
+    """«Поливать сегодня/завтра» шлётся даже если сегодня уже слали."""
     assert push_due(True, TODAY - timedelta(days=1), TODAY)
     assert push_due(True, TODAY, TODAY)
 
@@ -25,14 +27,14 @@ def test_never_contacted_pushes():
     assert push_due(False, None, TODAY)
 
 
-def test_quiet_period_holds():
-    """Спокойный совет уходил вчера — сегодня молчим."""
-    assert not push_due(False, TODAY - timedelta(days=1), TODAY)
-    assert not push_due(False, TODAY - timedelta(days=PUSH_QUIET_DAYS - 1),
-                        TODAY)
-
-
-def test_quiet_period_expires():
-    """Прошло PUSH_QUIET_DAYS — напоминаем о себе."""
-    assert push_due(False, TODAY - timedelta(days=PUSH_QUIET_DAYS), TODAY)
+def test_pushes_every_morning():
+    """Вчерашний совет не глушит сегодняшний: сообщение — каждый день."""
+    assert PUSH_QUIET_DAYS == 1, \
+        "каданс изменён — проверьте текст регистрации и ДЕПЛОЙ.md"
+    assert push_due(False, TODAY - timedelta(days=1), TODAY)
     assert push_due(False, TODAY - timedelta(days=30), TODAY)
+
+
+def test_no_duplicate_within_a_day():
+    """Совет уже уходил сегодня (кнопкой или пушем) — второй раз молчим."""
+    assert not push_due(False, TODAY, TODAY)

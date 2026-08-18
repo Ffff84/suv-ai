@@ -111,6 +111,9 @@ class SavingsSummary:
     baseline_m3: float
     saved_m3: float
     verified: bool  # true only when every actual_m3 came from a meter
+    # Ложь без этого флага: при незаданном baseline_m3_per_ha экономия
+    # не «ноль», её просто не с чем сравнить — текст обязан сказать это.
+    has_baseline: bool = True
 
 
 # Единственные колонки, которые upsert_field согласен принять. Имена
@@ -140,6 +143,7 @@ _ADDED_COLUMNS = (
     ("photo_key", "TEXT"),
     ("photo_caption", "TEXT"),
     ("photo_built_at", "TEXT"),
+    ("photo_latest_seen", "TEXT"),
 )
 
 
@@ -213,6 +217,18 @@ class Ledger:
             c.commit()
             return cur.lastrowid
 
+    def has_action(self, recommendation_id: int) -> bool:
+        """Есть ли уже отметка по этой рекомендации.
+
+        Нужна хендлерам /bajardim: двойной тап по кнопке часов давал два
+        INSERT, metered задваивался, и /tejaldi занижал экономию на весь
+        объём лишней строки.
+        """
+        with closing(self._conn()) as c:
+            r = c.execute("SELECT 1 FROM actions WHERE recommendation_id=? "
+                          "LIMIT 1", (recommendation_id,)).fetchone()
+        return r is not None
+
     def log_action(self, recommendation_id: int, followed: bool,
                    actual_day: date | None = None, actual_m3: float | None = None,
                    source: str = "farmer", note: str | None = None) -> None:
@@ -266,32 +282,43 @@ class Ledger:
                       (json.dumps([int(i), int(j)]), field_id))
             c.commit()
 
-    def cached_photo(self, field_id: str, scene_day: str,
-                     key: str) -> tuple[str, str] | None:
-        """(file_id, подпись) готового фото, если пересобирать нечего.
+    def cached_photo(self, field_id: str, latest_day: str,
+                     key: str) -> tuple[str, str, str] | None:
+        """(file_id, подпись, дата кадра) готового фото, если пересобирать
+        нечего. Пересобираем, только когда появился новый снимок или
+        изменился контур: иначе фермер ждёт полминуты ради той же
+        картинки, а мы зря тратим квоту Copernicus.
 
-        Пересобираем, только когда появился новый снимок или изменился
-        контур. Иначе фермер ждёт полминуты ради той же картинки, а мы
-        зря тратим квоту Copernicus.
+        latest_day — самый свежий проход из каталога. Сравнивается и с
+        датой кадра, и с photo_latest_seen — датой каталога на момент
+        сборки. Без второго сравнения кэш не срабатывал НИКОГДА, пока
+        свежайший проход облачный: фото законно собрано по предыдущему
+        чистому дню, его дата не равна каталожной, и каждое нажатие
+        уходило в полную пересборку с той же картинкой на выходе.
         """
         with closing(self._conn()) as c:
             r = c.execute("SELECT photo_file_id, photo_scene_date, photo_key, "
-                          "photo_caption FROM fields WHERE field_id=?",
-                          (field_id,)).fetchone()
+                          "photo_caption, photo_latest_seen FROM fields "
+                          "WHERE field_id=?", (field_id,)).fetchone()
         if not r or not r["photo_file_id"]:
             return None
-        if r["photo_scene_date"] != scene_day or r["photo_key"] != key:
+        if r["photo_key"] != key:
             return None
-        return r["photo_file_id"], r["photo_caption"] or ""
+        if latest_day not in (r["photo_scene_date"], r["photo_latest_seen"]):
+            return None
+        return (r["photo_file_id"], r["photo_caption"] or "",
+                r["photo_scene_date"] or "")
 
     def save_photo(self, field_id: str, file_id: str, scene_day: str,
-                   key: str, caption: str = "") -> None:
+                   key: str, caption: str = "",
+                   latest_seen: str | None = None) -> None:
         with closing(self._conn()) as c:
             c.execute("UPDATE fields SET photo_file_id=?, photo_scene_date=?, "
-                      "photo_key=?, photo_caption=?, photo_built_at=? "
-                      "WHERE field_id=?",
+                      "photo_key=?, photo_caption=?, photo_built_at=?, "
+                      "photo_latest_seen=? WHERE field_id=?",
                       (file_id, scene_day, key, caption,
-                       datetime.utcnow().isoformat(), field_id))
+                       datetime.utcnow().isoformat(),
+                       latest_seen or scene_day, field_id))
             c.commit()
 
     def log_field_status_view(self, field_id: str,
@@ -326,7 +353,7 @@ class Ledger:
                 raise KeyError(field_id)
             rows = c.execute(
                 """SELECT r.id, r.generated_on, r.gross_m3,
-                          a.followed, a.actual_m3, a.source
+                          a.followed, a.actual_day, a.actual_m3, a.source
                    FROM recommendations r LEFT JOIN actions a
                      ON a.recommendation_id = r.id
                    WHERE r.field_id = ?""", (field_id,)).fetchall()
@@ -341,19 +368,40 @@ class Ledger:
         base_per_ha = f["baseline_m3_per_ha"] or 0.0
         interval = f["baseline_interval_days"] or 30
 
-        if rows:
+        # Окно базы кончается последним ПОДТВЕРЖДЁННЫМ поливом, а не
+        # сегодняшним днём. Иначе после единственного /bajardim база
+        # росла бы по календарю вечно: непомеченные поливы фермера
+        # входили в расход нулём, и «экономия» прибавляла base*га каждые
+        # interval дней без единого нового факта — прямое нарушение
+        # правила 2 (нет подтверждения — нет заявки).
+        confirmed_days = [r["actual_day"] for r in rows
+                          if r["followed"] == 1 and r["actual_day"]]
+        events = 0
+        if rows and confirmed_days:
             first_rec = min(datetime.strptime(r["generated_on"], "%Y-%m-%d").date()
                             for r in rows)
-            elapsed = (date.today() - first_rec).days
-        else:
-            elapsed = 0
-        baseline = base_per_ha * f["hectares"] * max(0, elapsed // interval)
+            last_conf = max(datetime.strptime(d, "%Y-%m-%d").date()
+                            for d in confirmed_days)
+            elapsed = (last_conf - first_rec).days
+            # +1 — это полив в САМОМ НАЧАЛЕ окна, а не щедрость. По
+            # старой привычке фермер полил бы и в первый день, и через
+            # interval, и через два; окно в 8 дней при интервале 4 держит
+            # три полива, а не два. Без этого слагаемого база отставала
+            # от расхода ровно на один полив ВЕСЬ сезон, и у фермера,
+            # который льёт в точности свою прежнюю норму, /tejaldi
+            # показывал устойчивый минус вместо честного нуля.
+            events = max(0, elapsed // interval) + 1
+        baseline = base_per_ha * f["hectares"] * events
 
-        saved = (baseline - metered) if followed else 0.0
+        # baseline == 0 значит «сравнивать не с чем» (не задан, или ни
+        # одного полного интервала): выпускать отсюда минус — значит
+        # показать фермеру «анти-экономию» на пустом месте.
+        saved = (baseline - metered) if followed and baseline > 0 else 0.0
 
         return SavingsSummary(
             field_id=field_id, recommendations=n, followed=followed,
             metered_m3=round(metered, 1), baseline_m3=round(baseline, 1),
             saved_m3=round(saved, 1),
             verified=bool(sources) and sources <= {"meter", "wca"},
+            has_baseline=base_per_ha > 0,
         )

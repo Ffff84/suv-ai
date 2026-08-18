@@ -71,7 +71,13 @@ def test_baseline_starts_at_first_recommendation(tmp_path):
 
     Поле яблони с вегетацией с 20 марта: считай мы базу от неё, к августу
     набежало бы ~35 интервалов. От первой рекомендации 8 дней назад при
-    интервале 4 дня — ровно 2.
+    интервале 4 дня — три полива: в день 0, день 4 и день 8.
+
+    Именно три, а не два. Окно закрыто с обоих концов, и по старой
+    привычке фермер полил бы и в первый его день. Считали два — и база
+    отставала от расхода ровно на один полив весь сезон: у фермера,
+    который льёт в точности свою прежнюю норму, /tejaldi показывал
+    устойчивый минус вместо честного нуля.
     """
     led = _make_ledger(tmp_path)
     rid = led.log_recommendation(
@@ -79,9 +85,31 @@ def test_baseline_starts_at_first_recommendation(tmp_path):
     led.log_action(rid, followed=True, actual_day=date.today(),
                    actual_m3=500.0, source="farmer")
     s = led.savings("T-1")
-    # 288 м3/га * 2 га * (8 дней // 4) = 1152
-    assert s.baseline_m3 == pytest.approx(1152.0)
-    assert s.saved_m3 == pytest.approx(1152.0 - 500.0)
+    # 288 м3/га * 2 га * (8 дней // 4 + 1) = 1728
+    assert s.baseline_m3 == pytest.approx(1728.0)
+    assert s.saved_m3 == pytest.approx(1728.0 - 500.0)
+
+
+def test_baseline_matches_a_farmer_who_pours_exactly_his_own_norm(tmp_path):
+    """Фермер льёт РОВНО свою прежнюю норму и всё отмечает — экономия
+    обязана быть нулём, а не минусом.
+
+    Это проверка на сам счёт: база и расход должны считать одни и те же
+    поливы. Разъедутся на один — и бот начнёт публично обвинять
+    дисциплинированного фермера в перерасходе на 576 м³.
+    """
+    led = _make_ledger(tmp_path)
+    start = date.today() - timedelta(days=20)
+    for day in range(0, 21, 4):                    # поливы 0,4,8,12,16,20
+        rid = led.log_recommendation(
+            _Rec(generated_on=start + timedelta(days=day)), "test")
+        led.log_action(rid, followed=True,
+                       actual_day=start + timedelta(days=day),
+                       actual_m3=576.0, source="farmer")
+    s = led.savings("T-1")
+    assert s.metered_m3 == pytest.approx(6 * 576.0)
+    assert s.baseline_m3 == pytest.approx(6 * 576.0)
+    assert s.saved_m3 == pytest.approx(0.0)
 
 
 def test_followed_without_volume_counts_recommended(tmp_path):
@@ -95,8 +123,9 @@ def test_followed_without_volume_counts_recommended(tmp_path):
                    actual_m3=None, source="farmer")
     s = led.savings("T-1")
     assert s.metered_m3 == pytest.approx(600.0)
-    # база: 288*2*(4//4)=576; экономия отрицательная — и это правда
-    assert s.saved_m3 == pytest.approx(576.0 - 600.0)
+    # база: 288*2*(4//4 + 1) = 1152 — два полива по старой привычке за
+    # окно в четыре дня против одного по совету бота
+    assert s.saved_m3 == pytest.approx(1152.0 - 600.0)
 
 
 def test_unknown_column_rejected(tmp_path):

@@ -2,7 +2,7 @@
 Парсер погоды: дыры в данных Open-Meteo не должны ронять ряд.
 
 Null от API — не гипотеза: словили TypeError на живом 92-дневном архиве
-(wind_speed_10m_max = null на границе архив/прогноз).
+(wind_speed_10m_mean = null на границе архив/прогноз).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ def _daily(**overrides):
         "temperature_2m_max": [30.0, 31.0, 32.0],
         "temperature_2m_min": [18.0, 19.0, 20.0],
         "relative_humidity_2m_mean": [45.0, 44.0, 43.0],
-        "wind_speed_10m_max": [3.0, 3.1, 3.2],
+        "wind_speed_10m_mean": [3.0, 3.1, 3.2],
         "shortwave_radiation_sum": [28.0, 28.5, 29.0],
         "precipitation_sum": [0.0, 1.2, 0.0],
     }
@@ -32,7 +32,7 @@ def test_clean_series_parses_fully():
 
 
 def test_null_wind_survives_and_falls_back_to_hargreaves():
-    days = parse_daily(_daily(wind_speed_10m_max=[3.0, None, 3.2]))
+    days = parse_daily(_daily(wind_speed_10m_mean=[3.0, None, 3.2]))
     assert len(days) == 3
     assert days[1].wind_2m is None
     ref, method = et0(days[1], lat_deg=39.6, elevation_m=700)

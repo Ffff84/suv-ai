@@ -111,13 +111,20 @@ def warm_start(f: Field, cfg: dict) -> tuple[WaterBalanceState, str]:
     if gap <= 0:
         return WaterBalanceState(0.0, 0.20), "полив сегодня"
 
-    hist, src, _ = get_weather(f, cfg, days=1, past_days=min(gap, 92))
+    gap = min(gap, 92)  # предел архива Open-Meteo
+    hist, src, _ = get_weather(f, cfg, days=1, past_days=gap)
     hist = hist[:gap]
-    plan = simulate(f, hist, WaterBalanceState(0.0, 0.20), last,
+    if not hist:
+        return WaterBalanceState(0.0, 0.20), "архив погоды пуст"
+    # Стартуем с первого дня ИСТОРИИ, а не с last: при разрыве дольше
+    # 92 дней история покрывает последние 92 дня, и старые метки
+    # сдвигали фазы культуры относительно погоды реальных дат.
+    plan = simulate(f, hist, WaterBalanceState(0.0, 0.20),
+                    date.today() - timedelta(days=len(hist)),
                     apply_irrigation=False)
     st = WaterBalanceState(plan[-1].depletion_mm, plan[-1].taw_mm and
                            plan[-1].taw_mm / f.soil.available_water_mm_per_m)
-    return st, f"отмотано {gap} дн. от полива {last} ({src})"
+    return st, f"отмотано {len(hist)} дн. от полива {last} ({src})"
 
 
 def main() -> int:
