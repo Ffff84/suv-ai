@@ -362,6 +362,23 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 .faq details p{font-size:.9rem;color:var(--mut);padding:0 0 18px;max-width:68ch}
 .payline{margin-top:36px;font-family:"JetBrains Mono",monospace;font-size:.76rem;letter-spacing:.1em;color:var(--mut)}
 
+/* ── разбор сезона-2025 ── */
+.rz-stats{grid-template-columns:repeat(3,1fr)}
+@media(max-width:900px){.rz-stats{grid-template-columns:1fr}}
+.rz-chart{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px 16px;margin-top:44px}
+.rz-chart svg{width:100%;height:auto;display:block}
+.rz-chart text{font-family:"JetBrains Mono",monospace;font-size:12px;fill:var(--mut)}
+.rz-cap{font-size:.78rem;color:var(--mut);margin-top:12px}
+.rz-quote{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.15rem,2.8vw,1.7rem);margin:52px 0 10px;color:var(--ink);max-width:26ch}
+.rz-quote-a{color:var(--mut);font-family:"JetBrains Mono",monospace;font-size:.78rem}
+.rz-bot{margin-top:44px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:14px;padding:24px 28px}
+.rz-bot h3{font-size:1rem;margin-bottom:8px}
+.rz-bot p{font-size:.9rem;color:var(--mut);max-width:72ch}
+.rz-bot .mono{color:var(--cyan)}
+.rz-foot{font-size:.78rem;color:var(--mut);margin-top:36px;border-top:1px solid var(--line);padding-top:16px;max-width:88ch}
+.rz-cta{margin-top:30px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.rz-cta p{color:var(--mut);font-size:.92rem;margin:0}
+
 </style>
 </head>
 <body>
@@ -641,6 +658,84 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
   </div>
 </section>
 
+<!-- РАЗБОР СЕЗОНА-2025 -->
+<section class="sect creed" id="razbor">
+  <div class="shell">
+    <div class="eyebrow reveal" data-i18n="fd.eyebrow">Разбор · сад Фарруха · сезон-2025</div>
+    <h2 class="reveal" data-i18n="fd.h2">Спутник назвал день, когда сад начал страдать без воды</h2>
+    <p class="lede reveal" data-i18n="fd.lede">В августе 2026-го мы прогнали четыре сезона спутникового архива по пилотному саду. Нашлось датированное событие — и это измерение, а не оценка: <b>19–29 июля 2025</b> сад потерял больше половины воды в листе и не восстановился до конца сезона.</p>
+
+    <div class="kpi-grid rz-stats">
+      <div class="kpi reveal"><b>−57%</b><span class="what" data-i18n="fd.k1">воды в листе за десять дней: 0,337 → 0,144</span></div>
+      <div class="kpi reveal"><b>140 <i data-i18n="fd.k2i">сцен</i></b><span class="what" data-i18n="fd.k2">Sentinel-2 за четыре сезона · 2022–2024 как эталон</span></div>
+      <div class="kpi reveal"><b>3 <i data-i18n="fd.k3i">сигнала</i></b><span class="what" data-i18n="fd.k3">бот сказал бы «поливать» до того, как ущерб стал необратимым</span></div>
+    </div>
+
+    <div class="rz-chart reveal">
+      <svg viewBox="0 0 720 300" role="img" aria-label="NDMI 2025 vs 2022–2024">
+        <line x1="60" y1="260" x2="710" y2="260" stroke="var(--line)" stroke-width="1"/>
+        <rect x="60" y="157" width="650" height="37" fill="var(--wet)" opacity="0.13"/>
+        <text x="700" y="180" text-anchor="end" data-i18n="fd.cNorm">норма 2022–24 · NDMI 0,19–0,24</text>
+        <text x="380" y="40" fill="var(--cyan)" data-i18n="fd.cBot">│ поливы по расчёту бота: 17 · 19 · 23 · 26 · 30.07</text>
+        <polyline points="75,113 118,99 161,91 204,88 270,86 313,228 356,223 399,216 442,216 485,209 528,216 571,223 614,223 657,231"
+                  fill="none" stroke="var(--dry)" stroke-width="2.5" stroke-linejoin="round"/>
+        <line x1="262" y1="248" x2="262" y2="262" stroke="var(--cyan)" stroke-width="2"/>
+        <line x1="270" y1="248" x2="270" y2="262" stroke="var(--cyan)" stroke-width="2"/>
+        <line x1="287" y1="248" x2="287" y2="262" stroke="var(--cyan)" stroke-width="2"/>
+        <line x1="300" y1="248" x2="300" y2="262" stroke="var(--cyan)" stroke-width="2"/>
+        <line x1="317" y1="248" x2="317" y2="262" stroke="var(--cyan)" stroke-width="2"/>
+        <circle cx="270" cy="86" r="4" fill="var(--dry)"/>
+        <circle cx="313" cy="228" r="4" fill="var(--dry)"/>
+        <text x="248" y="72" data-i18n="fd.v1">19.07 · 0,337</text>
+        <text x="325" y="244" data-i18n="fd.v2">29.07 · 0,144</text>
+        <text x="336" y="150" fill="var(--dry)" font-weight="600" data-i18n="fd.cDrop">−57% за 10 дней</text>
+        <text x="120" y="70" data-i18n="fd.cPeak">+0,15 к норме</text>
+        <text x="480" y="196" data-i18n="fd.cTail">без восстановления</text>
+        <text x="115" y="284" text-anchor="middle" data-i18n="fd.m6">июнь</text>
+        <text x="255" y="284" text-anchor="middle" data-i18n="fd.m7">июль</text>
+        <text x="385" y="284" text-anchor="middle" data-i18n="fd.m8">август</text>
+        <text x="515" y="284" text-anchor="middle" data-i18n="fd.m9">сентябрь</text>
+        <text x="645" y="284" text-anchor="middle" data-i18n="fd.m10">октябрь</text>
+      </svg>
+      <p class="rz-cap" data-i18n="fd.cap">NDMI сада Фарруха по декадам: 2025-й против коридора нормы 2022–2024. Числа — из разбора 17.08.2026, кривая сглажена по декадам.</p>
+    </div>
+
+    <div class="creed-grid" style="margin-top:44px">
+      <article class="reveal">
+        <h3><span>01</span><em data-i18n="fd.c1h" style="font-style:normal">Прошлые годы</em></h3>
+        <p data-i18n="fd.c1p">В 2022, 2023 и 2024 в те же календарные дни обвала нет: NDMI держится 0,19–0,24 весь июль и август. Садовые работы повторялись бы каждый год.</p>
+      </article>
+      <article class="reveal">
+        <h3><span>02</span><em data-i18n="fd.c2h" style="font-style:normal">Два независимых индекса</em></h3>
+        <p data-i18n="fd.c2p">NDVI (зелёная масса) и NDMI (вода в листе) снимаются разными каналами и меряют разное. Обвалились оба — в одном окне.</p>
+      </article>
+      <article class="reveal">
+        <h3><span>03</span><em data-i18n="fd.c3h" style="font-style:normal">Погода</em></h3>
+        <p data-i18n="fd.c3p">Ни миллиметра дождя с июля по сентябрь при спросе сада 7,7 мм в день. Вода могла прийти только из трубы.</p>
+      </article>
+      <article class="reveal">
+        <h3><span>04</span><em data-i18n="fd.c4h" style="font-style:normal">Порядок падения</em></h3>
+        <p data-i18n="fd.c4p">NDMI просел первым, NDVI следом. Так ведёт себя именно водный стресс: лист теряет воду раньше, чем крона — вид.</p>
+      </article>
+    </div>
+
+    <div class="rz-quote reveal" data-i18n="fd.q">Недолил. Узнал поздно.</div>
+    <div class="rz-quote-a reveal" data-i18n="fd.qa">Фаррух Урунов · фермер пилота · подтвердил находку независимо</div>
+
+    <div class="rz-bot reveal">
+      <h3 data-i18n="fd.rh">Что сказал бы бот</h3>
+      <p data-i18n="fd.rp">Расписание сезона-2025, посчитанное по архиву погоды: поливы <span class="mono">17 · 19 · 23 · 26 · 30 июля</span> — пять поливов, накрывающих окно обвала 19–29 июля. Три предупреждения — до того, как ущерб стал необратимым.</p>
+    </div>
+
+    <p class="rz-foot reveal" data-i18n="fd.foot">Честно о границах: урожай в тоннах мы не измеряли — только воду в листе; перелива спутник не видит. Прежде чем показать этот разбор, мы прошли три раунда самопроверки (109 находок) и опровергли 38 собственных утверждений — осталось то, что сломать не удалось. Данные: 41 сцена Sentinel-2 за 2025-й, 99 сцен за 2022–2024 как эталон, осреднение по декадам. Воспроизводимо на открытых данных.</p>
+
+    <div class="rz-cta reveal">
+      <p data-i18n="fd.cta">Такой разбор можно сделать для любого поля — нужны только координаты.</p>
+      <a class="btn b2" href="https://t.me/suv_ai_bot?start=razbor" data-i18n="fd.ctab">Спросить в боте</a>
+    </div>
+  </div>
+</section>
+
 <!-- ЦЕНЫ -->
 <section class="sect" id="pricing">
   <div class="shell">
@@ -800,6 +895,42 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 /* Переводы. Русский — в самой разметке и снимается при загрузке. */
 window.SUVAI_I18N = {
 uz: {
+"fd.eyebrow":"Tahlil · Farrux bog'i · 2025-mavsum",
+"fd.h2":"Sun'iy yo'ldosh bog' suvsiz qiynala boshlagan kunni aytdi",
+"fd.lede":"2026-yil avgustida pilot bog' bo'yicha to'rt mavsumlik sun'iy yo'ldosh arxivini o'tkazdik. Sanasi aniq hodisa topildi — bu baho emas, o'lchov: <b>2025-yil 19–29-iyulda</b> bog' bargdagi suvining yarmidan ko'pini yo'qotdi va mavsum oxirigacha tiklanmadi.",
+"fd.k1":"o'n kunda bargdagi suv: 0,337 → 0,144",
+"fd.k2i":"scena",
+"fd.k2":"to'rt mavsum uchun Sentinel-2 · 2022–2024 etalon sifatida",
+"fd.k3i":"signal",
+"fd.k3":"bot zarar ortga qaytmas bo'lgunga qadar «sug'oring» der edi",
+"fd.cNorm":"2022–24 normasi · NDMI 0,19–0,24",
+"fd.cBot":"│ bot jadvali bo'yicha sug'orishlar: 17 · 19 · 23 · 26 · 30.07",
+"fd.v1":"19.07 · 0,337",
+"fd.v2":"29.07 · 0,144",
+"fd.cDrop":"10 kunda −57%",
+"fd.cPeak":"normadan +0,15",
+"fd.cTail":"tiklanish yo'q",
+"fd.m6":"iyun",
+"fd.m7":"iyul",
+"fd.m8":"avgust",
+"fd.m9":"sentabr",
+"fd.m10":"oktabr",
+"fd.cap":"Farrux bog'i NDMI dekadalar bo'yicha: 2025-yil 2022–2024 norma yo'lagiga qarshi. Raqamlar — 17.08.2026 tahlilidan, egri chiziq dekadalarga tekislangan.",
+"fd.c1h":"O'tgan yillar",
+"fd.c1p":"2022, 2023 va 2024-yillarda xuddi shu kalendar kunlarda pasayish yo'q: NDMI iyul-avgust davomida 0,19–0,24 da turadi. Bog' ishlari har yili takrorlangan bo'lardi.",
+"fd.c2h":"Ikki mustaqil indeks",
+"fd.c2p":"NDVI (yashil massa) va NDMI (bargdagi suv) turli kanallarda olinadi va turli narsani o'lchaydi. Ikkalasi ham qulab tushdi — bitta oynada.",
+"fd.c3h":"Ob-havo",
+"fd.c3p":"Iyuldan sentabrgacha bir millimetr ham yomg'ir yo'q, bog'ning talabi esa — kuniga 7,7 mm. Suv faqat quvurdan kelishi mumkin edi.",
+"fd.c4h":"Qulash tartibi",
+"fd.c4p":"Avval NDMI, keyin NDVI pasaydi. Suv tanqisligi aynan shunday ishlaydi: barg suvni avval yo'qotadi, shox-shabba ko'rinishi keyin buziladi.",
+"fd.q":"Kam quydim. Kech bildim.",
+"fd.qa":"Farrux Urunov · pilot fermeri · topilmani mustaqil tasdiqladi",
+"fd.rh":"Bot nima degan bo'lardi",
+"fd.rp":"2025-mavsum ob-havo arxivi bo'yicha hisoblangan jadval: sug'orishlar <span class='mono'>17 · 19 · 23 · 26 · 30-iyul</span> — 19–29-iyuldagi qulash oynasini qamrab oluvchi beshta sug'orish. Zarar ortga qaytmas bo'lgunga qadar — uchta ogohlantirish.",
+"fd.foot":"Chegaralar haqida halol: hosilni tonnada o'lchamadik — faqat bargdagi suvni; ortiqcha sug'orishni sun'iy yo'ldosh ko'rmaydi. Bu tahlilni ko'rsatishdan oldin o'zimizning uch raund o'z-o'zini tekshiruvdan o'tdik (109 topilma) va 38 ta o'z da'vomizni rad etdik — sindirib bo'lmagani qoldi. Ma'lumotlar: 2025 uchun 41 ta Sentinel-2 scenasi, 2022–2024 uchun etalon sifatida 99 ta, dekadalar bo'yicha o'rtacha. Ochiq ma'lumotlarda takrorlab bo'ladi.",
+"fd.cta":"Bunday tahlilni istalgan dala uchun qilish mumkin — faqat koordinatalar kerak.",
+"fd.ctab":"Botdan so'rash",
 "nav.pricing":"Narxlar",
 "pr.eyebrow":"Narxlar · 2027-mavsum",
 "pr.h2":"Obuna — nasosning 2 soatlik ishi narxida. Mavsumda gektaridan 15–25 soat tejaydi.",
@@ -965,6 +1096,42 @@ uz: {
 "foot.l":"SUV AI · har bir dala uchun aqlli sug'orish · pilot 2026"
 },
 en: {
+"fd.eyebrow":"Case study · Farrukh's orchard · season 2025",
+"fd.h2":"The satellite named the day the orchard began to suffer without water",
+"fd.lede":"In August 2026 we ran four seasons of satellite archive over the pilot orchard. We found a dated event — a measurement, not an estimate: on <b>July 19–29, 2025</b> the orchard lost more than half of its leaf water and never recovered that season.",
+"fd.k1":"of leaf water in ten days: 0.337 → 0.144",
+"fd.k2i":"scenes",
+"fd.k2":"of Sentinel-2 across four seasons · 2022–2024 as the baseline",
+"fd.k3i":"warnings",
+"fd.k3":"the bot would have said “irrigate” before the damage became irreversible",
+"fd.cNorm":"2022–24 norm · NDMI 0.19–0.24",
+"fd.cBot":"│ irrigations per the bot's schedule: Jul 17 · 19 · 23 · 26 · 30",
+"fd.v1":"Jul 19 · 0.337",
+"fd.v2":"Jul 29 · 0.144",
+"fd.cDrop":"−57% in 10 days",
+"fd.cPeak":"+0.15 above norm",
+"fd.cTail":"no recovery",
+"fd.m6":"Jun",
+"fd.m7":"Jul",
+"fd.m8":"Aug",
+"fd.m9":"Sep",
+"fd.m10":"Oct",
+"fd.cap":"Farrukh's orchard NDMI by 10-day periods: 2025 against the 2022–2024 norm corridor. Numbers from the 17.08.2026 study; the curve is smoothed to 10-day averages.",
+"fd.c1h":"Past years",
+"fd.c1p":"In 2022, 2023 and 2024 there is no collapse on the same calendar days: NDMI holds at 0.19–0.24 through July and August. Orchard work would repeat every year.",
+"fd.c2h":"Two independent indices",
+"fd.c2p":"NDVI (green mass) and NDMI (leaf water) come from different bands and measure different things. Both collapsed — in the same window.",
+"fd.c3h":"Weather",
+"fd.c3p":"Not a millimetre of rain from July to September, while the orchard demanded 7.7 mm a day. Water could only come from the pipe.",
+"fd.c4h":"Order of the fall",
+"fd.c4p":"NDMI dipped first, NDVI followed. That is exactly how water stress behaves: the leaf loses water before the canopy loses its look.",
+"fd.q":"Under-watered. Found out too late.",
+"fd.qa":"Farrukh Urunov · pilot farmer · confirmed the finding independently",
+"fd.rh":"What the bot would have said",
+"fd.rp":"The season-2025 schedule computed from the weather archive: irrigations on <span class='mono'>July 17 · 19 · 23 · 26 · 30</span> — five irrigations covering the July 19–29 collapse window. Three warnings before the damage became irreversible.",
+"fd.foot":"Honest about the limits: we did not measure the harvest in tonnes — only leaf water; the satellite cannot see overwatering. Before showing this study we ran three rounds of self-review (109 findings) and refuted 38 of our own claims — what remains is what would not break. Data: 41 Sentinel-2 scenes for 2025, 99 scenes for 2022–2024 as the baseline, averaged over 10-day periods. Reproducible on open data.",
+"fd.cta":"A study like this can be run for any field — all it takes is coordinates.",
+"fd.ctab":"Ask the bot",
 "nav.pricing":"Pricing",
 "pr.eyebrow":"Pricing · season 2027",
 "pr.h2":"A subscription costs 2 hours of pump time. It saves 15–25 hours per hectare a season.",
