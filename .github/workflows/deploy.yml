@@ -132,6 +132,12 @@ jobs:
                   mkdir -p /var/www/suv-ai/blog
                   cp -r landing/blog/. /var/www/suv-ai/blog/ 2>/dev/null || true
                 fi
+                # Кабинет фермера: статика отдаётся nginx, данные —
+                # службой suv-web через /api/ (см. ниже).
+                if [ -d landing/dala ]; then
+                  mkdir -p /var/www/suv-ai/dala
+                  cp -r landing/dala/. /var/www/suv-ai/dala/ 2>/dev/null || true
+                fi
                 # SEO-файлы в корне: robots, sitemap, favicon, og-картинка
                 for f in robots.txt sitemap.xml favicon.svg og.jpg; do
                   [ -f "landing/$f" ] && cp "landing/$f" "/var/www/suv-ai/$f"
@@ -148,6 +154,19 @@ jobs:
             systemctl list-unit-files suv-ai.service >/dev/null 2>&1 \
               || { echo "НЕТ СЛУЖБЫ suv-ai.service"; exit 11; }
             systemctl restart suv-ai
+            # Кабинет — отдельная служба: падение API не должно ронять
+            # бота, поэтому и перезапускается он своей строкой. Если
+            # юнит ещё не установлен (первый деплой ветки), молчим.
+            if systemctl list-unit-files suv-web.service >/dev/null 2>&1 \
+               && systemctl is-enabled suv-web >/dev/null 2>&1; then
+              systemctl restart suv-web
+              sleep 2
+              curl -fsS http://127.0.0.1:8081/api/health >/dev/null \
+                && echo "кабинет: API отвечает" \
+                || echo "ВНИМАНИЕ: кабинет не отвечает на /api/health"
+            else
+              echo "кабинет: служба suv-web не установлена — пропускаю"
+            fi
             sleep 3
             systemctl is-active suv-ai
           ' 2>&1) || FAILED=1

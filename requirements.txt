@@ -4,3 +4,5 @@ numpy>=1.26
 rasterio>=1.3        # only needed for the satellite module
 Pillow>=10.0         # сборка фото поля: заливка по влажности
 pytest>=8.0
+fastapi>=0.110       # кабинет фермера: JSON-API поверх того же расчёта
+uvicorn>=0.29        # ASGI-сервер кабинета, за nginx

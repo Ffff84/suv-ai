@@ -104,6 +104,7 @@ BTN_BAJARDIM = "✅ Suv berdim"
 BTN_TEJALDI = "📊 Tejaldi"
 BTN_YORDAM = "❓ Yordam"
 BTN_DALA = "🌾 Dala holati"
+BTN_KABINET = "🖥 Kabinet"
 
 MAIN_MENU = ReplyKeyboardMarkup(
     [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]],
@@ -114,15 +115,42 @@ MAIN_MENU = ReplyKeyboardMarkup(
 # нет, и деплой этой ветки ничего не меняет для пилотного фермера.
 _FIELD_STATUS: set[int] = _ids_from_env("FIELD_STATUS_CHAT_IDS")
 
+# Веб-кабинет: подробный разбор поля на большом экране. Открывается
+# кнопкой Mini App — личность подтверждает подпись Telegram, паролей нет
+# (см. suv/webauth.py). Гейт свой, отдельный от «Dala holati»: обкатывать
+# их независимо дешевле, чем чинить оба сразу.
+CABINET_URL = os.environ.get("CABINET_URL", "").strip()
+_CABINET: set[int] = _ids_from_env("CABINET_CHAT_IDS")
+
 MAIN_MENU_DALA = ReplyKeyboardMarkup(
     [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM], [BTN_DALA]],
     resize_keyboard=True)
 
 
 def _menu(chat_id: int) -> ReplyKeyboardMarkup:
-    """Главное меню чата. Демо-участники видят третью строку с «Dala
-    holati», остальные — ровно прежнюю клавиатуру."""
-    return MAIN_MENU_DALA if chat_id in _FIELD_STATUS else MAIN_MENU
+    """Главное меню чата: четыре базовые кнопки всем, экраны закрытых
+    демо — только своим чатам.
+
+    Раньше здесь выбиралась одна из двух готовых констант. С третьей
+    фичей это дало бы четыре комбинации клавиатуры и ошибку в одной из
+    них рано или поздно, поэтому нижний ряд собирается по флагам.
+    MAIN_MENU и MAIN_MENU_DALA оставлены: на них ссылаются тесты и они
+    описывают два опорных состояния меню.
+    """
+    rows = [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]]
+    extra: list = []
+    if chat_id in _FIELD_STATUS:
+        extra.append(BTN_DALA)
+    # Кнопка кабинета появляется, только если домен задан: web_app без
+    # https Telegram не откроет, а мёртвая кнопка хуже отсутствующей —
+    # то же правило, что у карты обводки.
+    if chat_id in _CABINET and CABINET_URL:
+        from telegram import WebAppInfo
+        extra.append(KeyboardButton(BTN_KABINET,
+                                    web_app=WebAppInfo(CABINET_URL)))
+    if extra:
+        rows.append(extra)
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 HOUR_OPTIONS = (6, 8, 9, 10, 12)
 MAX_HOURS = 48.0  # опечатка вида /bajardim 999 не должна попадать в KPI

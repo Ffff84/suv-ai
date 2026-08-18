@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SUV AI — dala kabineti</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<!-- SDK Telegram: обязателен для Mini App (тема, viewport, кнопка «назад»).
+     Единственный внешний запрос кабинета — как в miniapp/draw.html. -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);
+  font:16px/1.6 "Golos Text",system-ui,sans-serif;
+  padding:0 0 env(safe-area-inset-bottom);-webkit-font-smoothing:antialiased}
+.mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.shell{max-width:640px;margin:0 auto;padding:0 16px}
+a{color:var(--cyan)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:6px}
+
+header.top{position:sticky;top:0;z-index:5;background:var(--deep);
+  border-bottom:1px solid var(--line);padding:12px 0}
+header.top .shell{display:flex;align-items:center;gap:12px;min-height:32px}
+.brand{font-family:"Unbounded",sans-serif;font-weight:700;font-size:.95rem;
+  text-decoration:none;color:var(--ink)}
+.brand b{color:var(--cyan)}
+.back{font-size:.85rem;color:var(--cyan);margin-left:auto}
+
+main{padding:22px 0 60px}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;
+  font-size:clamp(1.25rem,5vw,1.6rem);line-height:1.2;margin-bottom:4px}
+.sub{color:var(--mut);font-size:.88rem;margin-bottom:22px}
+
+/* состояние поля — единственное крупное пятно экрана */
+.overall{display:flex;align-items:center;gap:14px;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.dot{width:14px;height:14px;border-radius:50%;flex:0 0 auto}
+.overall .txt{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem}
+.s0{background:var(--mut)}.s1{background:var(--wet)}
+.s2{background:var(--mid)}.s3{background:var(--dry)}
+
+/* совет — то, ради чего фермер зашёл */
+.advice{background:var(--panel);border:1px solid var(--cyan);border-radius:14px;
+  padding:20px;margin-bottom:22px}
+.advice .when{font-family:"Unbounded",sans-serif;font-weight:700;
+  font-size:clamp(1.4rem,6vw,1.9rem);line-height:1.15}
+.advice .cap{font-family:"JetBrains Mono",monospace;font-size:.7rem;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin-bottom:8px}
+.advice .vol{color:var(--mut);font-size:.9rem;margin-top:8px}
+.advice .vol b{color:var(--ink);font-weight:500}
+
+section.card{background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:16px 18px;margin-bottom:12px;
+  display:grid;grid-template-columns:14px 1fr;gap:12px;align-items:start}
+section.card .body{min-width:0}
+section.card h2{font-size:.95rem;font-weight:600;margin-bottom:4px;
+  font-family:"Golos Text",sans-serif}
+section.card p{font-size:.9rem}
+section.card .hint{color:var(--mut);font-size:.83rem;margin-top:4px}
+
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:22px 0}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.cell .k{font-family:"JetBrains Mono",monospace;font-size:.68rem;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.cell .v{font-family:"JetBrains Mono",monospace;font-size:1.05rem;margin-top:5px}
+.cell .v small{color:var(--mut);font-size:.72rem}
+
+h3.sec{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem;
+  margin:30px 0 12px}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{font-family:"JetBrains Mono",monospace;font-size:11px;fill:var(--mut)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.76rem;color:var(--mut);margin-top:10px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;white-space:nowrap}
+th{font-family:"JetBrains Mono",monospace;font-size:.66rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--mut);font-weight:400}
+td{font-family:"JetBrains Mono",monospace}
+.scroll{overflow-x:auto}
+
+/* список полей */
+.field-btn{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px;margin-bottom:12px;transition:transform .2s}
+.field-btn:hover{transform:translateY(-2px)}
+.field-btn .nm{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem}
+.field-btn .meta{color:var(--mut);font-size:.82rem;margin-top:3px}
+.field-btn .chev{margin-left:auto;color:var(--cyan)}
+
+.note{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:20px;color:var(--mut);font-size:.9rem}
+.note b{color:var(--ink);font-weight:500;display:block;margin-bottom:8px;
+  font-family:"Unbounded",sans-serif}
+.note .btn{display:inline-block;margin-top:14px;background:var(--cyan);color:var(--deep);
+  border-radius:100px;padding:11px 20px;font-weight:600;font-size:.88rem;text-decoration:none}
+.skel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  height:74px;margin-bottom:12px;opacity:.5}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="brand" href="/">SUV<b>·AI</b></a>
+  <button class="back" id="back" hidden>← <span data-t="all">Barcha dalalar</span></button>
+</div></header>
+
+<main><div class="shell" id="root">
+  <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+</div></main>
+
+<script>
+(function(){
+"use strict";
+var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+/* Тема — от Telegram, если он её сообщил; иначе системная. Кабинет
+   открывают в 6 утра в поле и вечером дома, гадать не надо. */
+if (tg && tg.colorScheme === "light") document.documentElement.setAttribute("data-theme","light");
+else if (!tg && matchMedia("(prefers-color-scheme: light)").matches)
+  document.documentElement.setAttribute("data-theme","light");
+if (tg) { try { tg.ready(); tg.expand(); } catch(e){} }
+
+/* Язык интерфейса: узбекский по умолчанию — кабинет прежде всего
+   фермерский. Тексты секций приходят с сервера уже локализованными. */
+var LC = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user &&
+          tg.initDataUnsafe.user.language_code || "uz").slice(0,2);
+var L = (["uz","ru","en"].indexOf(LC) >= 0) ? LC : "uz";
+var T = {
+ uz:{all:"Barcha dalalar",pick:"Qaysi dalani ko'ramiz?",none:"Sizda dala yo'q",
+     noneHint:"Botda dala qo'shing — besh savol, bir daqiqa.",open:"Botni ochish",
+     outside:"Kabinetni bot orqali oching",
+     outsideHint:"Shaxsni Telegram tasdiqlaydi — login va parol kerak emas. @suv_ai_bot'da «Dala kabineti» tugmasini bosing.",
+     fail:"Ma'lumot kelmadi",failHint:"Aloqani tekshiring va sahifani yangilang.",
+     advice:"Sug'orish maslahati",today:"Bugun",tomorrow:"Ertaga",
+     inDays:"kundan keyin",noNeed:"Hozircha sug'orish shart emas",
+     vol:"Hajm",hours:"nasos soati",state:"Dala holati",
+     nums:"Raqamlar",ndvi:"NDVI (sun'iy yo'ldosh)",et0:"ET0 bugun",
+     kc:"Kc (ekin koeffitsienti)",defic:"Taqchillik / chegara",
+     last:"Oxirgi sug'orish",season:"Mavsumda o'lchangan",
+     journal:"Hisob-kitob tarixi",jDate:"sana",jAdvice:"maslahat",jDef:"taqchillik",
+     chartCap:"Namlik taqchilligi kunlar bo'yicha: chiziq chegaraga yaqinlashsa — sug'orish vaqti",
+     defLine:"taqchillik",rawLine:"chegara (RAW)",noAnchor:"Oxirgi sug'orish sanasi noma'lum — hisob taxminiy",
+     degraded:"Ob-havo kelmadi — hisob iqlim normalari bo'yicha",ga:"ga"},
+ ru:{all:"Все поля",pick:"Какое поле смотрим?",none:"У вас пока нет полей",
+     noneHint:"Заведите поле в боте — пять вопросов, одна минута.",open:"Открыть бота",
+     outside:"Кабинет открывается из бота",
+     outsideHint:"Личность подтверждает Telegram — логин и пароль не нужны. Нажмите «Кабинет поля» в @suv_ai_bot.",
+     fail:"Данные не пришли",failHint:"Проверьте связь и обновите страницу.",
+     advice:"Совет по поливу",today:"Сегодня",tomorrow:"Завтра",
+     inDays:"дн.",noNeed:"Поливать пока не нужно",
+     vol:"Объём",hours:"часов насоса",state:"Состояние поля",
+     nums:"Цифры",ndvi:"NDVI (спутник)",et0:"ET0 сегодня",
+     kc:"Kc (коэффициент культуры)",defic:"Дефицит / порог",
+     last:"Последний полив",season:"Измерено за сезон",
+     journal:"История расчёта",jDate:"дата",jAdvice:"совет",jDef:"дефицит",
+     chartCap:"Дефицит влаги по дням: линия подошла к порогу — пора поливать",
+     defLine:"дефицит",rawLine:"порог (RAW)",noAnchor:"Дата последнего полива неизвестна — расчёт приблизительный",
+     degraded:"Погода не пришла — расчёт по климатическим нормам",ga:"га"},
+ en:{all:"All fields",pick:"Which field?",none:"No fields yet",
+     noneHint:"Add a field in the bot — five questions, one minute.",open:"Open the bot",
+     outside:"Open the dashboard from the bot",
+     outsideHint:"Telegram confirms your identity — no login or password. Tap “Field dashboard” in @suv_ai_bot.",
+     fail:"Could not load",failHint:"Check the connection and reload.",
+     advice:"Irrigation advice",today:"Today",tomorrow:"Tomorrow",
+     inDays:"days",noNeed:"No irrigation needed yet",
+     vol:"Volume",hours:"pump hours",state:"Field status",
+     nums:"Numbers",ndvi:"NDVI (satellite)",et0:"ET0 today",
+     kc:"Kc (crop coefficient)",defic:"Depletion / threshold",
+     last:"Last irrigation",season:"Metered this season",
+     journal:"Calculation history",jDate:"date",jAdvice:"advice",jDef:"depletion",
+     chartCap:"Moisture depletion by day: when the line meets the threshold, it is time",
+     defLine:"depletion",rawLine:"threshold (RAW)",noAnchor:"Last irrigation date unknown — the estimate is optimistic",
+     degraded:"Weather feed down — computed from climate normals",ga:"ha"}
+}[L];
+
+var root = document.getElementById("root");
+var back = document.getElementById("back");
+document.querySelectorAll("[data-t]").forEach(function(el){
+  var k = el.getAttribute("data-t"); if (T[k]) el.textContent = T[k];
+});
+document.documentElement.lang = L;
+
+function esc(s){ return String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function num(n){ return (n == null || isNaN(n)) ? "—"
+  : Math.round(n).toLocaleString("ru-RU").replace(/[,  ]/g," "); }
+
+/* Подпись Telegram уходит в каждом запросе: сессий и куки нет, а значит
+   нечего угонять. Сервер проверяет её заново на каждой ручке. */
+function api(path){
+  var init = tg && tg.initData ? tg.initData : "";
+  if (!init) return Promise.reject(new Error("no-telegram"));
+  return fetch("/api" + path, { headers: { "Authorization": "tma " + init } })
+    .then(function(r){ if(!r.ok) throw new Error("http-" + r.status); return r.json(); });
+}
+
+function note(title, hint, withBtn){
+  root.innerHTML = '<div class="note"><b>' + esc(title) + '</b>' + esc(hint) +
+    (withBtn ? '<br><a class="btn" href="https://t.me/suv_ai_bot">' + esc(T.open) + '</a>' : '') +
+    '</div>';
+  back.hidden = true;
+}
+
+/* ── экран списка ── */
+function renderList(d){
+  back.hidden = true;
+  if (!d.fields.length) return note(T.none, T.noneHint, true);
+  if (d.fields.length === 1) return openField(d.fields[0].field_id);
+  var h = '<h1>' + esc(T.pick) + '</h1><div class="sub">' + esc(d.user.name) + '</div>';
+  d.fields.forEach(function(f){
+    h += '<button class="field-btn" data-id="' + esc(f.field_id) + '">' +
+         '<span class="dot s' + f.status + '"></span><span>' +
+         '<span class="nm">' + esc(f.name) + '</span>' +
+         '<span class="meta">' + esc(f.crop) + ' · ' + esc(f.hectares) + ' ' + esc(T.ga) + '</span>' +
+         '</span><span class="chev">→</span></button>';
+  });
+  root.innerHTML = h;
+  root.querySelectorAll(".field-btn").forEach(function(b){
+    b.addEventListener("click", function(){ openField(b.getAttribute("data-id")); });
+  });
+}
+
+/* ── график дефицита: главный «почему» кабинета ── */
+function chart(journal){
+  var rows = journal.slice().reverse().filter(function(r){ return r.depletion_mm != null; });
+  if (rows.length < 2) return "";
+  var W = 640, H = 220, PAD = 34;
+  var maxY = Math.max.apply(null, rows.map(function(r){
+    return Math.max(r.depletion_mm || 0, r.raw_mm || 0); })) * 1.12 || 1;
+  var x = function(i){ return PAD + i * (W - PAD - 12) / (rows.length - 1); };
+  var y = function(v){ return H - 26 - (v / maxY) * (H - 52); };
+  var dep = rows.map(function(r,i){ return x(i) + "," + y(r.depletion_mm); }).join(" ");
+  var raw = rows.map(function(r,i){ return x(i) + "," + y(r.raw_mm || 0); }).join(" ");
+  var first = rows[0].generated_on, last = rows[rows.length-1].generated_on;
+  return '<div class="chart"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="depletion">' +
+    '<line x1="' + PAD + '" y1="' + (H-26) + '" x2="' + (W-12) + '" y2="' + (H-26) +
+      '" stroke="var(--line)"/>' +
+    '<polyline points="' + raw + '" fill="none" stroke="var(--wet)" stroke-width="2" stroke-dasharray="5 5"/>' +
+    '<polyline points="' + dep + '" fill="none" stroke="var(--dry)" stroke-width="2.5" stroke-linejoin="round"/>' +
+    '<text x="' + PAD + '" y="' + (H-8) + '">' + esc(first) + '</text>' +
+    '<text x="' + (W-12) + '" y="' + (H-8) + '" text-anchor="end">' + esc(last) + '</text>' +
+    '</svg><div class="legend">' +
+    '<span><i style="background:var(--dry)"></i>' + esc(T.defLine) + '</span>' +
+    '<span><i style="background:var(--wet)"></i>' + esc(T.rawLine) + '</span></div>' +
+    '<div class="sub" style="margin:10px 0 0;font-size:.78rem">' + esc(T.chartCap) + '</div></div>';
+}
+
+/* ── экран поля ── */
+function renderField(d){
+  back.hidden = false;
+  var f = d.field, a = d.advice, s = d.state;
+  var when = T.noNeed;
+  if (a.action_day) {
+    when = a.days_until === 0 ? T.today : a.days_until === 1 ? T.tomorrow
+         : (L === "ru" ? "Через " + a.days_until + " " + T.inDays
+            : L === "en" ? "In " + a.days_until + " " + T.inDays
+            : a.days_until + " " + T.inDays);
+  }
+  var h = '<h1>' + esc(f.name) + '</h1><div class="sub">' + esc(f.crop) + ' · ' +
+          esc(f.hectares) + ' ' + esc(T.ga) + '</div>';
+
+  h += '<div class="advice"><div class="cap">' + esc(T.advice) + '</div>' +
+       '<div class="when">' + esc(when) + '</div>';
+  if (a.action_day) {
+    h += '<div class="vol"><b class="mono">' + num(a.gross_m3) + '</b> m³';
+    if (a.pump_hours != null) h += ' · <b class="mono">' + a.pump_hours + '</b> ' + esc(T.hours);
+    h += ' · <span class="mono">' + esc(a.action_day) + '</span></div>';
+  }
+  h += '</div>';
+
+  if (!s.anchored) h += '<div class="note" style="margin-bottom:12px">' + esc(T.noAnchor) + '</div>';
+  if (s.degraded)  h += '<div class="note" style="margin-bottom:12px">' + esc(T.degraded) + '</div>';
+
+  h += '<h3 class="sec">' + esc(T.state) + '</h3>';
+  d.sections.forEach(function(sec){
+    h += '<section class="card"><span class="dot s' + sec.status + '" style="margin-top:5px"></span>' +
+         '<span class="body"><h2>' + esc(sec.title) + '</h2><p>' + esc(sec.line) + '</p>' +
+         (sec.hint ? '<p class="hint">' + esc(sec.hint) + '</p>' : '') + '</span></section>';
+  });
+
+  h += '<h3 class="sec">' + esc(T.nums) + '</h3><div class="grid">';
+  function cell(k, v, sm){ return '<div class="cell"><div class="k">' + esc(k) +
+    '</div><div class="v">' + v + (sm ? ' <small>' + esc(sm) + '</small>' : '') + '</div></div>'; }
+  h += cell(T.ndvi, s.ndvi != null ? s.ndvi.toFixed(3) : "—", s.ndvi_date || "");
+  h += cell(T.et0, s.et0_mm != null ? s.et0_mm : "—", "mm");
+  h += cell(T.kc, s.kc != null ? s.kc : "—", s.kc_source || "");
+  h += cell(T.defic, (s.depletion_mm != null ? s.depletion_mm : "—") + " / " +
+                     (s.raw_mm != null ? s.raw_mm : "—"), "mm");
+  h += cell(T.last, s.last_irrigation || "—");
+  h += cell(T.season, num(s.metered_m3), "m³");
+  h += '</div>';
+
+  if (d.journal && d.journal.length > 1) {
+    h += '<h3 class="sec">' + esc(T.journal) + '</h3>' + chart(d.journal);
+    h += '<div class="scroll" style="margin-top:14px"><table><thead><tr><th>' + esc(T.jDate) +
+         '</th><th>' + esc(T.jAdvice) + '</th><th>' + esc(T.jDef) + '</th></tr></thead><tbody>';
+    d.journal.slice(0, 12).forEach(function(r){
+      h += '<tr><td>' + esc(r.generated_on) + '</td><td>' + esc(r.action_day || "—") +
+           '</td><td>' + (r.depletion_mm != null ? r.depletion_mm : "—") + " / " +
+           (r.raw_mm != null ? r.raw_mm : "—") + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  root.innerHTML = h;
+  window.scrollTo(0, 0);
+}
+
+function openField(id){
+  root.innerHTML = '<div class="skel"></div><div class="skel"></div>';
+  api("/field/" + encodeURIComponent(id)).then(renderField).catch(function(){
+    note(T.fail, T.failHint, false);
+  });
+}
+
+back.addEventListener("click", start);
+
+function start(){
+  root.innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  api("/me").then(renderList).catch(function(err){
+    if (String(err.message) === "no-telegram") note(T.outside, T.outsideHint, true);
+    else note(T.fail, T.failHint, false);
+  });
+}
+start();
+})();
+</script>
+</body>
+</html>

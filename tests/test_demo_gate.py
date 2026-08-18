@@ -73,8 +73,35 @@ def test_dala_button_works_only_for_demo_chats(monkeypatch, tmp_path):
     assert not m.MENU_FILTER.check_update(_text_update(FARMER, m.BTN_DALA))
 
 
+def _labels(markup):
+    """Подписи кнопок клавиатуры — и строк, и WebApp-кнопок."""
+    return [[b if isinstance(b, str) else b.text for b in row]
+            for row in markup.keyboard]
+
+
 def test_menu_keyboard_grows_only_for_demo_chats(monkeypatch, tmp_path):
     m = _reload_bot(monkeypatch, tmp_path, str(DEMO))
-    assert m._menu(FARMER) is m.MAIN_MENU
-    assert m._menu(DEMO) is m.MAIN_MENU_DALA
+    # Проверяем состав меню, а не тождество с константой: клавиатура
+    # теперь собирается по флагам, и смысл теста — «лишнего у фермера
+    # не появилось», а не «вернулся тот же объект».
+    assert _labels(m._menu(FARMER)) == [[m.BTN_SUV, m.BTN_BAJARDIM],
+                                        [m.BTN_TEJALDI, m.BTN_YORDAM]]
+    assert m.BTN_DALA in _labels(m._menu(DEMO))[-1]
     assert len(m.MAIN_MENU.keyboard) == 2
+
+
+def test_cabinet_button_only_for_its_own_gate(monkeypatch, tmp_path):
+    """Кабинет за своим гейтом: демо «Dala holati» его не открывает."""
+    m = _reload_bot(monkeypatch, tmp_path, str(DEMO))
+    monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
+    monkeypatch.setattr(m, "_CABINET", {DEMO})
+    assert m.BTN_KABINET in _labels(m._menu(DEMO))[-1]
+    assert m.BTN_KABINET not in sum(_labels(m._menu(FARMER)), [])
+
+
+def test_cabinet_button_hidden_without_url(monkeypatch, tmp_path):
+    """Без домена кнопки нет: web_app без https Telegram не откроет."""
+    m = _reload_bot(monkeypatch, tmp_path, str(DEMO))
+    monkeypatch.setattr(m, "CABINET_URL", "")
+    monkeypatch.setattr(m, "_CABINET", {DEMO})
+    assert m.BTN_KABINET not in sum(_labels(m._menu(DEMO)), [])
