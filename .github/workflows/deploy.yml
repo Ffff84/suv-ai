@@ -121,6 +121,13 @@ jobs:
                   mkdir -p /var/www/suv-ai/docs
                   cp -r landing/docs/. /var/www/suv-ai/docs/ 2>/dev/null || true
                 fi
+                # Шрифты со своего домена: index.html ссылается на
+                # fonts/*.woff2 — без этого блока новая папка не доезжает
+                # и прод молча падает на системные шрифты.
+                if [ -d landing/fonts ]; then
+                  mkdir -p /var/www/suv-ai/fonts
+                  cp -r landing/fonts/. /var/www/suv-ai/fonts/ 2>/dev/null || true
+                fi
                 echo "Лендинг обновлён"
               fi
             fi
