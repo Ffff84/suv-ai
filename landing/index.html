@@ -5,9 +5,226 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SUV AI — спутник видит, докуда дошла вода</title>
 <meta name="description" content="Telegram-бот умного полива: FAO-56, Sentinel-2, карта влажности поля. Пилот в Самаркандской области.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Шрифты со своего домена: без внешних запросов и блокировки рендера.
+   unicode-range оставлен — браузер качает только нужные субсеты. */
+/* cyrillic */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/GolosText-400-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/GolosText-400-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/GolosText-400-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/GolosText-500-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/GolosText-500-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/GolosText-500-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/GolosText-600-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/GolosText-600-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Golos Text';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/GolosText-600-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono-400-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono-400-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono-400-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono-600-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono-600-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono-600-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(fonts/Unbounded-300-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(fonts/Unbounded-300-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(fonts/Unbounded-300-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/Unbounded-500-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/Unbounded-500-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/Unbounded-500-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/Unbounded-700-cyrillic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/Unbounded-700-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/Unbounded-700-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
 <script>
 (function(){
   var t = localStorage.getItem("suvai-theme");
@@ -331,7 +548,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 .prcard li::before{content:"✓";color:var(--wet)}
 .prcard .btn{margin-top:auto;text-align:center}
 .prcard .fine{font-size:.76rem;color:var(--mut);margin-top:10px;text-align:center}
-.g7{margin-top:26px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--wet);border-radius:14px;padding:24px 28px}
+.g7{margin-top:26px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
 .g7 h3{font-size:1rem;margin-bottom:8px}
 .g7 p{font-size:.9rem;color:var(--mut);max-width:72ch}
 .calc{margin-top:26px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px 28px}
@@ -387,6 +604,9 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
 .rz-foot{font-size:.78rem;color:var(--mut);margin-top:36px;border-top:1px solid var(--line);padding-top:16px;max-width:88ch}
 .rz-cta{margin-top:30px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
 .rz-cta p{color:var(--mut);font-size:.92rem;margin:0}
+/* ── клавиатурный фокус: канал подсвечивает выбранное ── */
+a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible,.top a.cta:focus-visible,.langs button:focus-visible,.chip:focus-visible{outline-offset:2px;border-radius:100px}
 </style>
 </head>
 <body>
@@ -403,10 +623,11 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
     <a class="cta" href="https://t.me/suv_ai_bot" data-i18n="nav.cta">Открыть бота</a>
   </div>
 </header>
+<main>
 
 <!-- ГЕРОЙ -->
 <section class="hero">
-  <canvas id="flow"></canvas>
+  <canvas id="flow" aria-hidden="true"></canvas>
   <div class="shell">
     <div class="eyebrow" data-i18n="hero.eyebrow">Пилот работает · Самаркандская область · 2026</div>
     <h1 data-i18n="hero.h1">Спутник видит, <em>докуда дошла вода</em> на вашем поле</h1>
@@ -439,7 +660,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
     <h2 class="reveal" data-i18n="wet.h2">Поле, которое показывает, где ему сухо</h2>
     <p class="lede reveal" data-i18n="wet.lede">Индекс влажности NDMI по каждой клетке 20×20 метров — <b>измеренный спутником, не нарисованный моделью</b>. Наведите на клетку. Потом откройте воду.</p>
     <div class="wet-wrap">
-      <div class="tilt reveal"><canvas id="moist"></canvas></div>
+      <div class="tilt reveal"><canvas id="moist" role="img" aria-label="Namlik xaritasi (demo) · карта влажности"></canvas></div>
       <div class="wet-info reveal">
         <div class="read">
           <span class="mono" id="cellv">—</span>
@@ -474,7 +695,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
         <div class="chip" id="drawmsg" style="display:none"></div>
         <br><button class="play" id="redraw" style="margin-top:16px;background:var(--panel);color:var(--ink);border:1px solid var(--line)" data-i18n="draw.redraw">Начать заново</button>
       </div>
-      <div class="reveal"><canvas id="draw"></canvas></div>
+      <div class="reveal"><canvas id="draw" role="img" aria-label="Dala chegarasi (demo) · обводка контура поля"></canvas></div>
     </div>
     <p class="reveal" style="margin-top:28px;font-size:.88rem;color:var(--mut);max-width:60ch" data-i18n="draw.note">
       После обводки бот переспрашивает площадь — и честно называет расхождение
@@ -492,8 +713,8 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
       получает фермер: архивная карта высокого разрешения, а поверх — <b>измеренная влажность
       сегодняшнего снимка</b>. Потяните ползунок.</p>
     <div class="ba reveal" id="ba">
-      <img class="base" src="img/photo-before.jpg" alt="Кадр Sentinel-2: поле в пикселях 10 м">
-      <div class="after"><img src="img/photo-after.jpg" alt="Карта влажности на архивной подложке высокого разрешения"></div>
+      <img class="base" src="img/photo-before.webp" alt="Кадр Sentinel-2: поле в пикселях 10 м">
+      <div class="after"><img src="img/photo-after.webp" alt="Карта влажности на архивной подложке высокого разрешения"></div>
       <div class="bar" style="left:50%"></div>
       <span class="tag l" data-i18n="ba.tagl">Sentinel-2 · 10 м</span>
       <span class="tag r" data-i18n="ba.tagr">SUV AI · фото поля</span>
@@ -557,15 +778,15 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
   </div>
   <div class="shell">
     <div class="gal reveal">
-      <figure><img src="img/aer-uzum.jpg" alt="Виноградник Uzumzor сверху" loading="lazy">
+      <figure><img src="img/aer-uzum.webp" alt="Виноградник Uzumzor сверху" loading="lazy">
         <figcaption data-i18n="flds.c1"><b>Uzumzor</b> — виноградник, залив из канала. Белым — настоящий контур из Mini App: 1,41 га по обмеру.</figcaption></figure>
-      <figure><img src="img/aer-olma.jpg" alt="Яблоневый сад Olmazor сверху" loading="lazy">
+      <figure><img src="img/aer-olma.webp" alt="Яблоневый сад Olmazor сверху" loading="lazy">
         <figcaption data-i18n="flds.c2"><b>Olmazor</b> — Г-образный сад на капле, 8 вершин контура. Обмер: 2,52 га.</figcaption></figure>
-      <figure><img src="img/aer-wide.jpg" alt="Долина пилота: лоскут полей и кишлак" loading="lazy">
+      <figure><img src="img/aer-wide.webp" alt="Долина пилота: лоскут полей и кишлак" loading="lazy">
         <figcaption data-i18n="flds.c3"><b>Долина пилота</b> — лоскут хозяйств вокруг кишлака. Каждому полю здесь нужен свой ответ про воду.</figcaption></figure>
     </div>
     <div class="vid reveal">
-      <video id="pitchVideo" controls preload="none" poster="img/aer-wide.jpg" src="video/suv-ai-video-ru.mp4"></video>
+      <video id="pitchVideo" controls preload="none" poster="img/aer-wide.webp" src="video/suv-ai-video-ru.mp4"></video>
     </div>
     <p class="reveal" style="margin-top:14px;font-size:.82rem;color:var(--mut)" data-i18n="flds.credit">Видео — анимированная презентация SUV AI; спутниковые карты — Esri, Maxar, Earthstar Geographics.</p>
   </div>
@@ -641,7 +862,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
       Это два разных мира орошения — и продукт честно различает их экономику.</p>
     <div class="pilot-cards">
       <div class="pcard reveal">
-        <img class="pph" src="img/crop-olma.jpg" alt="Яблоневый сад — иллюстративное фото" loading="lazy">
+        <img class="pph" src="img/crop-olma.webp" alt="Яблоневый сад — иллюстративное фото" loading="lazy">
         <h3>🍎 Olmazor</h3><div class="sub" data-i18n="pil.sub1">яблоневый сад · капля · насос</div>
         <dl>
           <dt data-i18n="pil.dt2">Площадь</dt><dd class="mono" data-i18n="pil.dd1">2,0 га</dd>
@@ -651,7 +872,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
         <div class="note" data-i18n="pil.note1">Каждый сэкономленный куб сразу превращается в деньги фермера.</div>
       </div>
       <div class="pcard reveal">
-        <img class="pph" src="img/crop-uzum.jpg" alt="Виноградник — иллюстративное фото" loading="lazy">
+        <img class="pph" src="img/crop-uzum.webp" alt="Виноградник — иллюстративное фото" loading="lazy">
         <h3>🍇 Uzumzor</h3><div class="sub" data-i18n="pil.sub2">виноградник · залив из канала</div>
         <dl>
           <dt>Площадь</dt><dd class="mono" data-i18n="pil.dd2">1,5 га — обмерено контуром</dd>
@@ -878,11 +1099,11 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
     <div class="eyebrow reveal" data-i18n="team.eyebrow">Команда</div>
     <h2 class="reveal" data-i18n="team.h2">Трое, у которых уже есть работающий продукт</h2>
     <div class="team">
-      <div class="tcard reveal"><img src="img/amir.jpg" alt="Амир Негматуллаев">
+      <div class="tcard reveal"><img src="img/amir.webp" alt="Амир Негматуллаев">
         <div><h3>Амир Негматуллаев</h3><p data-i18n="team.r1">Автор идеи · владелец продукта. Довёл SUV AI от уравнения FAO-56 до бота, который каждое утро пишет реальному фермеру.</p></div></div>
-      <div class="tcard reveal"><img src="img/husan.jpg" alt="Хусан Негматуллаев">
+      <div class="tcard reveal"><img src="img/husan.webp" alt="Хусан Негматуллаев">
         <div><h3>Хусан Негматуллаев</h3><p data-i18n="team.r2">Главный разработчик. Движок, спутниковый слой, инфраструктура: 171 автотест, физика сверена со справочником FAO-56.</p></div></div>
-      <div class="tcard reveal"><img src="img/farux.jpg" alt="Фаррух Урунов">
+      <div class="tcard reveal"><img src="img/farux.webp" alt="Фаррух Урунов">
         <div><h3>Фаррух Урунов</h3><p data-i18n="team.r3">Фермер-партнёр пилота. Два поля, на которых продукт проверяется ежедневно. Его насос научил бота говорить часами, а не кубами.</p></div></div>
     </div>
   </div>
@@ -899,6 +1120,7 @@ footer .shell{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap
   </div>
 </section>
 
+</main>
 <footer>
   <div class="shell">
     <span data-i18n="foot.l">SUV AI · умный полив для каждого поля · пилот 2026</span>

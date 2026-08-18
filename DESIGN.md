@@ -30,6 +30,15 @@ typography:
     fontSize: "16px"
     fontWeight: 400
     lineHeight: 1.65
+  body-s:
+    fontFamily: "Golos Text, system-ui, sans-serif"
+    fontSize: "0.9rem"
+    fontWeight: 400
+    lineHeight: 1.55
+  caption:
+    fontFamily: "Golos Text, system-ui, sans-serif"
+    fontSize: "0.8rem"
+    fontWeight: 400
   label:
     fontFamily: "JetBrains Mono, monospace"
     fontSize: "0.72rem"
@@ -40,6 +49,9 @@ rounded:
   card: "14px"
   inner: "12px"
   tag: "6px"
+  legend: "4px"
+  frame: "16px"
+  screen: "22px"
   phone: "34px"
 spacing:
   section: "120px"
@@ -146,6 +158,9 @@ components:
   секций, max-width 24ch, text-wrap balance.
 - **Body** (400, 16px, 1.65): основной текст; lede — 1.02rem, muted,
   max-width 58ch; <b> внутри — чернилами, вес 500.
+- **Body-S** (400, 0.86–0.95rem, 1.55): текст карточек, пунктов, панелей.
+- **Caption** (400, 0.76–0.85rem): подписи, сноски, fine-print; допускается
+  контекстный шаг внутри полосы — это рабочая зона, не дрейф.
 - **Label** (400–600, 0.72–0.8rem, 0.22em, UPPERCASE): eyebrow секций с
   26px-чертой, бегущая строка, подписи осей; tabular-nums для чисел.
 
