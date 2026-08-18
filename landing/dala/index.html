@@ -79,6 +79,36 @@ section.card .hint{color:var(--mut);font-size:.83rem;margin-top:4px}
 
 h3.sec{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1rem;
   margin:30px 0 12px}
+
+/* вкладки — кабинет большой, одним свитком его не прочесть */
+.tabs{display:flex;gap:8px;overflow-x:auto;margin:20px 0 18px;
+  padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.tabs button{white-space:nowrap;border:1px solid var(--line);border-radius:100px;
+  padding:9px 16px;font-size:.85rem;color:var(--mut);background:var(--panel);
+  transition:transform .2s}
+.tabs button[aria-selected="true"]{background:var(--cyan);color:var(--deep);
+  border-color:var(--cyan);font-weight:600}
+.tabs button:hover{transform:translateY(-1px)}
+
+/* план на 14 дней: полоса дефицита в долю порога */
+.day{display:grid;grid-template-columns:64px 1fr 62px;gap:10px;align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--line)}
+.day:last-child{border-bottom:0}
+.day .d{font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--mut)}
+.day .bar{height:9px;border-radius:5px;background:var(--line);position:relative;overflow:hidden}
+.day .bar i{position:absolute;inset:0 auto 0 0;border-radius:5px;background:var(--wet)}
+.day .bar i.warn{background:var(--mid)}
+.day .bar i.alert{background:var(--dry)}
+.day .v{font-family:"JetBrains Mono",monospace;font-size:.74rem;text-align:right}
+.day.irr{background:rgba(79,200,212,.07);border-radius:8px;padding-left:6px;padding-right:6px}
+.day .tag{font-family:"JetBrains Mono",monospace;font-size:.62rem;color:var(--cyan);
+  letter-spacing:.1em}
+.rowline{display:flex;justify-content:space-between;gap:14px;padding:11px 0;
+  border-bottom:1px solid var(--line);font-size:.88rem}
+.rowline:last-child{border-bottom:0}
+.rowline b{font-family:"JetBrains Mono",monospace;font-weight:500}
+.warnbox{border:1px solid var(--mid);border-radius:12px;padding:12px 14px;
+  font-size:.82rem;color:var(--mut);margin-top:12px}
 .chart{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
 .chart svg{width:100%;height:auto;display:block}
 .chart text{font-family:"JetBrains Mono",monospace;font-size:11px;fill:var(--mut)}
@@ -154,7 +184,7 @@ var T = {
      journal:"Hisob-kitob tarixi",jDate:"sana",jAdvice:"maslahat",jDef:"taqchillik",
      chartCap:"Namlik taqchilligi kunlar bo'yicha: chiziq chegaraga yaqinlashsa — sug'orish vaqti",
      defLine:"taqchillik",rawLine:"chegara (RAW)",noAnchor:"Oxirgi sug'orish sanasi noma'lum — hisob taxminiy",
-     degraded:"Ob-havo kelmadi — hisob iqlim normalari bo'yicha",ga:"ga"},
+     degraded:"Ob-havo kelmadi — hisob iqlim normalari bo'yicha",ga:"ga",tabNow:"Hozir",tabPlan:"14 kunlik reja",tabWater:"Sug'orishlar",tabMoney:"Iqtisod",tabLog:"Tarix",planCap:"Har kuni: namlik taqchilligi chegaraga nisbatan. Ko'k satr — bot sug'orishni tavsiya qilgan kun.",noIrr:"Hali sug'orish belgilanmagan",irrCap:"«Suv berdim» tugmasi bilan belgilangan sug'orishlar",recs:"Tavsiyalar",followed:"Bajarilgan",metered:"O'lchangan",baseline:"Eski odat bo'yicha",saved:"Farq",notVerified:"Hisob fermer so'zlariga asoslangan — suv hisoblagichi yo'q",noBaseline:"Taqqoslash uchun eski norma kiritilmagan",salin:"Sho'rlanish xavfi",taw:"Umumiy zaxira (TAW)",etc:"ETc bugun"},
  ru:{all:"Все поля",pick:"Какое поле смотрим?",none:"У вас пока нет полей",
      noneHint:"Заведите поле в боте — пять вопросов, одна минута.",open:"Открыть бота",
      outside:"Кабинет открывается из бота",
@@ -169,7 +199,7 @@ var T = {
      journal:"История расчёта",jDate:"дата",jAdvice:"совет",jDef:"дефицит",
      chartCap:"Дефицит влаги по дням: линия подошла к порогу — пора поливать",
      defLine:"дефицит",rawLine:"порог (RAW)",noAnchor:"Дата последнего полива неизвестна — расчёт приблизительный",
-     degraded:"Погода не пришла — расчёт по климатическим нормам",ga:"га"},
+     degraded:"Погода не пришла — расчёт по климатическим нормам",ga:"га",tabNow:"Сейчас",tabPlan:"План на 14 дней",tabWater:"Поливы",tabMoney:"Экономика",tabLog:"История",planCap:"По дням: дефицит влаги против порога. Голубая строка — день, который бот советует для полива.",noIrr:"Поливов пока не отмечено",irrCap:"Поливы, отмеченные кнопкой «Suv berdim»",recs:"Рекомендаций",followed:"Выполнено",metered:"Измерено",baseline:"По прежней привычке",saved:"Разница",notVerified:"Расчёт по словам фермера — счётчика воды нет",noBaseline:"Прежняя норма не задана — сравнивать не с чем",salin:"Риск засоления",taw:"Общий запас (TAW)",etc:"ETc сегодня"},
  en:{all:"All fields",pick:"Which field?",none:"No fields yet",
      noneHint:"Add a field in the bot — five questions, one minute.",open:"Open the bot",
      outside:"Open the dashboard from the bot",
@@ -184,7 +214,7 @@ var T = {
      journal:"Calculation history",jDate:"date",jAdvice:"advice",jDef:"depletion",
      chartCap:"Moisture depletion by day: when the line meets the threshold, it is time",
      defLine:"depletion",rawLine:"threshold (RAW)",noAnchor:"Last irrigation date unknown — the estimate is optimistic",
-     degraded:"Weather feed down — computed from climate normals",ga:"ha"}
+     degraded:"Weather feed down — computed from climate normals",ga:"ha",tabNow:"Now",tabPlan:"14-day plan",tabWater:"Irrigations",tabMoney:"Economics",tabLog:"History",planCap:"By day: moisture depletion against the threshold. The cyan row is the day the bot advises.",noIrr:"No irrigations logged yet",irrCap:"Irrigations logged with “Suv berdim”",recs:"Recommendations",followed:"Followed",metered:"Metered",baseline:"Old habit",saved:"Difference",notVerified:"Computed from the farmer's word — there is no water meter",noBaseline:"No prior norm set — nothing to compare with",salin:"Salinity risk",taw:"Total reserve (TAW)",etc:"ETc today"}
 }[L];
 
 var root = document.getElementById("root");
@@ -201,8 +231,18 @@ function num(n){ return (n == null || isNaN(n)) ? "—"
 
 /* Подпись Telegram уходит в каждом запросе: сессий и куки нет, а значит
    нечего угонять. Сервер проверяет её заново на каждой ручке. */
+/* Подпись Telegram: SDK кладёт её в tg.initData, но исходно она
+   приходит фрагментом URL. Читаем оба источника — если SDK не успел
+   подняться или запуск прошёл мимо него, вход всё равно состоится. */
+function initData(){
+  if (tg && tg.initData) return tg.initData;
+  var m = /[#&?]tgWebAppData=([^&]*)/.exec(location.hash || "") ||
+          /[#&?]tgWebAppData=([^&]*)/.exec(location.search || "");
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
 function api(path){
-  var init = tg && tg.initData ? tg.initData : "";
+  var init = initData();
   if (!init) return Promise.reject(new Error("no-telegram"));
   return fetch("/api" + path, { headers: { "Authorization": "tma " + init } })
     .then(function(r){ if(!r.ok) throw new Error("http-" + r.status); return r.json(); });
@@ -259,10 +299,20 @@ function chart(journal){
     '<div class="sub" style="margin:10px 0 0;font-size:.78rem">' + esc(T.chartCap) + '</div></div>';
 }
 
-/* ── экран поля ── */
-function renderField(d){
-  back.hidden = false;
-  var f = d.field, a = d.advice, s = d.state;
+/* ── экран поля: вкладками, иначе одним свитком не прочесть ── */
+var CUR = null, TAB = "now";
+
+function tabs(){
+  var t = [["now",T.tabNow],["plan",T.tabPlan],["water",T.tabWater],
+           ["money",T.tabMoney],["log",T.tabLog]];
+  return '<div class="tabs" role="tablist">' + t.map(function(x){
+    return '<button role="tab" data-tab="' + x[0] + '" aria-selected="' +
+           (TAB === x[0]) + '">' + esc(x[1]) + '</button>'; }).join("") + '</div>';
+}
+
+/* Вкладка «Сейчас»: совет и разбор по секциям — то же, что в чате. */
+function tabNow(d){
+  var a = d.advice, s = d.state, h = "";
   var when = T.noNeed;
   if (a.action_day) {
     when = a.days_until === 0 ? T.today : a.days_until === 1 ? T.tomorrow
@@ -270,20 +320,17 @@ function renderField(d){
             : L === "en" ? "In " + a.days_until + " " + T.inDays
             : a.days_until + " " + T.inDays);
   }
-  var h = '<h1>' + esc(f.name) + '</h1><div class="sub">' + esc(f.crop) + ' · ' +
-          esc(f.hectares) + ' ' + esc(T.ga) + '</div>';
-
   h += '<div class="advice"><div class="cap">' + esc(T.advice) + '</div>' +
        '<div class="when">' + esc(when) + '</div>';
   if (a.action_day) {
     h += '<div class="vol"><b class="mono">' + num(a.gross_m3) + '</b> m³';
     if (a.pump_hours != null) h += ' · <b class="mono">' + a.pump_hours + '</b> ' + esc(T.hours);
+    if (a.pump_cost_uzs != null) h += ' · <b class="mono">' + num(a.pump_cost_uzs) + '</b> so\'m';
     h += ' · <span class="mono">' + esc(a.action_day) + '</span></div>';
   }
   h += '</div>';
-
-  if (!s.anchored) h += '<div class="note" style="margin-bottom:12px">' + esc(T.noAnchor) + '</div>';
-  if (s.degraded)  h += '<div class="note" style="margin-bottom:12px">' + esc(T.degraded) + '</div>';
+  if (!s.anchored) h += '<div class="warnbox">' + esc(T.noAnchor) + '</div>';
+  if (s.degraded)  h += '<div class="warnbox">' + esc(T.degraded) + '</div>';
 
   h += '<h3 class="sec">' + esc(T.state) + '</h3>';
   d.sections.forEach(function(sec){
@@ -297,25 +344,105 @@ function renderField(d){
     '</div><div class="v">' + v + (sm ? ' <small>' + esc(sm) + '</small>' : '') + '</div></div>'; }
   h += cell(T.ndvi, s.ndvi != null ? s.ndvi.toFixed(3) : "—", s.ndvi_date || "");
   h += cell(T.et0, s.et0_mm != null ? s.et0_mm : "—", "mm");
+  h += cell(T.etc, s.etc_mm != null ? s.etc_mm : "—", "mm");
   h += cell(T.kc, s.kc != null ? s.kc : "—", s.kc_source || "");
   h += cell(T.defic, (s.depletion_mm != null ? s.depletion_mm : "—") + " / " +
                      (s.raw_mm != null ? s.raw_mm : "—"), "mm");
+  h += cell(T.taw, s.taw_mm != null ? s.taw_mm : "—", "mm");
   h += cell(T.last, s.last_irrigation || "—");
-  h += cell(T.season, num(s.metered_m3), "m³");
-  h += '</div>';
+  h += cell(T.salin, s.salinity || "—");
+  return h + '</div>';
+}
 
-  if (d.journal && d.journal.length > 1) {
-    h += '<h3 class="sec">' + esc(T.journal) + '</h3>' + chart(d.journal);
-    h += '<div class="scroll" style="margin-top:14px"><table><thead><tr><th>' + esc(T.jDate) +
-         '</th><th>' + esc(T.jAdvice) + '</th><th>' + esc(T.jDef) + '</th></tr></thead><tbody>';
-    d.journal.slice(0, 12).forEach(function(r){
-      h += '<tr><td>' + esc(r.generated_on) + '</td><td>' + esc(r.action_day || "—") +
-           '</td><td>' + (r.depletion_mm != null ? r.depletion_mm : "—") + " / " +
-           (r.raw_mm != null ? r.raw_mm : "—") + '</td></tr>';
-    });
-    h += '</tbody></table></div>';
+/* Вкладка «План»: каждый день до полива — сколько влаги ушло из запаса.
+   Полоса — доля порога; когда она полная, поле у предела. */
+function tabPlan(d){
+  if (!d.plan || !d.plan.length) return '<div class="note">—</div>';
+  var h = '<div class="chart" style="padding:14px 16px">';
+  d.plan.forEach(function(p){
+    var share = p.raw_mm ? Math.min(1, p.depletion_mm / p.raw_mm) : 0;
+    var cls = share >= 1 ? "alert" : share >= .75 ? "warn" : "";
+    h += '<div class="day' + (p.irrigate ? ' irr' : '') + '">' +
+         '<span class="d">' + esc(p.day.slice(5)) +
+           (p.rain_mm > 0 ? ' <span style="color:var(--cyan)">' + p.rain_mm + '</span>' : '') +
+         '</span>' +
+         '<span class="bar"><i class="' + cls + '" style="width:' +
+           Math.round(share * 100) + '%"></i></span>' +
+         '<span class="v">' + (p.irrigate ? '<span class="tag">SUV</span>'
+                                          : p.depletion_mm) + '</span></div>';
+  });
+  return h + '</div><div class="sub" style="margin-top:12px;font-size:.8rem">' +
+         esc(T.planCap) + '</div>';
+}
+
+/* Вкладка «Поливы»: что фермер реально сделал, по его отметкам. */
+function tabWater(d){
+  if (!d.irrigations || !d.irrigations.length)
+    return '<div class="note">' + esc(T.noIrr) + '</div>';
+  var h = '<div class="chart" style="padding:6px 16px">';
+  d.irrigations.forEach(function(i){
+    h += '<div class="rowline"><span class="mono">' + esc(i.day) + '</span>' +
+         '<b>' + (i.m3 != null ? num(i.m3) + " m³" : "—") + '</b></div>';
+  });
+  return h + '</div><div class="sub" style="margin-top:12px;font-size:.8rem">' +
+         esc(T.irrCap) + '</div>';
+}
+
+/* Вкладка «Экономика»: цифры И их оговорки. Без флагов verified и
+   has_baseline числа читались бы как измеренные — а они расчётные. */
+function tabMoney(d){
+  var sv = d.savings;
+  if (!sv) return '<div class="note">—</div>';
+  var h = '<div class="chart" style="padding:6px 16px">';
+  function row(k, v){ h += '<div class="rowline"><span>' + esc(k) + '</span><b>' + v + '</b></div>'; }
+  row(T.recs, sv.recommendations);
+  row(T.followed, sv.followed);
+  row(T.metered, num(sv.metered_m3) + " m³");
+  if (sv.has_baseline) {
+    row(T.baseline, num(sv.baseline_m3) + " m³");
+    row(T.saved, num(sv.saved_m3) + " m³");
   }
-  root.innerHTML = h;
+  h += '</div>';
+  if (!sv.has_baseline) h += '<div class="warnbox">' + esc(T.noBaseline) + '</div>';
+  if (!sv.verified) h += '<div class="warnbox">' + esc(T.notVerified) + '</div>';
+  return h;
+}
+
+/* Вкладка «История»: как менялся расчёт день ото дня. */
+function tabLog(d){
+  if (!d.journal || d.journal.length < 2) return '<div class="note">—</div>';
+  var h = chart(d.journal);
+  h += '<div class="scroll" style="margin-top:14px"><table><thead><tr><th>' + esc(T.jDate) +
+       '</th><th>' + esc(T.jAdvice) + '</th><th>' + esc(T.jDef) + '</th></tr></thead><tbody>';
+  d.journal.slice(0, 20).forEach(function(r){
+    h += '<tr><td>' + esc(r.generated_on) + '</td><td>' + esc(r.action_day || "—") +
+         '</td><td>' + (r.depletion_mm != null ? r.depletion_mm : "—") + " / " +
+         (r.raw_mm != null ? r.raw_mm : "—") + '</td></tr>';
+  });
+  return h + '</tbody></table></div>';
+}
+
+function paint(){
+  var d = CUR, f = d.field;
+  var body = TAB === "plan" ? tabPlan(d) : TAB === "water" ? tabWater(d)
+           : TAB === "money" ? tabMoney(d) : TAB === "log" ? tabLog(d) : tabNow(d);
+  root.innerHTML =
+    '<h1>' + esc(f.name) + '</h1><div class="sub">' + esc(f.crop) + ' · ' +
+      esc(f.hectares) + ' ' + esc(T.ga) + '</div>' +
+    '<div class="overall"><span class="dot s' + d.overall + '"></span>' +
+      '<span class="txt">' + esc((d.sections[0] && d.sections[0].status_word) || "") +
+      '</span></div>' + tabs() + body;
+  root.querySelectorAll("[data-tab]").forEach(function(b){
+    b.addEventListener("click", function(){
+      TAB = b.getAttribute("data-tab"); paint(); window.scrollTo(0, 0);
+    });
+  });
+}
+
+function renderField(d){
+  back.hidden = false;
+  CUR = d; TAB = "now";
+  paint();
   window.scrollTo(0, 0);
 }
 

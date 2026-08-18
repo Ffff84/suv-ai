@@ -163,11 +163,29 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
                    WHERE field_id=? ORDER BY id DESC LIMIT 30""",
                 (field_id,))]
 
+    # Экономика сезона: сводка уже умеет считать сама, и её флаги
+    # (verified, has_baseline) важнее самих чисел — без них «экономия»
+    # читается как измеренная, а она пока расчётная.
+    sav = None
     try:
-        sav = B.LEDGER.savings(field_id)
-        metered_m3 = sav.metered_m3
-    except Exception:  # noqa: BLE001 — журнал экономии не роняет карточку
-        metered_m3 = 0.0
+        sv = B.LEDGER.savings(field_id)
+        sav = {"recommendations": sv.recommendations, "followed": sv.followed,
+               "metered_m3": round(sv.metered_m3), "baseline_m3": round(sv.baseline_m3),
+               "saved_m3": round(sv.saved_m3), "verified": sv.verified,
+               "has_baseline": sv.has_baseline}
+    except Exception as exc:  # noqa: BLE001 — журнал не роняет карточку
+        log.warning("экономика по %s не посчиталась: %s", field_id, exc)
+
+    # Отметки полива фермера — что реально происходило на поле.
+    with sqlite3.connect(B.LEDGER.path) as c:
+        irrigations = [
+            {"day": d, "m3": round(m) if m is not None else None,
+             "source": src, "recorded_at": ts}
+            for d, m, src, ts in c.execute(
+                """SELECT a.actual_day, a.actual_m3, a.source, a.recorded_at
+                   FROM actions a JOIN recommendations r ON r.id = a.recommendation_id
+                   WHERE r.field_id=? AND a.followed=1 AND a.actual_day IS NOT NULL
+                   ORDER BY a.actual_day DESC LIMIT 40""", (field_id,))]
 
     return {
         "field": {
@@ -188,6 +206,10 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
             "reason": rec.reason_key,
             "pump_hours": (round(rec.gross_m3 / pump.m3_per_hour, 1)
                            if pump and pump.m3_per_hour else None),
+            "pump_cost_uzs": (round(rec.gross_m3 / pump.m3_per_hour
+                                    * pump.uzs_per_hour)
+                              if pump and pump.m3_per_hour
+                              and getattr(pump, "uzs_per_hour", None) else None),
         },
         "state": {
             "last_irrigation": last_irr.isoformat() if last_irr else None,
@@ -198,16 +220,25 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
             "et0_mm": plan.et0_mm if plan else None,
             "kc": plan.kc if plan else None,
             "kc_source": plan.kc_source if plan else None,
+            "etc_mm": plan.etc_mm if plan else None,
             "depletion_mm": plan.depletion_mm if plan else None,
             "raw_mm": plan.raw_mm if plan else None,
-            "metered_m3": round(metered_m3),
+            "taw_mm": plan.taw_mm if plan else None,
+            "salinity": plan.salinity if plan else None,
         },
-        "forecast": [
-            {"date": (w.date.isoformat() if getattr(w, "date", None) else None),
-             "t_max": getattr(w, "t_max", None), "t_min": getattr(w, "t_min", None),
-             "rain_mm": getattr(w, "rain_mm", None)}
-            for w in (forecast or [])
-        ],
+        # План водного баланса по дням — то, чего в чат не помещается.
+        # Здесь фермер видит не только «когда», но и «почему тогда».
+        "plan": [
+            {"day": d.day.isoformat(), "etc_mm": round(d.etc_mm, 2),
+             "et0_mm": round(d.et0_mm, 2), "kc": round(d.kc, 3),
+             "rain_mm": round(d.rain_mm, 1),
+             "depletion_mm": round(d.depletion_mm, 1),
+             "raw_mm": round(d.raw_mm, 1), "taw_mm": round(d.taw_mm, 1),
+             "stress": d.stress, "irrigate": d.irrigate,
+             "gross_m3": round(d.gross_m3)}
+            for d in (rec.plan or [])],
+        "savings": sav,
+        "irrigations": irrigations,
         "journal": journal,
         "today": date.today().isoformat(),
     }
