@@ -1875,6 +1875,7 @@ async def _push_owner(ctx, chat: int, today: date,
 
     ud = ctx.application.user_data[chat]
     ud.setdefault("last_rec_ids", {})
+    delivered = 0
     for rec, pump, anchored, degraded in recs:
         try:
             await ctx.bot.send_message(
@@ -1884,6 +1885,7 @@ async def _push_owner(ctx, chat: int, today: date,
         except Exception as exc:  # noqa: BLE001
             log.warning("push: отправка %s не удалась: %s", chat, exc)
             continue
+        delivered += 1
         # В журнал — всё ДОСТАВЛЕННОЕ, включая расчёт по нормам: правило
         # журнала «храним то, что сказали фермеру», и на этой же записи
         # держатся кнопка «✅ Suv berdim» (rid) и защита догона от
@@ -1895,8 +1897,16 @@ async def _push_owner(ctx, chat: int, today: date,
         except Exception as exc:  # noqa: BLE001
             log.warning("push: журнал по %s не записан: %s",
                         rec.field.field_id, exc)
-    log.info("push: %s — отправлено (%d полей, срочно=%s)",
-             chat, len(recs), urgent)
+    # «Отправлено» здесь однажды соврало: единственная отправка упала с
+    # Forbidden (владелец заблокировал бота), continue проскочил мимо
+    # журнала — а итоговая строка всё равно отчиталась об успехе, и по
+    # логам утро выглядело доставленным. Считаем настоящие доставки.
+    if delivered:
+        log.info("push: %s — доставлено %d из %d полей, срочно=%s",
+                 chat, delivered, len(recs), urgent)
+    else:
+        log.warning("push: %s — не доставлено ничего из %d полей",
+                    chat, len(recs))
 
 
 async def push_catchup(ctx: ContextTypes.DEFAULT_TYPE) -> None:
