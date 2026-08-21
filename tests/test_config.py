@@ -75,6 +75,9 @@ def test_enrich_degrades_gracefully_without_credentials(monkeypatch):
 
     monkeypatch.delenv("CDSE_CLIENT_ID", raising=False)
     monkeypatch.delenv("CDSE_CLIENT_SECRET", raising=False)
+    # Запасной источник тоже гасим: у него своих ключей нет, и с
+    # выставленной LANDSAT_FALLBACK этот офлайн-тест ушёл бы в живую сеть.
+    monkeypatch.delenv("LANDSAT_FALLBACK", raising=False)
 
     f = Field("T", "T", 1.0, 39.65, 66.96, 705, CROPS["cotton"], SOILS["loam"],
               date(2026, 4, 15), "furrow")
@@ -93,6 +96,7 @@ def test_enrich_survives_a_failing_satellite(monkeypatch):
 
     monkeypatch.setenv("CDSE_CLIENT_ID", "x")
     monkeypatch.setenv("CDSE_CLIENT_SECRET", "y")
+    monkeypatch.delenv("LANDSAT_FALLBACK", raising=False)
     monkeypatch.setattr(enrich, "get_token",
                         lambda: (_ for _ in ()).throw(RuntimeError("boom")))
 
