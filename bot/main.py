@@ -52,6 +52,7 @@ from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
                               field_list_label, overall_status,
                               photo_section, render_card, uniformity_section,
                               water_section, weather_section)
+from suv.landsat import enabled as landsat_enabled
 from suv.ledger import Ledger
 from suv.messages import recommendation_text, salinity_warning, savings_text
 from suv.schedule import Field, recommend, simulate
@@ -2082,6 +2083,13 @@ def main() -> None:
         log.info("allowlist active: %s", sorted(_ALLOWED))
     if _FIELD_STATUS:
         log.info("Dala holati demo: %s", sorted(_FIELD_STATUS))
+    # Каждый гейт называет себя при старте — иначе из журнала не понять,
+    # взведён он или нет. У запасного источника снимков это особенно
+    # важно: он срабатывает только в облачный день, и без строки на
+    # старте «Landsat молчит» неотличимо от «Landsat выключен».
+    if landsat_enabled():
+        log.info("Landsat: запасной источник NDVI включён "
+                 "(идёт в дело, только когда Sentinel-2 без годного кадра)")
 
     if app.job_queue:
         import datetime as _dt
