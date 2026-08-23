@@ -27,6 +27,17 @@ class Crop:
     depletion_fraction: float  # p — fraction of TAW allowed before stress
     typical_sowing: tuple[int, int]  # (month, day) — sowing, or bud break
     perennial: bool = False  # tree/vine: the cycle restarts every spring
+    # Как переводить NDVI в Kc (см. kc_from_ndvi):
+    #   "linear" — Kcb = 1.44·NDVI − 0.10 (Campos et al. 2010 на виноградниках,
+    #              обобщено Calera et al. 2017): однолетние культуры и лоза;
+    #   "cover"  — по доле покрытия и высоте кроны (Allen & Pereira 2009):
+    #              деревья, у которых крона над голым междурядьем.
+    ndvi_kc_model: str = "linear"
+    # Геометрия кроны для модели "cover": высота, м, и множитель ML —
+    # насколько транспирация кроны опережает долю затенённой земли
+    # (деревья 1,5-2,0).
+    canopy_height_m: float = 0.0
+    canopy_ml: float = 1.5
 
 
 # FAO-56 Table 11 (stage lengths), Table 12 (Kc), Table 22 (Zr, p).
@@ -66,6 +77,8 @@ CROPS: dict[str, Crop] = {
         root_depth_m=1.50, depletion_fraction=0.50,
         typical_sowing=(3, 20),  # bud break, not sowing
         perennial=True,
+        # Крона над голым междурядьем — Kc по доле покрытия.
+        ndvi_kc_model="cover", canopy_height_m=3.0, canopy_ml=1.5,
     ),
     "grape": Crop(
         key="grape", name_uz="Uzum", name_ru="Виноград",
@@ -74,6 +87,9 @@ CROPS: dict[str, Crop] = {
         root_depth_m=1.50, depletion_fraction=0.45,
         typical_sowing=(4, 1),  # bud break
         perennial=True,
+        # Линейная связь NDVI->Kcb выведена именно на виноградниках
+        # (Campos et al. 2010), поэтому лозе она оставлена.
+        ndvi_kc_model="linear", canopy_height_m=2.0,
     ),
 }
 
@@ -146,11 +162,35 @@ def stage_and_kc(crop: Crop, dap: int) -> StageInfo:
     )
 
 
-def root_depth(crop: Crop, dap: int) -> float:
+# Сколько лет дереву или лозе нужно, чтобы корни дошли до паспортной
+# глубины. До этого возраста корни растут с возрастом САЖЕНЦА, а не с
+# днями от распускания почек.
+PERENNIAL_ESTABLISHED_YEARS = 3.0
+
+
+def root_depth(crop: Crop, dap: int, years_since_planting: float | None = None) -> float:
     """
-    Effective rooting depth grows linearly to its maximum by the end of
-    the development stage, then holds. FAO-56 eq. 8-1 simplified.
+    Effective rooting depth, m.
+
+    Annuals: grows linearly from 0.20 m at emergence to the maximum by the
+    end of the development stage, then holds (FAO-56 eq. 8-1 simplified).
+
+    Perennials: FAO-56 treats Zr of established trees and vines as CONSTANT
+    at its maximum — roots do not regrow each spring. The old code restarted
+    from 0.20 m at every bud break (dap is counted from this year's season
+    start), so a nine-year-old orchard got TAW 60 mm instead of 195 in
+    April and was told to irrigate ~3x too often, in small doses; the root
+    zone then «collapsed» 1.5 -> 0.2 m mid-simulation and the growth-
+    dilution step erased accumulated deficit. Found by the 18.08.2026
+    audit (crop.py:155). Young plantings (< PERENNIAL_ESTABLISHED_YEARS)
+    scale with the age of the sapling; unknown age = established.
     """
+    if crop.perennial:
+        if years_since_planting is None or years_since_planting >= PERENNIAL_ESTABLISHED_YEARS:
+            return crop.root_depth_m
+        frac = max(0.0, years_since_planting) / PERENNIAL_ESTABLISHED_YEARS
+        return max(0.40, frac * crop.root_depth_m)
+
     ini, dev, _, _ = crop.stages
     z_min = 0.20  # m, at emergence
     if dap >= ini + dev:
@@ -159,24 +199,69 @@ def root_depth(crop: Crop, dap: int) -> float:
     return z_min + frac * (crop.root_depth_m - z_min)
 
 
+# NDVI голой почвы и сомкнутого полога — для перевода NDVI в долю
+# покрытия (Carlson & Ripley 1997: fc = ((NDVI-NDVI_s)/(NDVI_v-NDVI_s))).
+# Значения обычные для сельхозземель; на светлом солончаке NDVI_s ниже,
+# но конверт культуры ниже всё равно не пускает.
+NDVI_BARE_SOIL = 0.15
+NDVI_FULL_COVER = 0.85
+# Kc почти голой почвы между поливами (FAO-56, Kc_min).
+KC_MIN = 0.15
+
+
+def fraction_cover(ndvi: float) -> float:
+    """Доля земли под кроной по NDVI, 0..1."""
+    fc = (ndvi - NDVI_BARE_SOIL) / (NDVI_FULL_COVER - NDVI_BARE_SOIL)
+    return min(max(fc, 0.0), 1.0)
+
+
 def kc_from_ndvi(ndvi: float, crop: Crop) -> float:
     """
-    Kc estimated directly from satellite NDVI.
+    Kc estimated from satellite NDVI.
 
-    Linear NDVI->Kcb relation, widely used (Calera et al. 2017):
-        Kcb = 1.44 * NDVI - 0.10
+    Two relations, chosen per crop (Crop.ndvi_kc_model) — the split is
+    the point:
+
+    * "linear" — Kcb = 1.44 * NDVI - 0.10. Derived on drip-irrigated
+      vineyards (Campos et al. 2010) and generalised to row crops
+      (Calera et al. 2017). Used for annuals and for grapes, where it
+      was actually validated.
+
+    * "cover" — tree crops. On an orchard the same line UNDER-reads: a
+      crown over a bare inter-row has NDVI 0.4-0.5 at full leaf, and the
+      line turns that into Kc 0.5-0.6 — as if half the orchard were
+      fallow — whereas a tree transpires more per unit of shaded ground
+      than a herbaceous canopy (taller, rougher, more aerodynamic
+      coupling). Allen & Pereira (2009, Irrig. Sci. 28) give the density
+      form FAO uses for tree crops:
+          Kd  = min(1, ML*fc, fc^(1/(1+h)))
+          Kcb = Kc_min + Kd * (Kcb_full - Kc_min)
+      with fc the fraction of ground covered (from NDVI), h the canopy
+      height and ML the crown multiplier. Kcb_full is taken as the top of
+      the crop's own envelope (kc_mid * 1.05). For Farrukh's orchard at
+      NDVI 0.47 this gives 0.73 against Calera's 0.57 — and with it the
+      engine's interval lands on the 4 days the farmer actually keeps.
+
+    Neither is a MEASURED Kc for these fields: no lysimeter, no soil
+    moisture probe. Both are literature models, and the satellite weight
+    in blended_kc() caps their influence at 70%.
+
     Clamped into the crop's own Kc envelope so a bad pixel cannot produce
-    a nonsense recommendation.
-
-    This is the layer that makes the system per-field rather than
-    per-district: the crop calendar says what SHOULD be happening, the
-    satellite says what IS happening.
+    a nonsense recommendation. This is the layer that makes the system
+    per-field rather than per-district: the crop calendar says what
+    SHOULD be happening, the satellite says what IS happening.
     """
     # Clamp against the UNROUNDED envelope, then round for display.
     # Rounding the bounds themselves can push the result a hair past the
     # limit, which quietly defeats the guard.
-    kcb = 1.44 * ndvi - 0.10
     lo, hi = crop.kc_ini * 0.6, crop.kc_mid * 1.05
+    if crop.ndvi_kc_model == "cover":
+        fc = fraction_cover(ndvi)
+        kd = min(1.0, crop.canopy_ml * fc,
+                 fc ** (1.0 / (1.0 + crop.canopy_height_m)) if fc > 0 else 0.0)
+        kcb = KC_MIN + kd * (hi - KC_MIN)
+    else:
+        kcb = 1.44 * ndvi - 0.10
     return round(min(max(kcb, lo), hi), 4)
 
 
@@ -185,9 +270,13 @@ def blended_kc(calendar_kc: float, ndvi_kc: float | None,
     """
     Combine calendar Kc with satellite Kc.
 
-    Fresh imagery (<= 5 days) is trusted at 70%. Older imagery decays to
-    zero weight at 14 days, because a two-week-old NDVI in the middle of
-    rapid canopy development is worse than the calendar.
+    Same-day imagery is trusted at 70%; the weight decays LINEARLY from
+    day 0 to zero at 14 days (a 5-day-old scene weighs 45%, a 12-day-old
+    one 10%), because a two-week-old NDVI in the middle of rapid canopy
+    development is worse than the calendar. An earlier docstring promised
+    a «<=5 days at 70%» plateau the formula never had — the 18.08.2026
+    audit caught the mismatch; the formula is the intended behaviour and
+    kc_source prints the weight actually applied.
     """
     if ndvi_kc is None:
         return calendar_kc, "calendar"
@@ -200,4 +289,4 @@ def blended_kc(calendar_kc: float, ndvi_kc: float | None,
     # Снимок из будущего относительно моделируемого дня весит как свежий.
     weight = 0.70 * max(0.0, min(1.0, 1.0 - ndvi_age_days / 14.0))
     kc = calendar_kc * (1 - weight) + ndvi_kc * weight
-    return round(kc, 3), f"calendar+satellite ({int(weight * 100)}% satellite)"
+    return round(kc, 3), f"calendar+satellite ({round(weight * 100)}% satellite)"

@@ -17,7 +17,7 @@ it get blurred in a pitch.
 | Layer | State | Evidence |
 |---|---|---|
 | ET0 (FAO-56 Penman-Monteith) | **Verified** | 9 tests against the worked examples printed in FAO-56 itself |
-| Crop coefficients, growth stages | **Working, uncalibrated** | Curve shape tested; Kc values are FAO table defaults, not Uzbek field data |
+| Crop coefficients, growth stages | **Working, uncalibrated** | Curve shape tested; Kc values are FAO table defaults, not Uzbek field data. Established trees/vines keep full root depth year-round (FAO-56); orchard NDVI→Kc goes through fraction cover (Allen & Pereira 2009), vines and annuals through the Campos/Calera line |
 | Soil water balance | **Verified** | TAW/RAW/percolation tested against FAO-56 tables; drip uses a wetted-soil fraction (FAO-56 Table 20, 0.40) — without it the orchard got 20+ days between irrigations against the farmer's 4 |
 | Capillary rise from shallow water table | **Working** | Added after the model demanded ~2× real water use; season total now lands inside Uzbek agronomic norms |
 | Irrigation scheduling | **Verified** | Season run = 5,455 m³/ha for cotton in Fergana, inside the 5,000–7,000 norm |
@@ -117,7 +117,7 @@ weather.py    Open-Meteo, 16-day forecast, no API key
 satellite.py  Sentinel-2 L2A -> cloud-masked NDVI per field polygon
    |
 et0.py        FAO-56 Penman-Monteith (Hargreaves fallback)
-crop.py       Kc from growth stage, blended with NDVI by imagery age
+crop.py       Kc from growth stage, blended with NDVI by imagery age (trees: by fraction cover)
 soil.py       TAW / RAW / percolation / capillary rise / wetted fraction (drip) / salinity
    |
 schedule.py   day-by-day water balance -> one irrigation decision

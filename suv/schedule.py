@@ -116,7 +116,10 @@ def simulate(
         dap = (day - season_start(fld.crop, fld.planting_date, day)).days
 
         stage = stage_and_kc(fld.crop, dap)
-        zr = root_depth(fld.crop, dap)
+        # Многолетникам — возраст саженца: корни взрослого сада не
+        # отрастают заново каждую весну (см. crop.root_depth).
+        zr = root_depth(fld.crop, dap,
+                        years_since_planting=(day - fld.planting_date).days / 365.25)
 
         ndvi_kc = None
         ndvi_age = 99
