@@ -37,7 +37,8 @@ from suv.config import load_env
 load_env()
 
 from suv import __version__
-from suv.climate import STATIONS, season
+from suv.climate import STATIONS, nearest_station, season
+from suv.clock import today as today_tashkent
 from suv.crop import CROPS
 from suv.field_shape import MAX_VERTICES
 from suv.field_shape import area_ha as polygon_area_ha
@@ -283,7 +284,7 @@ async def got_planting(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text("Iltimos, oyni ro'yxatdan tanlang.")
         return PLANTING
     month = MONTHS_UZ.index(name) + 1
-    today = date.today()
+    today = today_tashkent()
     year = today.year if month <= today.month else today.year - 1
     crop = CROPS[ctx.user_data["crop"]]
     day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
@@ -506,7 +507,7 @@ def _compute_rec(row, today: date):
                     fld.field_id, exc)
         degraded = True
         gap = max(0, min((today - last_irr).days if last_irr else 0, 92))
-        series = season(STATIONS["samarkand"],
+        series = season(nearest_station(fld.lat, fld.lon),
                         today - timedelta(days=gap), gap + 14)
         state, forecast = _rewind(fld, last_irr, series, gap, today)
 
@@ -560,10 +561,15 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             "👁 Режим наблюдателя: показываю все поля, в журнал не пишу.")
 
-    today = date.today()
+    today = today_tashkent()
     ctx.user_data.setdefault("last_rec_ids", {})
     for row in rows:
-        rec, pump, anchored, degraded = _compute_rec(row, today)
+        # Расчёт — в поток: внутри до четырёх сетевых вызовов (токен,
+        # снимок, каталог сцен, погода) по 20-60 с таймаутом каждый. В
+        # корутине они держали весь event loop: пока считалось одно поле,
+        # бот не отвечал никому — ни на «✅ Suv berdim», ни на пуш.
+        rec, pump, anchored, degraded = await asyncio.to_thread(
+            _compute_rec, row, today)
         # Пишем в журнал и деградированный совет тоже. Пробовали не
         # писать — «это не тот расчёт, за который мы отвечаем», — и
         # порвали цепочку: без rid в last_rec_ids кнопка «✅ Suv berdim»
@@ -632,7 +638,7 @@ def _recent_rec_ids(chat_id: int) -> dict[str, int]:
     если рекомендация утром уходила.
     """
     import sqlite3
-    cutoff = (date.today() - timedelta(days=REC_MAX_AGE_DAYS)).isoformat()
+    cutoff = (today_tashkent() - timedelta(days=REC_MAX_AGE_DAYS)).isoformat()
     with sqlite3.connect(LEDGER.path) as c:
         c.row_factory = sqlite3.Row
         rows = c.execute(
@@ -688,7 +694,7 @@ def _log_one(ctx: ContextTypes.DEFAULT_TYPE, field_id: str, rid: int,
     m3 = None
     if hours is not None and row and row["pump_m3_per_hour"]:
         m3 = hours * row["pump_m3_per_hour"]
-    actual = date.today() - timedelta(days=days_ago)
+    actual = today_tashkent() - timedelta(days=days_ago)
     # Один день — один полив. Утренний пуш и дневная «Suv holati» дают
     # две рекомендации с разными id, и проверка по id выше пропускала
     # вторую отметку за тот же полив: расход задваивался.
@@ -883,7 +889,7 @@ def _fs_data(row, ctx):
                  .get(row["field_id"], 0.0)) or 0.0
     if hit and time.monotonic() - hit[0] < FS_CACHE_TTL_S and hit[0] >= dirty:
         return hit[1]
-    rec, pump, anchored, degraded = _compute_rec(row, date.today())
+    rec, pump, anchored, degraded = _compute_rec(row, today_tashkent())
     try:
         forecast = fetch_forecast(row["lat"], row["lon"], days=3)
     except Exception as exc:  # noqa: BLE001 — погода не роняет карточку
@@ -904,14 +910,14 @@ def _fs_sections(row, ctx, lang: str) -> list:
     except KeyError:
         season_m3 = 0.0
     return assemble(
-        water_section(rec, last_irr, date.today(), pump, lang,
+        water_section(rec, last_irr, today_tashkent(), pump, lang,
                       degraded=degraded),
         uniformity_section(row["irrigation_method"], row["area_ha"],
                            has_reach=False, lang=lang,
                            declared_ha=row["hectares"],
                            inlet_side=_inlet_side(row, lang)),
         photo_section(row["area_ha"], row["irrigation_method"],
-                      photo=_photo_verdict(row, date.today()), lang=lang),
+                      photo=_photo_verdict(row, today_tashkent()), lang=lang),
         weather_section(forecast, lang),
         cost_section(season_m3, pump, lang),
     )
@@ -1486,7 +1492,7 @@ def _build_photo(row, lang: str):
     from suv import photo_render, scene
     from suv.field_photo import (MIN_VALID_FRACTION, bbox_of, can_show_photo)
 
-    today = date.today()
+    today = today_tashkent()
     ring = _field_polygon(row)
     box = bbox_of(ring)
     token = scene.get_token()
@@ -1588,7 +1594,7 @@ async def photo_callback(update: Update,
         # неправда, а читают его раньше, чем цифры даты.
         file_id, caption, scene_iso = cached
         if caption and scene_iso:
-            word = when_word(date.fromisoformat(scene_iso), date.today(),
+            word = when_word(date.fromisoformat(scene_iso), today_tashkent(),
                              lang == "uz")
             caption = re.sub(r"(🛰[^:\n]+: \d{2}\.\d{2}) \([^)]*\)",
                              rf"\1 ({word})", caption, count=1)
@@ -1865,7 +1871,7 @@ async def daily_push(ctx: ContextTypes.DEFAULT_TYPE,
     кнопкой). Без этого каждый деплой в течение дня повторял бы
     владельцу уже отправленное утреннее сообщение.
     """
-    today = date.today()
+    today = today_tashkent()
     import sqlite3
     with sqlite3.connect(LEDGER.path) as c:
         owners = [r[0] for r in c.execute(
@@ -1897,7 +1903,10 @@ async def _push_owner(ctx, chat: int, today: date,
     recs = []
     for row in rows:
         try:
-            recs.append(_compute_rec(row, today))
+            # В поток по той же причине, что и в /suv: утренний обход с
+            # медленным Copernicus замораживал бота на минуты, и догон
+            # после каждого деплоя открывал это окно заново.
+            recs.append(await asyncio.to_thread(_compute_rec, row, today))
         except Exception as exc:  # noqa: BLE001
             log.warning("push: расчёт %s не удался: %s",
                         row["field_id"], exc)
@@ -1959,10 +1968,8 @@ async def push_catchup(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     новый процесс молча ставил следующий запуск на завтра. Утро целиком
     выпадало, и в логах об этом не было ни строки.
     """
-    import datetime as _dt
-    from zoneinfo import ZoneInfo
-    now = _dt.datetime.now(ZoneInfo("Asia/Tashkent"))
-    if now.hour < PUSH_HOUR_TASHKENT:
+    from suv.clock import now as now_tashkent
+    if now_tashkent().hour < PUSH_HOUR_TASHKENT:
         return  # до утреннего часа пуш ещё впереди, догонять нечего
     log.info("push: проверяю, не пропущен ли утренний обход")
     await daily_push(ctx, only_if_silent_today=True)

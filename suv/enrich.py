@@ -31,9 +31,9 @@ scripts/landsat_revisit.py). Худшие провалы второй источ
 from __future__ import annotations
 
 import os
-from datetime import date
 
 from . import landsat
+from .clock import today
 from .satellite import bbox_polygon, fetch_ndvi, get_token
 
 # Окно поиска для Landsat. Пара 8/9 проходит над полем раз в восемь дней,
@@ -100,7 +100,7 @@ def _landsat(fld, poly: list, window_days: int, before: str) -> str:
     # Возраст кадра в строку обязателен: у Landsat отставание около девяти
     # дней, и blended_kc обнулит вес такого снимка к четырнадцатому. Без
     # даты в логе «спутник сработал» читалось бы как «свежий снимок есть».
-    age = (date.today() - reading.observed_on).days
+    age = (today() - reading.observed_on).days
     return (f"{before}; Landsat: NDVI {reading.value:.3f}, "
             f"кадр {reading.observed_on.isoformat()} ({age} дн. назад), "
             f"чистых пикселей {reading.valid_fraction*100:.0f}%")

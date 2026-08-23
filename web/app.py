@@ -27,6 +27,7 @@ from datetime import date
 from fastapi import Depends, FastAPI, Header, HTTPException, Path
 from fastapi.responses import JSONResponse
 
+from suv.clock import today as today_tashkent
 from suv.webauth import AuthError, TelegramUser, verify_init_data
 
 # Импорт бота даёт расчёт, доступ и справочники одним куском. Модуль
@@ -243,7 +244,7 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
         "savings": sav,
         "irrigations": irrigations,
         "journal": journal,
-        "today": date.today().isoformat(),
+        "today": today_tashkent().isoformat(),
     }
 
 

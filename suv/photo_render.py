@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from .clock import today as today_tashkent
 from .field_photo import (MoistureStats, bbox_of, moisture_color,
                           ring_to_pixels, scale_bar_m, stats_over_field)
 
@@ -95,7 +96,7 @@ def build(scene, ring: list[list[float]], *, field_name: str,
     """
     from PIL import Image, ImageChops, ImageDraw
 
-    today = today or date.today()
+    today = today or today_tashkent()
     uz = lang == "uz"
     box = bbox_of(ring)
     base = scene.rgb

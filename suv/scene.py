@@ -18,6 +18,7 @@ from io import BytesIO
 
 import requests
 
+from .clock import today as today_tashkent
 from .satellite import CATALOG_URL, PROCESS_URL, get_token
 
 # Усиление яркости для агроландшафта (ТЗ §4.2): без него поля выходят
@@ -116,7 +117,7 @@ def candidate_days(token: str, box, days: int = 20) -> list[date]:
     видно только когда кадр уже скачан.
     """
     lon0, lat0, lon1, lat1 = box
-    today = date.today()
+    today = today_tashkent()
     body = {
         "collections": ["sentinel-2-l2a"],
         "datetime": (f"{(today - timedelta(days=days)).isoformat()}T00:00:00Z/"

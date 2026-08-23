@@ -16,7 +16,7 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from .et0 import DailyWeather, solar_radiation_from_sunshine
+from .et0 import DailyWeather, daylight_hours, solar_radiation_from_sunshine
 
 
 @dataclass(frozen=True)
@@ -73,6 +73,15 @@ STATIONS: dict[str, Station] = {
 }
 
 
+def nearest_station(lat: float, lon: float) -> Station:
+    """Ближайшая к полю станция нормалей — для резервного расчёта.
+
+    Бот раньше брал Самарканд для любого поля, и ферганское поле в
+    деградированном режиме получало самаркандские нормы."""
+    return min(STATIONS.values(),
+               key=lambda s: (s.lat - lat) ** 2 + (s.lon - lon) ** 2)
+
+
 def _interp_monthly(values: tuple[float, ...], d: date) -> float:
     """Smooth a monthly table into a daily value (mid-month anchored)."""
     m = d.month - 1
@@ -93,17 +102,26 @@ def synth_day(station: Station, d: date, wet_spell: bool = False) -> DailyWeathe
     rh = min(95.0, max(15.0, _interp_monthly(station.rh_mean, d) - wob))
     frac = min(0.95, max(0.15, _interp_monthly(station.sunshine_frac, d) - abs(wob) * 0.02))
 
-    n_hours = frac * 12.0
+    # sunshine_frac — это n/N, поэтому часы солнца = доля × РЕАЛЬНОЙ
+    # долготы дня, а не × 12. С константой 12 в июле (N = 14,6 ч)
+    # доля 0,82 превращалась в 0,67: Rs на 11% ниже, резервный ET0 в пик
+    # сезона на 5-6% ниже — совет «поливать меньше» ровно тогда, когда
+    # погодный сервис лежит. Аудит 18.08.2026, climate.py:96.
+    n_hours = frac * daylight_hours(doy, station.lat)
     rs = solar_radiation_from_sunshine(n_hours, doy, station.lat)
-    rs = rs * (frac / max(frac, 0.01))  # keep the Angstrom result as-is
 
     monthly_rain = _interp_monthly(station.rain_mm, d)
-    # concentrate the month's rain into a handful of events
+    # Месячную норму собираем в события раз в девять дней — ~3,4 события
+    # в месяц, каждое в 9/30,4 нормы, итого ≈ норма. Раньше поверх них
+    # шла вторая ветка (каждый день с wob > 2 при норме > 15 мм), и
+    # генератор выдавал ~1,96 нормы: Самарканд, март, норма 70 мм ->
+    # 150,8 мм. В деградированном режиме бота (погода не пришла, расчёт
+    # по нормам от последнего полива) лишние ~80 мм фантомного дождя за
+    # весеннюю отмотку стирали реальный дефицит. Аудит 18.08.2026,
+    # climate.py:103.
     rain = 0.0
     if wet_spell or (doy % 9 == 0):
-        rain = monthly_rain / 3.5
-    if wob > 2.0 and monthly_rain > 15:
-        rain += monthly_rain / 6.0
+        rain = monthly_rain * 9.0 / 30.4
 
     return DailyWeather(
         doy=doy, t_max=round(t_max, 1), t_min=round(t_min, 1),

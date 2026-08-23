@@ -34,6 +34,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from suv.config import load_env
+from suv.clock import today as today_tashkent
 
 load_env()
 
@@ -82,7 +83,7 @@ def main() -> int:
 
     import bot.main as m
 
-    today = date.today()
+    today = today_tashkent()
     print()
     print(f"  Сегодня {today} ({WD[today.weekday()]}), база {args.db}")
     print("  " + "-" * 58)

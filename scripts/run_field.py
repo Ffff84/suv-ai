@@ -20,6 +20,7 @@ from datetime import date, timedelta
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from suv.config import load_env
+from suv.clock import today as today_tashkent
 
 load_env()
 
@@ -82,7 +83,7 @@ def get_weather(f: Field, cfg: dict, days: int, past_days: int = 0):
             print(f"! Живая погода недоступна ({type(exc).__name__}).")
             print(f"  Считаю по климатическим нормам станции «{st.name_ru}».")
             print("  Для демонстрации это допустимо. Для заявления об экономии — нет.\n")
-        start = date.today() - timedelta(days=past_days)
+        start = today_tashkent() - timedelta(days=past_days)
         return season(st, start, days + past_days), f"нормы: {st.name_ru}", past_days
 
 
@@ -109,7 +110,7 @@ def warm_start(f: Field, cfg: dict) -> tuple[WaterBalanceState, str]:
         return WaterBalanceState(d, 0.20), "задан вручную"
 
     last = date.fromisoformat(raw_date)
-    gap = (date.today() - last).days
+    gap = (today_tashkent() - last).days
     if gap <= 0:
         return WaterBalanceState(0.0, 0.20), "полив сегодня"
 
@@ -122,7 +123,7 @@ def warm_start(f: Field, cfg: dict) -> tuple[WaterBalanceState, str]:
     # 92 дней история покрывает последние 92 дня, и старые метки
     # сдвигали фазы культуры относительно погоды реальных дат.
     plan = simulate(f, hist, WaterBalanceState(0.0, 0.20),
-                    date.today() - timedelta(days=len(hist)),
+                    today_tashkent() - timedelta(days=len(hist)),
                     apply_irrigation=False)
     # Корни — из плана, не из taw_mm: у капли taw уже умножен на долю
     # смачивания (см. suv/soil.py WETTED_FRACTION).
@@ -155,15 +156,15 @@ def main() -> int:
     wx, source, _ = get_weather(f, cfg, days)
 
     rec = recommend(
-        f, wx, state, date.today(),
+        f, wx, state, today_tashkent(),
         baseline_interval_days=int(cfg.get("baseline_interval_days", 30)),
         # None означает "фермер ещё не сказал" — это не то же самое, что 0.
         baseline_application_m3_per_ha=float(cfg.get("baseline_m3_per_ha") or 0.0),
     )
 
     from suv.crop import season_start
-    origin = season_start(f.crop, f.planting_date, date.today())
-    dap = (date.today() - origin).days
+    origin = season_start(f.crop, f.planting_date, today_tashkent())
+    dap = (today_tashkent() - origin).days
     cycle = ("вегетация с " + origin.isoformat()) if f.crop.perennial else "после сева"
     print("=" * 62)
     print(f"  {f.name} · {f.hectares} га · {f.crop.name_ru}")
