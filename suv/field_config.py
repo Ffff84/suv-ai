@@ -102,6 +102,10 @@ def validate(cfg: Mapping) -> None:
         raise ValueError("pump должен быть блоком {…} или null; "
                          f"сейчас там {type(pump).__name__}")
     declared_inlet(cfg)   # румб входа воды: либо известный, либо ошибка
+    fw = cfg.get("wetted_fraction")
+    if fw is not None and not 0.0 < float(fw) <= 1.0:
+        raise ValueError("wetted_fraction — доля в (0; 1], например 0.4 "
+                         f"для капли; сейчас {fw!r}")
 
 
 def to_row(cfg: Mapping) -> dict:
@@ -136,6 +140,8 @@ def to_row(cfg: Mapping) -> dict:
         # Точка отсчёта водного баланса: без неё бот считает поле
         # «только что политым» и откладывает первый совет.
         "last_irrigation_date": cfg.get("last_irrigation_date"),
+        # Доля смачивания: null = по способу полива (капля 0,40).
+        "wetted_fraction": _opt_float(cfg.get("wetted_fraction")),
     }
 
 

@@ -28,6 +28,7 @@ from .soil import (
     readily_available_water,
     step,
     total_available_water,
+    wetted_fraction,
 )
 
 
@@ -46,6 +47,10 @@ class Field:
     water_table_depth_m: float = 0.0  # 0 = deep/unknown, no contribution
     ndvi: float | None = None
     ndvi_date: date | None = None
+    # Доля смачивания почвы поливом. None = по способу полива
+    # (soil.WETTED_FRACTION: капля 0,40, остальные 1,0). Своё значение
+    # имеет смысл, когда известны линии на ряд и шаг капельниц.
+    wetted_fraction: float | None = None
 
 
 @dataclass
@@ -66,6 +71,10 @@ class DayPlan:
     gross_mm: float = 0.0
     gross_m3: float = 0.0
     percolation_mm: float = 0.0
+    # Глубина корней отдельным полем: taw_mm у капли уже умножен на долю
+    # смачивания, и выводить из него корни обратно (taw / запас на метр)
+    # нельзя — warm-start получал бы 0,6 м вместо 1,5.
+    root_depth_m: float = 0.0
 
 
 @dataclass
@@ -98,6 +107,7 @@ def simulate(
     """
     state = WaterBalanceState(start_state.depletion_mm, start_state.last_root_depth_m)
     plan: list[DayPlan] = []
+    fw = wetted_fraction(fld.irrigation_method, fld.wetted_fraction)
 
     for i, w in enumerate(forecast):
         day = start_day + timedelta(days=i)
@@ -118,7 +128,7 @@ def simulate(
         ref, _method = et0(w, fld.lat, fld.elevation_m)
         etc = ref * kc
 
-        taw = total_available_water(fld.soil, zr)
+        taw = total_available_water(fld.soil, zr, fw)
         raw = readily_available_water(taw, fld.crop.depletion_fraction, etc)
 
         # Decide before applying the day's ET: the farmer acts in the
@@ -126,13 +136,13 @@ def simulate(
         irrigate = apply_irrigation and state.depletion_mm >= raw
         net = gross = m3 = 0.0
         if irrigate:
-            net = net_irrigation_requirement(state, fld.soil, zr)
+            net = net_irrigation_requirement(state, fld.soil, zr, fw)
             net = min(net, MAX_APPLICATION_MM.get(fld.irrigation_method, 100.0))
             gross = gross_irrigation(net, fld.irrigation_method)
             m3 = mm_to_m3(gross, fld.hectares)
 
         state, perc = step(state, fld.soil, zr, etc, w.rainfall, net,
-                           fld.water_table_depth_m)
+                           fld.water_table_depth_m, fw)
 
         plan.append(DayPlan(
             day=day, etc_mm=round(etc, 2), et0_mm=round(ref, 2),
@@ -144,6 +154,7 @@ def simulate(
             gross_mm=round(gross, 1), gross_m3=round(m3, 1),
             percolation_mm=round(perc, 1),
             salinity=salinity_risk(fld.water_table_depth_m, perc),
+            root_depth_m=round(zr, 3),
         ))
 
     return plan

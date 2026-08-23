@@ -61,6 +61,39 @@ IRRIGATION_EFFICIENCY = {
     "drip": 0.90,
 }
 
+# Доля объёма почвы, которую полив реально смачивает. У борозды, дождевания
+# и залива это весь корнеобитаемый слой; у капли — влажный «конус» под
+# капельницей, а между рядами сухо. FAO-56 таблица 20 даёт для капли
+# 0,3-0,4; Keller & Bliesner (1990) считают запас воды под капельным
+# поливом именно через эту долю: d_x = MAD · Wa · Z · Pw.
+#
+# Без этого члена движок давал саду на капле запас 1,5 м корней на ВСЮ
+# площадь — ~100 мм до порога и 20+ дней между поливами, тогда как
+# Фаррух льёт раз в четыре дня и капля смачивает меньше половины
+# объёма. Это пропущенный физический член того же рода, что капиллярный
+# подъём в Фергане: не параметр, а слагаемое, которого не было.
+# Замер 23.08.2026 на живой погоде: с долей 0,40 интервал сада ~8 дней.
+#
+# Точное значение зависит от числа линий на ряд и шага капельниц — у поля
+# может быть своё (Field.wetted_fraction); здесь только умолчания.
+WETTED_FRACTION = {
+    "furrow": 1.0,
+    "furrow_improved": 1.0,
+    "sprinkler": 1.0,
+    "drip": 0.40,
+}
+
+
+def wetted_fraction(method: str, override: float | None = None) -> float:
+    """Доля смачивания для поля: своя, если задана, иначе по способу полива.
+
+    Граница (0; 1] проверяется здесь, а не в конфиге: нулевая доля
+    обнулила бы TAW, и первый же день давал бы «порог пройден»."""
+    fw = WETTED_FRACTION.get(method, 1.0) if override is None else float(override)
+    if not 0.0 < fw <= 1.0:
+        raise ValueError(f"wetted_fraction must be in (0, 1], got {fw}")
+    return fw
+
 
 def capillary_rise(water_table_depth_m: float, root_depth_m: float,
                    etc_mm_day: float) -> float:
@@ -119,9 +152,17 @@ class WaterBalanceState:
     last_root_depth_m: float = 0.20
 
 
-def total_available_water(soil: SoilType, root_depth_m: float) -> float:
-    """TAW, mm. FAO-56 eq. 82."""
-    return soil.available_water_mm_per_m * root_depth_m
+def total_available_water(soil: SoilType, root_depth_m: float,
+                          wetted_fraction: float = 1.0) -> float:
+    """TAW, mm. FAO-56 eq. 82, умноженная на долю смачивания.
+
+    Для борозды и дождевания доля 1,0 и формула совпадает с FAO-56. Для
+    капли запас считается только во влажном объёме под капельницами:
+    корни дерева работают там, где есть вода, а сухая межрядная полоса
+    буфером не служит. Миллиметры — по-прежнему на всю площадь поля,
+    поэтому ETc, дождь и полив складываются с этим запасом без
+    пересчётов."""
+    return soil.available_water_mm_per_m * root_depth_m * wetted_fraction
 
 
 def readily_available_water(taw: float, depletion_fraction: float,
@@ -151,7 +192,7 @@ def effective_rainfall(rain_mm: float) -> float:
 
 def step(state: WaterBalanceState, soil: SoilType, root_depth_m: float,
          etc_mm: float, rain_mm: float, irrigation_mm: float = 0.0,
-         water_table_depth_m: float = 0.0
+         water_table_depth_m: float = 0.0, wetted_fraction: float = 1.0
          ) -> tuple[WaterBalanceState, float]:
     """
     Advance the balance one day. FAO-56 eq. 85.
@@ -161,7 +202,7 @@ def step(state: WaterBalanceState, soil: SoilType, root_depth_m: float,
     what raises the water table and brings salt up. Worth surfacing to
     the farmer, not hiding.
     """
-    taw = total_available_water(soil, root_depth_m)
+    taw = total_available_water(soil, root_depth_m, wetted_fraction)
 
     # Root growth reaches into soil that is already at field capacity, so
     # deepening the zone dilutes existing depletion rather than adding to it.
@@ -182,10 +223,12 @@ def step(state: WaterBalanceState, soil: SoilType, root_depth_m: float,
 
 
 def net_irrigation_requirement(state: WaterBalanceState, soil: SoilType,
-                               root_depth_m: float) -> float:
-    """Millimetres needed to refill the root zone to field capacity."""
+                               root_depth_m: float,
+                               wetted_fraction: float = 1.0) -> float:
+    """Millimetres needed to refill the (wetted) root zone to field capacity."""
     return max(0.0, min(state.depletion_mm,
-                        total_available_water(soil, root_depth_m)))
+                        total_available_water(soil, root_depth_m,
+                                              wetted_fraction)))
 
 
 def gross_irrigation(net_mm: float, method: str) -> float:

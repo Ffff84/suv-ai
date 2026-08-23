@@ -354,7 +354,11 @@ def _build_field(row) -> Field:
         crop=CROPS[row["crop_key"]], soil=SOILS[row["soil_key"]],
         planting_date=date.fromisoformat(row["planting_date"]),
         irrigation_method=row["irrigation_method"],
-        water_table_depth_m=row["water_table_depth_m"] or 0.0)
+        water_table_depth_m=row["water_table_depth_m"] or 0.0,
+        # Колонка дописана в августе 2026; на строке из старой базы её
+        # может не быть — тогда доля берётся по способу полива.
+        wetted_fraction=(row["wetted_fraction"]
+                         if "wetted_fraction" in row.keys() else None))
 
 
 def _last_irrigation(field_id: str, seeded: str | None) -> date | None:
@@ -413,8 +417,11 @@ def _rewind(fld: Field, last_irr: date | None, series: list, gap: int,
                         today - timedelta(days=len(history)),
                         apply_irrigation=False)
         last = plan[-1]
-        zr = (last.taw_mm / fld.soil.available_water_mm_per_m
-              if last.taw_mm else 0.20)
+        # Глубину корней берём из плана напрямую: taw_mm у капли умножен
+        # на долю смачивания, и деление его на запас-на-метр давало бы
+        # 0,6 м вместо 1,5 — следующий шаг баланса «растил» бы корни
+        # заново и размывал накопленный дефицит.
+        zr = last.root_depth_m or 0.20
         state = WaterBalanceState(last.depletion_mm, zr)
     return state, future
 

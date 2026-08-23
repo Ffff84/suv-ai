@@ -330,8 +330,16 @@ def test_rewind_starts_from_a_full_profile_after_irrigation():
     # 11 дней августа без полива — дефицит есть, но не запредельный,
     # и бот не назначает полив четыре дня подряд.
     assert 30.0 < state.depletion_mm < 100.0, state.depletion_mm
-    events = sum(1 for p in rec.plan if p.irrigate)
-    assert events <= 3, f"{events} поливов за 14 дней — это перелив"
+    # С долей смачивания капли (suv/soil.py WETTED_FRACTION) запас
+    # сада ~78 мм, и две недели августа честно требуют ~4 сеансов по
+    # 25 мм — ровно каденс Фарруха «раз в четыре дня», не перелив.
+    # Перелив ловим по существу: воды не больше долга плюс испарения,
+    # и не три сеанса подряд (два подряд после 11 дней простоя — долг).
+    net = sum(p.net_mm for p in rec.plan)
+    etc = sum(p.etc_mm for p in rec.plan)
+    assert net <= state.depletion_mm + etc + 1.0, (net, state.depletion_mm, etc)
+    runs = "".join("X" if p.irrigate else "." for p in rec.plan)
+    assert "XXX" not in runs, f"три полива подряд: {runs}"
 
 
 def test_rewind_without_anchor_keeps_the_old_behaviour():

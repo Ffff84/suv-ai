@@ -59,6 +59,8 @@ def load_field(path: str) -> tuple[Field, dict]:
         planting_date=date.fromisoformat(cfg["planting_date"]),
         irrigation_method=cfg["irrigation_method"],
         water_table_depth_m=float(wt),
+        wetted_fraction=(float(cfg["wetted_fraction"])
+                         if cfg.get("wetted_fraction") is not None else None),
     )
     return f, cfg
 
@@ -122,8 +124,9 @@ def warm_start(f: Field, cfg: dict) -> tuple[WaterBalanceState, str]:
     plan = simulate(f, hist, WaterBalanceState(0.0, 0.20),
                     date.today() - timedelta(days=len(hist)),
                     apply_irrigation=False)
-    st = WaterBalanceState(plan[-1].depletion_mm, plan[-1].taw_mm and
-                           plan[-1].taw_mm / f.soil.available_water_mm_per_m)
+    # Корни — из плана, не из taw_mm: у капли taw уже умножен на долю
+    # смачивания (см. suv/soil.py WETTED_FRACTION).
+    st = WaterBalanceState(plan[-1].depletion_mm, plan[-1].root_depth_m or 0.20)
     return st, f"отмотано {len(hist)} дн. от полива {last} ({src})"
 
 
