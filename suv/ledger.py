@@ -114,6 +114,11 @@ class SavingsSummary:
     # Ложь без этого флага: при незаданном baseline_m3_per_ha экономия
     # не «ноль», её просто не с чем сравнить — текст обязан сказать это.
     has_baseline: bool = True
+    # Дни между подтверждёнными поливами, когда журнал молчал дольше
+    # SILENT_GAP_INTERVALS прежних интервалов: в счёт не вошли ни базой,
+    # ни расходом. Текст обязан назвать их — иначе «экономия» читается
+    # как посчитанная за весь сезон.
+    silent_days: int = 0
 
 
 # Единственные колонки, которые upsert_field согласен принять. Имена
@@ -148,6 +153,15 @@ _ADDED_COLUMNS = (
     # полива, см. suv/soil.py WETTED_FRACTION.
     ("wetted_fraction", "REAL"),
 )
+
+
+# Сколько прежних интервалов полива подряд журнал может молчать, чтобы
+# отрезок между двумя подтверждениями ещё считался покрытым. Два: совет
+# бота честно растягивает интервал (дождь, прохлада) — это и есть
+# экономия, и она должна войти; но дольше двух привычных интервалов без
+# единой отметки — это не «сад три недели не поливали», это «фермер не
+# нажимал кнопку», и такие дни из счёта выпадают (см. savings()).
+SILENT_GAP_INTERVALS = 2
 
 
 class Ledger:
@@ -219,6 +233,24 @@ class Ledger:
                  engine_version, datetime.utcnow().isoformat()))
             c.commit()
             return cur.lastrowid
+
+    def has_action_on_day(self, field_id: str, day: date) -> bool:
+        """Есть ли у поля уже подтверждённый полив за этот день.
+
+        Утренний пуш и дневная кнопка дают две рекомендации с разными id,
+        и has_action() по id пропускал второй «✅ Suv berdim» за тот же
+        полив: расход задваивался, /tejaldi показывал антиэкономию
+        фермеру, который выполнил совет ровно один раз (аудит 18.08.2026,
+        ledger.py:363). savings() дедуплицирует по дню и сам, но запись
+        лучше не плодить: по ней же встаёт якорь водного баланса.
+        """
+        with closing(self._conn()) as c:
+            r = c.execute(
+                """SELECT 1 FROM actions a
+                   JOIN recommendations r ON r.id = a.recommendation_id
+                   WHERE r.field_id=? AND a.followed=1 AND a.actual_day=?
+                   LIMIT 1""", (field_id, day.isoformat())).fetchone()
+        return r is not None
 
     def has_action(self, recommendation_id: int) -> bool:
         """Есть ли уже отметка по этой рекомендации.
@@ -335,7 +367,7 @@ class Ledger:
 
     def savings(self, field_id: str) -> SavingsSummary:
         """
-        Derive the saving. Two honesty rules, both learned the hard way:
+        Derive the saving. Honesty rules, every one learned the hard way:
 
         1. The baseline window starts at the FIRST RECOMMENDATION, not at
            the start of the season. The bot cannot claim credit for weeks
@@ -344,6 +376,21 @@ class Ledger:
         2. No confirmed action — no claim. Until the farmer has logged at
            least one /bajardim, the saving is exactly zero, because there
            is no actual usage to subtract from the baseline.
+        3. Silence is not saving. The baseline is accrued only over
+           stretches the journal actually covers: from one confirmed
+           irrigation to the next, and only while that stretch is no
+           longer than SILENT_GAP_INTERVALS old-habit intervals. A longer
+           gap means the farmer irrigated without pressing the button (or
+           the season was over) — either way we do not know, and «do not
+           know» enters the ledger as nothing, not as free water. This one
+           rule closes three audit findings at once (18.08.2026): phantom
+           savings over unmarked irrigations, the winter gap between
+           seasons, and the baseline outrunning the journal.
+        4. One irrigation is one irrigation. A farmer who confirms the
+           same day twice (morning push + afternoon button give two
+           recommendation ids) has NOT irrigated twice: actions are
+           de-duplicated by actual_day, keeping the LARGER volume — the
+           assumption that costs the claim, not the farmer.
 
         A followed action without a metered volume counts as the
         recommended volume: "he did what we told him" is the defensible
@@ -359,41 +406,70 @@ class Ledger:
                           a.followed, a.actual_day, a.actual_m3, a.source
                    FROM recommendations r LEFT JOIN actions a
                      ON a.recommendation_id = r.id
-                   WHERE r.field_id = ?""", (field_id,)).fetchall()
+                   WHERE r.field_id = ?
+                   ORDER BY r.generated_on, r.id, a.id""", (field_id,)).fetchall()
 
         n = len({r["id"] for r in rows})
-        followed = sum(1 for r in rows if r["followed"] == 1)
-        metered = sum((r["actual_m3"] if r["actual_m3"] is not None
-                       else r["gross_m3"] or 0.0)
-                      for r in rows if r["followed"] == 1)
+        followed_rows = [r for r in rows if r["followed"] == 1]
         sources = {r["source"] for r in rows if r["source"]}
+
+        # Правило 4: один день — один полив. Из дублей остаётся больший
+        # объём; без даты дедуплицировать не по чему — такая отметка
+        # считается отдельным поливом.
+        by_day: dict = {}
+        undated = []
+        for r in followed_rows:
+            m3 = r["actual_m3"] if r["actual_m3"] is not None else (r["gross_m3"] or 0.0)
+            if r["actual_day"]:
+                d = datetime.strptime(r["actual_day"], "%Y-%m-%d").date()
+                by_day[d] = max(by_day.get(d, 0.0), m3)
+            else:
+                undated.append(m3)
+        followed = len(by_day) + len(undated)
+        metered = sum(by_day.values()) + sum(undated)
 
         base_per_ha = f["baseline_m3_per_ha"] or 0.0
         interval = f["baseline_interval_days"] or 30
+        max_gap = SILENT_GAP_INTERVALS * interval
 
-        # Окно базы кончается последним ПОДТВЕРЖДЁННЫМ поливом, а не
-        # сегодняшним днём. Иначе после единственного /bajardim база
-        # росла бы по календарю вечно: непомеченные поливы фермера
-        # входили в расход нулём, и «экономия» прибавляла base*га каждые
-        # interval дней без единого нового факта — прямое нарушение
-        # правила 2 (нет подтверждения — нет заявки).
-        confirmed_days = [r["actual_day"] for r in rows
-                          if r["followed"] == 1 and r["actual_day"]]
+        # Правило 3: база — только по покрытым окнам. Подтверждённые
+        # поливы идут по порядку от первой рекомендации (правило 1);
+        # пока соседние отметки не дальше max_gap друг от друга, они
+        # лежат в одном окне; разрыв длиннее — молчание: старое окно
+        # закрывается, новое начинается с подтверждения после разрыва.
+        # Окно длиной L дней даёт L // interval поливов по старой
+        # привычке ПЛЮС один — полив в самом начале окна (в первом окне
+        # это привычный полив в день старта, в последующих — тот
+        # подтверждённый, что открыл окно). Окно в 8 дней при интервале
+        # 4 держит три полива, а не два — иначе база отставала от расхода
+        # на один полив весь сезон, и у фермера, льющего ровно прежнюю
+        # норму, /tejaldi показывал минус вместо нуля. Считаем окном
+        # целиком, а не суммой отрезков: floor по каждому отрезку терял
+        # бы дробные интервалы у фермера, который льёт чаще привычки.
         events = 0
-        if rows and confirmed_days:
+        silent_days = 0
+        if rows and by_day:
             first_rec = min(datetime.strptime(r["generated_on"], "%Y-%m-%d").date()
                             for r in rows)
-            last_conf = max(datetime.strptime(d, "%Y-%m-%d").date()
-                            for d in confirmed_days)
-            elapsed = (last_conf - first_rec).days
-            # +1 — это полив в САМОМ НАЧАЛЕ окна, а не щедрость. По
-            # старой привычке фермер полил бы и в первый день, и через
-            # interval, и через два; окно в 8 дней при интервале 4 держит
-            # три полива, а не два. Без этого слагаемого база отставала
-            # от расхода ровно на один полив ВЕСЬ сезон, и у фермера,
-            # который льёт в точности свою прежнюю норму, /tejaldi
-            # показывал устойчивый минус вместо честного нуля.
-            events = max(0, elapsed // interval) + 1
+            window_start = first_rec
+            prev = first_rec
+            in_window = 0          # подтверждений в текущем окне
+            for d in sorted(by_day):
+                gap = (d - prev).days
+                if gap > max_gap:
+                    # Окно без единого подтверждения (первая отметка
+                    # пришла позже max_gap от первой рекомендации) не
+                    # даёт ничего — правило 2.
+                    if in_window:
+                        events += max(0, (prev - window_start).days) // interval + 1
+                    silent_days += gap
+                    window_start = d
+                    in_window = 0
+                prev = d
+                in_window += 1
+            if in_window:
+                events += max(0, (prev - window_start).days) // interval + 1
+        events += len(undated)
         baseline = base_per_ha * f["hectares"] * events
 
         # baseline == 0 значит «сравнивать не с чем» (не задан, или ни
@@ -407,4 +483,5 @@ class Ledger:
             saved_m3=round(saved, 1),
             verified=bool(sources) and sources <= {"meter", "wca"},
             has_baseline=base_per_ha > 0,
+            silent_days=silent_days,
         )

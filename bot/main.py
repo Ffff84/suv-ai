@@ -689,6 +689,11 @@ def _log_one(ctx: ContextTypes.DEFAULT_TYPE, field_id: str, rid: int,
     if hours is not None and row and row["pump_m3_per_hour"]:
         m3 = hours * row["pump_m3_per_hour"]
     actual = date.today() - timedelta(days=days_ago)
+    # Один день — один полив. Утренний пуш и дневная «Suv holati» дают
+    # две рекомендации с разными id, и проверка по id выше пропускала
+    # вторую отметку за тот же полив: расход задваивался.
+    if LEDGER.has_action_on_day(field_id, actual):
+        return f"{name}: bu kun uchun allaqachon yozib olingan."
     LEDGER.log_action(rid, followed=True, actual_day=actual,
                       actual_m3=m3, source="farmer",
                       note=f"{hours:g} soat" if hours is not None else None)

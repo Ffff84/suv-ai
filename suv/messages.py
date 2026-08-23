@@ -143,10 +143,21 @@ def savings_text(summary, lang: str = "uz") -> str:
                     "Bir sug'orishda qancha suv ketishini ayting.")
         return ("Экономию посчитать не с чем: прежний расход не задан.\n"
                 "Впишите baseline_m3_per_ha в конфиг поля.")
+    # Дни, когда журнал молчал дольше двух прежних интервалов, в счёт не
+    # вошли — и фермер должен это видеть, иначе цифра читается как «за
+    # весь сезон», а она за отмеченные отрезки.
+    silent = getattr(summary, "silent_days", 0) or 0
     if lang == "uz":
         v = "Tasdiqlangan" if summary.verified else "Fermer ma'lumoti"
-        return (f"Mavsum boshidan: {_num(summary.saved_m3)} m³ suv tejaldi.\n"
+        text = (f"Mavsum boshidan: {_num(summary.saved_m3)} m³ suv tejaldi.\n"
                 f"Manba: {v}.")
+        if silent:
+            text += (f"\n{silent} kun belgisiz qoldi — hisobga kirmadi. "
+                     "Har sug'orishdan keyin «✅ Suv berdim» bosing.")
+        return text
     v = "Подтверждено счётчиком" if summary.verified else "Со слов фермера"
-    return (f"С начала сезона сэкономлено {_num(summary.saved_m3)} м³.\n"
+    text = (f"С начала сезона сэкономлено {_num(summary.saved_m3)} м³.\n"
             f"Источник: {v}.")
+    if silent:
+        text += f"\n{silent} дн. без отметок в счёт не вошли."
+    return text

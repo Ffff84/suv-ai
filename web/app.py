@@ -173,7 +173,8 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
         sav = {"recommendations": sv.recommendations, "followed": sv.followed,
                "metered_m3": round(sv.metered_m3), "baseline_m3": round(sv.baseline_m3),
                "saved_m3": round(sv.saved_m3), "verified": sv.verified,
-               "has_baseline": sv.has_baseline}
+               "has_baseline": sv.has_baseline,
+               "silent_days": sv.silent_days}
     except Exception as exc:  # noqa: BLE001 — журнал не роняет карточку
         log.warning("экономика по %s не посчиталась: %s", field_id, exc)
 
