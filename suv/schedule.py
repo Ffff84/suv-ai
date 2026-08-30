@@ -51,6 +51,14 @@ class Field:
     # (soil.WETTED_FRACTION: капля 0,40, остальные 1,0). Своё значение
     # имеет смысл, когда известны линии на ряд и шаг капельниц.
     wetted_fraction: float | None = None
+    # Окно съёма урожая, если фермер его назвал. За
+    # crop.preharvest_hold_days до harvest_start и до конца harvest_end
+    # (или самого harvest_start, если конец неизвестен) движок не
+    # назначает поливов: налитый водой плод хуже хранится, а мокрая
+    # земля под лестницей — это ещё и битые яблоки. После окна советы
+    # возвращаются сами — дереву закладывать почки следующего года.
+    harvest_start: date | None = None
+    harvest_end: date | None = None
 
 
 @dataclass
@@ -186,6 +194,18 @@ def fixed_interval_baseline(
     return application_m3_per_ha * n * fld.hectares
 
 
+def harvest_hold_window(fld: Field) -> tuple[date, date] | None:
+    """Окно «полив остановлен на съём»: (начало сухой паузы, конец съёма).
+
+    None — дата съёма не задана, движок работает как обычно. Прошлогодние
+    даты не срабатывают сами собой: окно сравнивается с конкретными
+    днями, а не с сезоном."""
+    if fld.harvest_start is None:
+        return None
+    start = fld.harvest_start - timedelta(days=fld.crop.preharvest_hold_days)
+    return start, (fld.harvest_end or fld.harvest_start)
+
+
 def recommend(
     fld: Field,
     forecast: list[DailyWeather],
@@ -211,6 +231,18 @@ def recommend(
             field=fld, generated_on=today, action_day=None,
             gross_mm=0.0, gross_m3=0.0, reason_key=reason, days_until=-1,
             plan=plan, baseline_m3=round(baseline_m3, 1),
+            saved_m3=round(baseline_m3 - scheduled_m3, 1),
+        )
+
+    # Съём урожая: полив, попадающий в сухую паузу перед теримом или в
+    # сам съём, не назначается. Совет после конца окна — законный: это
+    # первый послеуборочный полив, он дереву нужен.
+    hold = harvest_hold_window(fld)
+    if hold and hold[0] <= action.day <= hold[1]:
+        return Recommendation(
+            field=fld, generated_on=today, action_day=None,
+            gross_mm=0.0, gross_m3=0.0, reason_key="harvest_hold",
+            days_until=-1, plan=plan, baseline_m3=round(baseline_m3, 1),
             saved_m3=round(baseline_m3 - scheduled_m3, 1),
         )
 

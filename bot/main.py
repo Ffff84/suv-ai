@@ -356,10 +356,19 @@ def _build_field(row) -> Field:
         planting_date=date.fromisoformat(row["planting_date"]),
         irrigation_method=row["irrigation_method"],
         water_table_depth_m=row["water_table_depth_m"] or 0.0,
-        # Колонка дописана в августе 2026; на строке из старой базы её
-        # может не быть — тогда доля берётся по способу полива.
+        # Колонки дописаны в августе 2026; на строке из старой базы их
+        # может не быть — тогда умолчания: доля по способу полива,
+        # съём не задан.
         wetted_fraction=(row["wetted_fraction"]
-                         if "wetted_fraction" in row.keys() else None))
+                         if "wetted_fraction" in row.keys() else None),
+        harvest_start=_opt_date(row, "harvest_start"),
+        harvest_end=_opt_date(row, "harvest_end"))
+
+
+def _opt_date(row, col: str) -> date | None:
+    if col not in row.keys() or not row[col]:
+        return None
+    return date.fromisoformat(row[col])
 
 
 def _last_irrigation(field_id: str, seeded: str | None) -> date | None:

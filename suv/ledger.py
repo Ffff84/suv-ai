@@ -131,7 +131,7 @@ _FIELD_COLUMNS = frozenset({
     "baseline_interval_days", "pump_kwh_per_hour", "pump_m3_per_hour",
     "pump_cost_per_hour_uzs", "pump_lift_m", "last_irrigation_date",
     "polygon_geojson", "area_ha", "polygon_source", "inlet_vertices",
-    "created_at", "wetted_fraction",
+    "created_at", "wetted_fraction", "harvest_start", "harvest_end",
 })
 
 # Колонки, дописанные после того, как база уже работала на пилоте.
@@ -152,6 +152,11 @@ _ADDED_COLUMNS = (
     # Доля смачивания почвы поливом (капля 0,3-0,4). NULL = по способу
     # полива, см. suv/soil.py WETTED_FRACTION.
     ("wetted_fraction", "REAL"),
+    # Окно съёма урожая (ISO-даты, NULL = не задано): за
+    # crop.preharvest_hold_days до начала и до конца окна движок
+    # не назначает поливов — режим терима.
+    ("harvest_start", "TEXT"),
+    ("harvest_end", "TEXT"),
 )
 
 

@@ -21,6 +21,7 @@ WEEKDAY_RU = ("понедельник", "вторник", "среду", "чет�
               "пятницу", "субботу", "воскресенье")
 
 REASON_UZ = {
+    "harvest_hold": "Terim davri: suvga to'lgan meva omborda yomon saqlanadi.",
     "threshold_reached": "Tuproqdagi namlik chegaraga yetdi.",
     "threshold_approaching": "Namlik tez kamaymoqda.",
     "after_rain": "Yomg'irdan keyin namlik yana kamayadi.",
@@ -28,6 +29,7 @@ REASON_UZ = {
     "soil_still_wet": "Tuproq hali yetarlicha nam.",
 }
 REASON_RU = {
+    "harvest_hold": "Идёт съём: налитый водой плод хуже лежит в хранении.",
     "threshold_reached": "Влагозапас достиг порога.",
     "threshold_approaching": "Влага убывает быстро.",
     "after_rain": "После дождя влага снова снизится.",
@@ -61,6 +63,20 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     Millimetres are the engine's unit. Hours are the farmer's.
     """
     f = rec.field
+    if rec.reason_key == "harvest_hold":
+        # Не «не требуется» — влага может быть у порога. Полив
+        # ОСТАНОВЛЕН сознательно, и фермер должен видеть разницу.
+        if lang == "uz":
+            return (f"{f.name}\n\n"
+                    f"Terim davri — sug'orish to'xtatilgan.\n"
+                    f"{REASON_UZ['harvest_hold']}\n\n"
+                    f"Terim tugagach maslahatlar qaytadi: bog' keyingi "
+                    f"mavsum uchun suv ichishi kerak.")
+        return (f"{f.name}\n\n"
+                f"Съём урожая — полив приостановлен.\n"
+                f"{REASON_RU['harvest_hold']}\n\n"
+                f"После съёма советы вернутся: саду нужен "
+                f"послеуборочный полив под будущие почки.")
     if rec.action_day is None:
         if lang == "uz":
             return (f"{f.name}\n\n"

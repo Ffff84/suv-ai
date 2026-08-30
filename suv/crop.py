@@ -38,6 +38,12 @@ class Crop:
     # (деревья 1,5-2,0).
     canopy_height_m: float = 0.0
     canopy_ml: float = 1.5
+    # За сколько дней ДО начала съёма останавливать полив, когда дата
+    # съёма известна (Field.harvest_start). Налитый водой перед съёмом
+    # плод мягче и хуже лежит в хранении; стандартная садоводческая
+    # практика — сухая пауза в 1-2 недели перед теримом, а не «без воды
+    # с сентября». Работает только при заданной дате съёма.
+    preharvest_hold_days: int = 10
 
 
 # FAO-56 Table 11 (stage lengths), Table 12 (Kc), Table 22 (Zr, p).
@@ -79,6 +85,7 @@ CROPS: dict[str, Crop] = {
         perennial=True,
         # Крона над голым междурядьем — Kc по доле покрытия.
         ndvi_kc_model="cover", canopy_height_m=3.0, canopy_ml=1.5,
+        preharvest_hold_days=14,
     ),
     "grape": Crop(
         key="grape", name_uz="Uzum", name_ru="Виноград",
