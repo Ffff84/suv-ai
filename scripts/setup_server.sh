@@ -41,6 +41,9 @@ ALLOWED_CHAT_IDS=
 OBSERVER_CHAT_IDS=
 # Закрытое демо экрана «Dala holati». Пусто = экрана нет ни у кого.
 FIELD_STATUS_CHAT_IDS=
+# Запасной источник снимков: Landsat 8/9, когда Sentinel-2 не дал кадра.
+# Ключей не требует, квоту Copernicus не тратит. Пусто = выключено.
+LANDSAT_FALLBACK=1
 EOF
   chmod 600 "$DIR/.env"
   echo "   создан шаблон $DIR/.env"
