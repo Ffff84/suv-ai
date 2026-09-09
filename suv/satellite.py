@@ -98,7 +98,15 @@ def fetch_ndvi(polygon: list[list[float]], token: str,
                         "from": f"{start.isoformat()}T00:00:00Z",
                         "to": f"{today.isoformat()}T23:59:59Z",
                     },
-                    "maxCloudCoverage": 60,
+                    # Облачность СЦЕНЫ не фильтруем. Здесь стоял
+                    # maxCloudCoverage: 60, и он выбрасывал кадр целиком
+                    # из-за облака в сорока километрах от поля — ровно
+                    # та ошибка, от которой scene.candidate_days
+                    # отказалась сознательно и с комментарием. Годность
+                    # решается долей чистых пикселей ВНУТРИ контура
+                    # (_reduce_tiff, порог 0.30), и это единственная
+                    # проверка, которая знает про наше поле, а не про
+                    # квадрат 110 км.
                     "mosaickingOrder": "mostRecent",
                 },
             }],
@@ -178,11 +186,19 @@ def _reduce_tiff(content: bytes, observed_on: date) -> NdviReading | None:
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise RuntimeError("fetch_ndvi needs rasterio + numpy installed") from exc
 
+    log = logging.getLogger("suv.satellite")
     in_field = int(inside.sum())
     if not in_field:
+        # Полигон не попал ни в один пиксель растра: чаще всего это
+        # значит, что за окно НЕ ВЕРНУЛОСЬ НИ ОДНОГО кадра, а не что
+        # было облачно. Наружу это уходило фразой «все снимки в
+        # облаках» — утверждением, которого код сделать не мог.
+        log.info("нет пикселей внутри контура за окно — кадров не было")
         return None
     frac = float(clear.sum()) / in_field
     if frac < 0.30:
+        log.info("чистых пикселей внутри контура %.0f%% (нужно 30%%) — кадр отброшен",
+                 frac * 100)
         return None  # too clouded to trust
     return NdviReading(value=float(ndvi[clear].mean()),
                        observed_on=observed_on, valid_fraction=frac)

@@ -83,3 +83,25 @@ def test_sunshine_hours_scale_with_day_length():
     ref, method = et0(jul, st.lat, st.elevation_m)
     assert method == "penman-monteith"
     assert 6.0 < ref < 9.0, ref        # FAO-56 диапазон для сухого жаркого лета
+
+
+def test_ndvi_path_never_filters_by_scene_cloudiness():
+    """Годность кадра решает поле, а не квадрат 110 километров.
+
+    scene.candidate_days отказалась от фильтра по облачности сцены
+    сознательно и с комментарием: облако в сорока километрах от участка
+    выбраковывает совершенно годный кадр. suv/satellite.py — путь, по
+    которому NDVI попадает в РЕКОМЕНДАЦИЮ — при этом просил
+    maxCloudCoverage: 60.
+
+    Как это выглядело в проде 09.09.2026: Sentinel-2 двенадцать дней
+    подряд «не давал годного кадра», а Landsat в тот же день брал кадр
+    от 06.09 со 100% чистых пикселей внутри контура. Небо было ясным;
+    отбраковывал фильтр.
+    """
+    for rel in ("suv/satellite.py", "suv/scene.py"):
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        offending = [ln for ln in src.splitlines()
+                     if "maxCloudCoverage" in ln and not ln.strip().startswith("#")]
+        assert not offending, (
+            f"{rel}: фильтр по облачности сцены вернулся — {offending}")

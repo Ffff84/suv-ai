@@ -75,7 +75,12 @@ def _sentinel2(fld, poly: list, window_days: int) -> str:
         return f"спутник: снимок не получен ({type(exc).__name__})"
 
     if reading is None:
-        return f"спутник: за {window_days} дн. все снимки в облаках"
+        # Не «все снимки в облаках»: этого код не знает. Он знает, что
+        # годного кадра не набралось — кадров не было вовсе, или внутри
+        # контура меньше 30% чистых пикселей. Какое из двух — говорит
+        # строка suv.satellite в том же логе.
+        return (f"спутник: за {window_days} дн. годного кадра нет "
+                f"(причина строкой выше)")
 
     fld.ndvi = reading.value
     fld.ndvi_date = reading.observed_on
