@@ -83,6 +83,31 @@ def parse_daily(d: dict) -> list[DailyWeather]:
     return out
 
 
+ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+
+
+def fetch_elevation(lat: float, lon: float, timeout: int = 8) -> float | None:
+    """Высота точки над уровнем моря, м. None = не узнали.
+
+    Высота входит в ET0 через атмосферное давление (FAO-56 ур. 7)
+    и психрометрическую постоянную. В мастере регистрации
+    стояли жёсткие 500 м для всех — от Хорезма (около 100 м) до
+    горных долин (выше 1500 м), хотя точка у нас уже есть.
+
+    Спрашивается один раз при заведении поля и НИЧЕГО не роняет:
+    не ответили — вызывающий ставит своё умолчание, как раньше.
+    """
+    try:
+        r = requests.get(ELEVATION_URL,
+                         params={"latitude": lat, "longitude": lon},
+                         timeout=timeout)
+        r.raise_for_status()
+        vals = r.json().get("elevation") or []
+        return float(vals[0]) if vals else None
+    except Exception:  # noqa: BLE001 — высота не повод не завести поле
+        return None
+
+
 def fetch_forecast(lat: float, lon: float, days: int = 16,
                    past_days: int = 0, timeout: int = 20) -> list[DailyWeather]:
     """

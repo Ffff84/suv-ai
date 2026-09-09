@@ -105,3 +105,29 @@ def test_ndvi_path_never_filters_by_scene_cloudiness():
                      if "maxCloudCoverage" in ln and not ln.strip().startswith("#")]
         assert not offending, (
             f"{rel}: фильтр по облачности сцены вернулся — {offending}")
+
+
+def test_wizard_asks_for_soil_instead_of_assuming_loam():
+    """Почва — вход движка, а не косметика: TAW и RAW считаются прямо из
+    неё, и песок против глины даёт разницу запаса влаги почти вдвое.
+
+    До 09.09.2026 каждое поле, заведённое через бота, получало
+    soil_key="loam" — то есть КАЖДОЕ поле каждого, кто пришёл сам, а не
+    через агронома. На этом пути сейчас сидят члены жюри.
+    """
+    import bot.main as B
+    from suv.soil import SOILS
+
+    assert set(B.SOIL_BY_ANSWER.values()) <= set(SOILS), \
+        "ответ мастера ведёт на несуществующий тип почвы"
+    assert len(set(B.SOIL_BY_ANSWER.values())) == 3, \
+        "три ответа должны давать три РАЗНЫХ почвы, иначе вопрос бутафория"
+
+    # Комментарии не считаем: в них хардкод как раз и объясняется.
+    code = [ln for ln in (ROOT / "bot" / "main.py")
+            .read_text(encoding="utf-8").splitlines()
+            if not ln.strip().startswith("#")]
+    assert not [ln for ln in code if 'soil_key="loam"' in ln], \
+        "почва снова захардкожена вместо ответа фермера"
+    assert not [ln for ln in code if "elevation_m=500.0," in ln], \
+        "высота снова захардкожена вместо точки, которую прислал фермер"

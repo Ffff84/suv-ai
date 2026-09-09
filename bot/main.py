@@ -58,7 +58,7 @@ from suv.ledger import Ledger
 from suv.messages import recommendation_text, salinity_warning, savings_text
 from suv.schedule import Field, recommend, simulate
 from suv.soil import SOILS, WaterBalanceState
-from suv.weather import fetch_forecast
+from suv.weather import fetch_elevation, fetch_forecast
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -67,7 +67,7 @@ logging.basicConfig(level=logging.INFO,
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("suv.bot")
 
-CROP, PLANTING, HECTARES, METHOD, LOCATION = range(5)
+CROP, PLANTING, HECTARES, METHOD, SOIL, LOCATION = range(6)
 LEDGER = Ledger(os.environ.get("SUV_DB", "suv.db"))
 
 def _ids_from_env(name: str) -> set[int]:
@@ -318,10 +318,39 @@ async def got_hectares(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     return METHOD
 
 
+# Тип почвы фермерским языком. Спрашивать «суглинок или супесь» у
+# дехканина бессмысленно, а знать надо: TAW и RAW считаются напрямую из
+# него, и песок против глины — это разница запаса влаги почти вдвое.
+# Здесь стояло жёсткое soil_key="loam" для КАЖДОГО поля, заведённого
+# через бота, — то есть для всех, кто пришёл сам.
+SOIL_FAST = "Tez singadi"
+SOIL_MID = "O'rtacha"
+SOIL_SLOW = "Uzoq turadi"
+SOIL_BY_ANSWER = {SOIL_FAST: "sand", SOIL_MID: "loam", SOIL_SLOW: "clay"}
+
+
 async def got_method(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     t = update.message.text
     ctx.user_data["method"] = ("drip" if "Tomchi" in t
                                else "sprinkler" if "Yomg" in t else "furrow")
+    await update.message.reply_text(
+        "Sug'organingizdan keyin suv yerga qanday singadi?",
+        reply_markup=ReplyKeyboardMarkup(
+            [[SOIL_FAST], [SOIL_MID], [SOIL_SLOW]],
+            one_time_keyboard=True, resize_keyboard=True))
+    return SOIL
+
+
+async def got_soil(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    key = SOIL_BY_ANSWER.get((update.message.text or "").strip())
+    if key is None:
+        await update.message.reply_text(
+            "Uchta javobdan birini tanlang.",
+            reply_markup=ReplyKeyboardMarkup(
+                [[SOIL_FAST], [SOIL_MID], [SOIL_SLOW]],
+                one_time_keyboard=True, resize_keyboard=True))
+        return SOIL
+    ctx.user_data["soil"] = key
     await update.message.reply_text(
         "Oxirgi qadam: dalangiz joylashuvini yuboring.",
         reply_markup=ReplyKeyboardMarkup(
@@ -335,10 +364,19 @@ async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     chat = update.effective_chat.id
     fid = f"TG-{chat}"
 
+    # Высота — из точки, которую фермер только что прислал, а не 500 м
+    # для всех подряд: она входит в ET0 через атмосферное давление
+    # (FAO-56 ур. 7). Не ответили — остаётся прежнее умолчание.
+    elev = await asyncio.to_thread(fetch_elevation, loc.latitude, loc.longitude)
+    if elev is None:
+        log.info("%s: высота не получена, беру 500 м", fid)
+
     LEDGER.upsert_field(
         field_id=fid, name="Mening dalam", owner_chat_id=chat,
         hectares=ctx.user_data["hectares"], lat=loc.latitude, lon=loc.longitude,
-        elevation_m=500.0, crop_key=ctx.user_data["crop"], soil_key="loam",
+        elevation_m=500.0 if elev is None else elev,
+        crop_key=ctx.user_data["crop"],
+        soil_key=ctx.user_data.get("soil", "loam"),
         planting_date=ctx.user_data["planting"].isoformat(),
         irrigation_method=ctx.user_data["method"],
         water_table_depth_m=0.0, baseline_m3_per_ha=None,
@@ -2141,6 +2179,7 @@ def main() -> None:
             PLANTING: [MessageHandler(not_menu, got_planting)],
             HECTARES: [MessageHandler(not_menu, got_hectares)],
             METHOD: [MessageHandler(not_menu, got_method)],
+            SOIL: [MessageHandler(not_menu, got_soil)],
             LOCATION: [MessageHandler(filters.LOCATION, got_location)],
         },
         fallbacks=[
