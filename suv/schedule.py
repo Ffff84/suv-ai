@@ -47,6 +47,9 @@ class Field:
     water_table_depth_m: float = 0.0  # 0 = deep/unknown, no contribution
     ndvi: float | None = None
     ndvi_date: date | None = None
+    # MSAVI того же снимка: для модели Kc по доле покрытия («cover»)
+    # почвенный фон гасится им; None — источник без MSAVI.
+    msavi: float | None = None
     # Доля смачивания почвы поливом. None = по способу полива
     # (soil.WETTED_FRACTION: капля 0,40, остальные 1,0). Своё значение
     # имеет смысл, когда известны линии на ряд и шаг капельниц.
@@ -132,6 +135,13 @@ def simulate(
         ndvi_kc = None
         ndvi_age = 99
         if fld.ndvi is not None and fld.ndvi_date is not None:
+            # MSAVI сюда СОЗНАТЕЛЬНО не передаётся. Живой замер 09.09.2026
+            # на саду: fc по MSAVI 0,30 против 0,42 по NDVI — Kc падает на
+            # 22% при нуле полевой правды о реальной доле кроны. Единственная
+            # валидация уровня (совпадение интервалов с практикой Фарруха)
+            # на стороне NDVI-шкалы, поэтому MSAVI пока данные и разбор
+            # (fld.msavi, suv/indices.py), а не совет. Включать — после
+            # ответа Фарруха о доле кроны и офлайн-сверки рядов за сезон.
             ndvi_kc = kc_from_ndvi(fld.ndvi, fld.crop)
             ndvi_age = (day - fld.ndvi_date).days
         kc, kc_source = blended_kc(stage.kc, ndvi_kc, ndvi_age)

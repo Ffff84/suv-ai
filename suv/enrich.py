@@ -79,6 +79,7 @@ def _sentinel2(fld, poly: list, window_days: int) -> str:
 
     fld.ndvi = reading.value
     fld.ndvi_date = reading.observed_on
+    fld.msavi = reading.msavi
     return (f"Sentinel-2: NDVI {reading.value:.3f}, "
             f"чистых пикселей {reading.valid_fraction*100:.0f}%")
 
@@ -97,6 +98,7 @@ def _landsat(fld, poly: list, window_days: int, before: str) -> str:
 
     fld.ndvi = reading.value
     fld.ndvi_date = reading.observed_on
+    fld.msavi = reading.msavi   # у Landsat-резерва его нет — None
     # Возраст кадра в строку обязателен: у Landsat отставание около девяти
     # дней, и blended_kc обнулит вес такого снимка к четырнадцатому. Без
     # даты в логе «спутник сработал» читалось бы как «свежий снимок есть».
