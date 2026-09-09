@@ -47,6 +47,29 @@ def _num(v: float) -> str:
     return f"{v:,.0f}".replace(",", "\u00a0")
 
 
+def snapshot_line(rec, lang: str = "uz") -> str:
+    """Возраст и источник числа, на котором стоит совет.
+
+    Без этой строки фермер не отличает совет по свежему снимку от совета
+    по чистому календарю: сообщение выглядит одинаково уверенным и в том,
+    и в другом случае. Статус спутника до сих пор уходил только в
+    log.info — то есть виден был нам и не виден тому, кто по нему
+    поливает.
+    """
+    d = getattr(rec.field, "ndvi_date", None)
+    if d is None:
+        return ("Surat yo'q — hisob kalendar bo'yicha." if lang == "uz"
+                else "Снимка нет — расчёт по календарю.")
+    age = (rec.generated_on - d).days
+    if lang == "uz":
+        when = "bugungi" if age <= 0 else ("kechagi" if age == 1
+                                           else f"{age} kun oldingi")
+        return f"Sun'iy yo'ldosh surati — {when}."
+    when = "сегодняшний" if age <= 0 else ("вчерашний" if age == 1
+                                           else f"{age} дн. назад")
+    return f"Снимок со спутника — {when}."
+
+
 def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     """
     The message that actually goes out.
@@ -58,19 +81,24 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     that is the control he actually operates and the thing his
     electricity bill is made of.
 
-    Millimetres are the engine's unit. Hours are the farmer's.
+    Millimetres are the engine's unit. Hours are the farmer's — and on a
+    gravity-fed field, where there is no pump and no hours to give, the
+    farmer's unit is cubic metres per hectare, the one the water
+    authority also writes his limit in. Millimetres never leave the
+    engine: they live in the cabinet and in the log.
     """
     f = rec.field
+    snap = snapshot_line(rec, lang)
     if rec.action_day is None:
         if lang == "uz":
             return (f"{f.name}\n\n"
                     f"Bu hafta sug'orish shart emas.\n"
                     f"{REASON_UZ.get(rec.reason_key, '')}\n\n"
-                    f"Keyingi tekshiruv — ertaga ertalab.")
+                    f"Keyingi tekshiruv — ertaga ertalab.\n{snap}")
         return (f"{f.name}\n\n"
                 f"На этой неделе полив не требуется.\n"
                 f"{REASON_RU.get(rec.reason_key, '')}\n\n"
-                f"Следующая проверка — завтра утром.")
+                f"Следующая проверка — завтра утром.\n{snap}")
 
     hours = None
     if pump is not None and getattr(pump, "m3_per_hour", 0):
@@ -99,28 +127,34 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     far_uz = "\nSana yaqinlashganda aniqlashadi." if rec.days_until >= 7 else ""
     far_ru = "\nДата уточнится по мере приближения." if rec.days_until >= 7 else ""
 
+    # Поле без насоса — самотёк. Миллиметры там были единицей движка, а
+    # не фермера: поливная норма, в которой думают и дехканин, и водхоз,
+    # меряется в кубах на гектар (600-1200). Часы подачи для самотёка не
+    # выдумываем — расход канала в л/с мы не знаем и оценить не можем.
+    per_ha = rec.gross_m3 / f.hectares if f.hectares else 0.0
+
     if lang == "uz":
         head = (f"{when_uz} nasosni {hours:.0f} soat ishlating."
                 if hours is not None
-                else f"{when_uz}, {rec.gross_mm:.0f} mm.")
+                else f"{when_uz} sug'oring, gektariga {_num(per_ha)} m³.")
         tail = (f"Taxminan {_num(rec.gross_m3)} m³ suv "
                 f"({f.hectares:.1f} ga).")
         if hours is not None and getattr(pump, "cost_per_hour_uzs", 0):
             tail += (f"\nElektr uchun taxminan "
                      f"{_num(hours * pump.cost_per_hour_uzs)} so'm.")
         return (f"{f.name}\n\n{head}\n{REASON_UZ.get(rec.reason_key, '')}"
-                f"{far_uz}\n\n{tail}")
+                f"{far_uz}\n\n{tail}\n{snap}")
 
     head = (f"{when_ru} включите насос на {hours:.0f} ч."
             if hours is not None
-            else f"{when_ru}, {rec.gross_mm:.0f} мм.")
+            else f"{when_ru} полейте, {_num(per_ha)} м³ на гектар.")
     tail = (f"Примерно {_num(rec.gross_m3)} м³ воды "
             f"({f.hectares:.1f} га).")
     if hours is not None and getattr(pump, "cost_per_hour_uzs", 0):
         tail += (f"\nЭлектричество — около "
                  f"{_num(hours * pump.cost_per_hour_uzs)} сум.")
     return (f"{f.name}\n\n{head}\n{REASON_RU.get(rec.reason_key, '')}"
-            f"{far_ru}\n\n{tail}")
+            f"{far_ru}\n\n{tail}\n{snap}")
 
 
 def salinity_warning(level: str, lang: str = "uz") -> str | None:

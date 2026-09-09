@@ -1,4 +1,7 @@
 from datetime import date, timedelta
+
+import pytest
+
 from suv.crop import CROPS, stage_and_kc, root_depth, kc_from_ndvi, blended_kc
 from suv.soil import (SOILS, WaterBalanceState, total_available_water,
                       readily_available_water, effective_rainfall, step,
@@ -125,9 +128,20 @@ def test_heavy_rain_defers_the_irrigation():
 
 def test_full_season_use_matches_uzbek_agronomic_norms():
     """
-    Reality anchor. Cotton in Uzbekistan is irrigated with roughly
-    5,000-7,000 m3/ha across a full season. If the engine lands far
-    outside that band it is wrong, no matter how elegant the maths.
+    Sanity bound, NOT a validation. It catches an engine that has gone
+    an order of magnitude wrong; it does not prove the engine is right.
+
+    The 5,000-7,000 m3/ha band this test was written against has no
+    citation anywhere in the repository — it entered as working
+    knowledge and was never traced to a source. The competitor review of
+    09.09.2026 (RAZVEDKA-ONESOIL.md) surfaced published and official
+    figures for Uzbek cotton that sit HIGHER than that band; those
+    figures are themselves unverified against a primary source, so
+    neither number is quoted here.
+
+    Until someone puts a dated primary source next to it, this assert is
+    a guard rail with a deliberately wide gate, and no README, landing
+    page or pitch may describe passing it as "inside the norm".
     """
     from suv.climate import STATIONS, season
     st = STATIONS["fergana"]
@@ -276,3 +290,63 @@ def test_orchard_water_use_lands_in_a_sane_band():
                     WaterBalanceState(10.0, 0.20), date(2026, 3, 20))
     total = sum(p.gross_m3 for p in plan)
     assert 3000 < total < 9000, f"{total:.0f} m3/ha for a drip orchard"
+
+
+# ---- honesty: no baseline, no saving ----
+
+def test_recommend_invents_no_baseline_when_the_farmer_never_gave_one():
+    """
+    Uzumzor has no baseline_m3_per_ha: nobody ever asked the vineyard
+    owner what he used last season. The engine used to fill that hole
+    with "typical practice" — 30 days at 1100 m3/ha — and every field
+    came back with a baseline and a saving that no farmer had ever
+    confirmed. Nothing printed those numbers yet, which is exactly why
+    it survived so long.
+
+    Absent baseline must read as absent, not as zero and not as typical.
+    """
+    f = fergana_field()
+    rec = recommend(f, july_forecast(), WaterBalanceState(40.0, 1.35),
+                    date(2026, 7, 1))
+    assert rec.baseline_m3 is None
+    assert rec.saved_m3 is None
+
+
+def test_recommend_uses_the_farmers_own_baseline_when_given():
+    f = fergana_field(hectares=1.0)
+    rec = recommend(f, july_forecast(days=14), WaterBalanceState(40.0, 1.35),
+                    date(2026, 7, 1),
+                    baseline_interval_days=4,
+                    baseline_application_m3_per_ha=228.6)
+    assert rec.baseline_m3 is not None and rec.baseline_m3 > 0
+    assert rec.saved_m3 == pytest.approx(
+        rec.baseline_m3 - sum(p.gross_m3 for p in rec.plan), abs=0.2)
+
+
+# ---- honesty: the farmer sees how old the number is ----
+
+def test_message_says_when_the_snapshot_is_from():
+    """
+    Advice built on a four-day-old NDVI frame and advice built on the
+    calendar alone used to look identical to the farmer. The satellite
+    status only ever went to log.info — visible to us, invisible to the
+    person doing the irrigating.
+    """
+    from suv.messages import recommendation_text
+    f = fergana_field()
+    f.ndvi, f.ndvi_date = 0.62, date(2026, 6, 27)
+    rec = recommend(f, july_forecast(), WaterBalanceState(40.0, 1.35),
+                    date(2026, 7, 1))
+    uz = recommendation_text(rec, "uz")
+    assert "4 kun oldingi" in uz
+    ru = recommendation_text(rec, "ru")
+    assert "4 дн. назад" in ru
+
+
+def test_message_admits_when_there_is_no_snapshot_at_all():
+    from suv.messages import recommendation_text
+    f = fergana_field()          # ndvi_date is None
+    rec = recommend(f, july_forecast(), WaterBalanceState(40.0, 1.35),
+                    date(2026, 7, 1))
+    assert "kalendar bo'yicha" in recommendation_text(rec, "uz")
+    assert "по календарю" in recommendation_text(rec, "ru")

@@ -87,8 +87,12 @@ class Recommendation:
     reason_key: str
     days_until: int
     plan: list[DayPlan] = field(default_factory=list)
-    baseline_m3: float = 0.0
-    saved_m3: float = 0.0
+    # None = прежний расход фермера неизвестен. Ноль здесь был бы не
+    # правдой, а отсутствием данных: на поле без baseline «сэкономлено
+    # 0 м³» и «сравнивать не с чем» — разные утверждения, и второе
+    # нельзя молча превращать в первое.
+    baseline_m3: float | None = None
+    saved_m3: float | None = None
 
 
 def simulate(
@@ -191,18 +195,29 @@ def recommend(
     forecast: list[DailyWeather],
     start_state: WaterBalanceState,
     today: date,
-    baseline_interval_days: int = 30,
-    baseline_application_m3_per_ha: float = 1100.0,
+    baseline_interval_days: int | None = None,
+    baseline_application_m3_per_ha: float | None = None,
 ) -> Recommendation:
-    """Produce the single instruction that goes out over Telegram."""
+    """Produce the single instruction that goes out over Telegram.
+
+    Прежний расход фермера НЕ подставляется по умолчанию. Раньше здесь
+    стояли 30 дней и 1100 м³/га — «типичная практика», из-за которой
+    любое поле получало базу и мнимую экономию, включая виноградник
+    Uzumzor, где расхода никто не называл. Не передали baseline —
+    baseline_m3 и saved_m3 остаются None, и напечатать их нечем.
+    """
     plan = simulate(fld, forecast, start_state, today)
 
     action = next((p for p in plan if p.irrigate), None)
     scheduled_m3 = sum(p.gross_m3 for p in plan)
-    baseline_m3 = fixed_interval_baseline(
-        fld, forecast, start_state, today,
-        baseline_interval_days, baseline_application_m3_per_ha,
-    )
+    if baseline_application_m3_per_ha and baseline_interval_days:
+        baseline_m3 = round(fixed_interval_baseline(
+            fld, forecast, start_state, today,
+            baseline_interval_days, baseline_application_m3_per_ha,
+        ), 1)
+        saved_m3 = round(baseline_m3 - scheduled_m3, 1)
+    else:
+        baseline_m3 = saved_m3 = None
 
     if action is None:
         rain_ahead = sum(p.rain_mm for p in plan)
@@ -210,8 +225,7 @@ def recommend(
         return Recommendation(
             field=fld, generated_on=today, action_day=None,
             gross_mm=0.0, gross_m3=0.0, reason_key=reason, days_until=-1,
-            plan=plan, baseline_m3=round(baseline_m3, 1),
-            saved_m3=round(baseline_m3 - scheduled_m3, 1),
+            plan=plan, baseline_m3=baseline_m3, saved_m3=saved_m3,
         )
 
     days_until = (action.day - today).days
@@ -226,6 +240,5 @@ def recommend(
         field=fld, generated_on=today, action_day=action.day,
         gross_mm=action.gross_mm, gross_m3=action.gross_m3,
         reason_key=reason, days_until=days_until, plan=plan,
-        baseline_m3=round(baseline_m3, 1),
-        saved_m3=round(baseline_m3 - scheduled_m3, 1),
+        baseline_m3=baseline_m3, saved_m3=saved_m3,
     )

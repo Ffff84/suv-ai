@@ -157,9 +157,9 @@ def main() -> int:
 
     rec = recommend(
         f, wx, state, today_tashkent(),
-        baseline_interval_days=int(cfg.get("baseline_interval_days", 30)),
+        baseline_interval_days=cfg.get("baseline_interval_days"),
         # None означает "фермер ещё не сказал" — это не то же самое, что 0.
-        baseline_application_m3_per_ha=float(cfg.get("baseline_m3_per_ha") or 0.0),
+        baseline_application_m3_per_ha=cfg.get("baseline_m3_per_ha"),
     )
 
     from suv.crop import season_start

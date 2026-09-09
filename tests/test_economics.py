@@ -128,10 +128,19 @@ def test_pumped_field_is_told_in_hours_and_money():
     assert "nasosni" in uz and "soat" in uz
 
 
-def test_gravity_field_falls_back_to_millimetres():
-    """No pump means no hours and — critically — no money claim."""
+def test_gravity_field_speaks_cubic_metres_per_hectare():
+    """No pump means no hours and — critically — no money claim.
+
+    Единица самотёчного поля — кубы на гектар, а не миллиметры: в них
+    думает и дехканин, и водхоз, и в них же с апреля 2026 выписывается
+    лимит. Миллиметры остаются единицей движка и наружу не выходят.
+    """
     from suv.messages import recommendation_text
     rec = _rec_for_message()
     ru = recommendation_text(rec, "ru", pump=None)
-    assert "мм" in ru
+    assert "м³ на гектар" in ru
+    assert "мм" not in ru
     assert "сум" not in ru
+    uz = recommendation_text(rec, "uz", pump=None)
+    assert "gektariga" in uz and "m³" in uz
+    assert "mm" not in uz and "so'm" not in uz
