@@ -91,6 +91,21 @@ CREATE TABLE IF NOT EXISTS actions (
 
 CREATE INDEX IF NOT EXISTS idx_rec_field ON recommendations(field_id, generated_on);
 
+-- Полевые заметки фермера: фото (file_id Телеграма — сам файл живёт у
+-- Телеграма), подпись, дата и, если фермер прислал локацию следом, —
+-- точка. Свидетельства для журнала и разборов: «вода дошла до края»
+-- фотографией убедительнее слов.
+CREATE TABLE IF NOT EXISTS field_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    field_id TEXT NOT NULL REFERENCES fields(field_id),
+    chat_id INTEGER,
+    taken_on TEXT NOT NULL,
+    file_id TEXT,
+    caption TEXT,
+    lat REAL, lon REAL,
+    created_at TEXT NOT NULL
+);
+
 -- Метрика экрана «Dala holati»: каждая строка — фермер сам открыл
 -- состояние поля. Для питча это возвраты между пушами, а не рассылка.
 CREATE TABLE IF NOT EXISTS field_status_views (
@@ -131,7 +146,7 @@ _FIELD_COLUMNS = frozenset({
     "baseline_interval_days", "pump_kwh_per_hour", "pump_m3_per_hour",
     "pump_cost_per_hour_uzs", "pump_lift_m", "last_irrigation_date",
     "polygon_geojson", "area_ha", "polygon_source", "inlet_vertices",
-    "created_at", "wetted_fraction",
+    "created_at", "wetted_fraction", "harvest_start", "harvest_end",
 })
 
 # Колонки, дописанные после того, как база уже работала на пилоте.
@@ -152,6 +167,11 @@ _ADDED_COLUMNS = (
     # Доля смачивания почвы поливом (капля 0,3-0,4). NULL = по способу
     # полива, см. suv/soil.py WETTED_FRACTION.
     ("wetted_fraction", "REAL"),
+    # Окно съёма урожая (ISO-даты, NULL = не задано): за
+    # crop.preharvest_hold_days до начала и до конца окна движок
+    # не назначает поливов — режим терима.
+    ("harvest_start", "TEXT"),
+    ("harvest_end", "TEXT"),
 )
 
 
@@ -355,6 +375,41 @@ class Ledger:
                        datetime.utcnow().isoformat(),
                        latest_seen or scene_day, field_id))
             c.commit()
+
+    def add_note(self, field_id: str, chat_id: int | None, taken_on: date,
+                 file_id: str | None = None,
+                 caption: str | None = None) -> int:
+        """Полевая заметка. Возвращает id — к нему может приехать локация."""
+        with closing(self._conn()) as c:
+            cur = c.execute(
+                """INSERT INTO field_notes
+                   (field_id, chat_id, taken_on, file_id, caption, created_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (field_id, chat_id, taken_on.isoformat(), file_id, caption,
+                 datetime.utcnow().isoformat()))
+            c.commit()
+            return cur.lastrowid
+
+    def attach_note_location(self, note_id: int, lat: float,
+                             lon: float) -> bool:
+        """Приложить точку к заметке — один раз: локация, присланная
+        позже по другому поводу, не должна тихо переписать место."""
+        with closing(self._conn()) as c:
+            cur = c.execute(
+                "UPDATE field_notes SET lat=?, lon=? "
+                "WHERE id=? AND lat IS NULL",
+                (lat, lon, note_id))
+            c.commit()
+            return cur.rowcount > 0
+
+    def notes(self, field_id: str, limit: int = 20) -> list:
+        """Свежие заметки поля, новые сверху."""
+        with closing(self._conn()) as c:
+            return c.execute(
+                """SELECT id, taken_on, file_id, caption, lat, lon
+                   FROM field_notes WHERE field_id=?
+                   ORDER BY id DESC LIMIT ?""",
+                (field_id, limit)).fetchall()
 
     def log_field_status_view(self, field_id: str,
                               chat_id: int | None = None) -> None:

@@ -24,6 +24,9 @@
   "polygon": null,
 
   "last_irrigation_date": "2026-07-28",
+  "_терим": "Окно съёма урожая (даты ГГГГ-ММ-ДД или null). За 1-2 недели до harvest_start и до конца harvest_end бот не советует поливать: налитый плод хуже хранится.",
+  "harvest_start": null,
+  "harvest_end": null,
   "current_depletion_mm": 0,
   "forecast_days": 14,
 

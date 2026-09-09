@@ -38,6 +38,12 @@ class Crop:
     # (деревья 1,5-2,0).
     canopy_height_m: float = 0.0
     canopy_ml: float = 1.5
+    # За сколько дней ДО начала съёма останавливать полив, когда дата
+    # съёма известна (Field.harvest_start). Налитый водой перед съёмом
+    # плод мягче и хуже лежит в хранении; стандартная садоводческая
+    # практика — сухая пауза в 1-2 недели перед теримом, а не «без воды
+    # с сентября». Работает только при заданной дате съёма.
+    preharvest_hold_days: int = 10
 
 
 # FAO-56 Table 11 (stage lengths), Table 12 (Kc), Table 22 (Zr, p).
@@ -79,6 +85,7 @@ CROPS: dict[str, Crop] = {
         perennial=True,
         # Крона над голым междурядьем — Kc по доле покрытия.
         ndvi_kc_model="cover", canopy_height_m=3.0, canopy_ml=1.5,
+        preharvest_hold_days=14,
     ),
     "grape": Crop(
         key="grape", name_uz="Uzum", name_ru="Виноград",
@@ -205,17 +212,32 @@ def root_depth(crop: Crop, dap: int, years_since_planting: float | None = None) 
 # но конверт культуры ниже всё равно не пускает.
 NDVI_BARE_SOIL = 0.15
 NDVI_FULL_COVER = 0.85
+# Те же границы для MSAVI (MSAVI2, Qi et al. 1994). MSAVI гасит вклад
+# яркости почвы, поэтому на редком пологе — сад с голым междурядьем,
+# молодой хлопок — доля покрытия по нему устойчивее: тёмная мокрая
+# земля после полива не рисует «прирост кроны», светлая сухая не
+# стирает его. Диапазон литературный, не полевая калибровка: у
+# сомкнутого полога MSAVI насыщается ниже NDVI.
+MSAVI_BARE_SOIL = 0.10
+MSAVI_FULL_COVER = 0.75
 # Kc почти голой почвы между поливами (FAO-56, Kc_min).
 KC_MIN = 0.15
 
 
-def fraction_cover(ndvi: float) -> float:
-    """Доля земли под кроной по NDVI, 0..1."""
-    fc = (ndvi - NDVI_BARE_SOIL) / (NDVI_FULL_COVER - NDVI_BARE_SOIL)
+def fraction_cover(ndvi: float, msavi: float | None = None) -> float:
+    """Доля земли под кроной, 0..1.
+
+    Если у кадра есть MSAVI — считаем по нему (почвенный фон подавлен),
+    NDVI остаётся точкой отсчёта для источников без MSAVI (Landsat-резерв,
+    старые записи журнала)."""
+    if msavi is not None:
+        fc = (msavi - MSAVI_BARE_SOIL) / (MSAVI_FULL_COVER - MSAVI_BARE_SOIL)
+    else:
+        fc = (ndvi - NDVI_BARE_SOIL) / (NDVI_FULL_COVER - NDVI_BARE_SOIL)
     return min(max(fc, 0.0), 1.0)
 
 
-def kc_from_ndvi(ndvi: float, crop: Crop) -> float:
+def kc_from_ndvi(ndvi: float, crop: Crop, msavi: float | None = None) -> float:
     """
     Kc estimated from satellite NDVI.
 
@@ -256,7 +278,7 @@ def kc_from_ndvi(ndvi: float, crop: Crop) -> float:
     # limit, which quietly defeats the guard.
     lo, hi = crop.kc_ini * 0.6, crop.kc_mid * 1.05
     if crop.ndvi_kc_model == "cover":
-        fc = fraction_cover(ndvi)
+        fc = fraction_cover(ndvi, msavi)
         kd = min(1.0, crop.canopy_ml * fc,
                  fc ** (1.0 / (1.0 + crop.canopy_height_m)) if fc > 0 else 0.0)
         kcb = KC_MIN + kd * (hi - KC_MIN)

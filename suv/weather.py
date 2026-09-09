@@ -13,6 +13,7 @@ ERA5-Land reanalysis for back-testing past seasons.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import date, datetime
 
 import requests
@@ -106,6 +107,53 @@ def fetch_elevation(lat: float, lon: float, timeout: int = 8) -> float | None:
         return float(vals[0]) if vals else None
     except Exception:  # noqa: BLE001 — высота не повод не завести поле
         return None
+
+@dataclass
+class HourlyWeather:
+    """Один час прогноза — для окон опрыскивания, не для водного баланса."""
+
+    time: "datetime"
+    temp: float
+    rh: float
+    wind_2m: float
+    rain_mm: float
+
+
+HOURLY_VARS = ["temperature_2m", "relative_humidity_2m",
+               "wind_speed_10m", "precipitation"]
+
+
+def fetch_hourly(lat: float, lon: float, hours: int = 48,
+                 timeout: int = 20) -> list[HourlyWeather]:
+    """Почасовой ряд на ближайшие `hours` часов, время ташкентское.
+
+    Отдельный запрос, а не расширение дневного: дневной ряд кормит
+    водный баланс и его схема заморожена тестами; окна опрыскивания —
+    другой потребитель с другой частотой."""
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": ",".join(HOURLY_VARS),
+        "forecast_hours": min(hours, 72),
+        "timezone": "Asia/Tashkent",
+        "wind_speed_unit": "ms",
+    }
+    r = requests.get(BASE, params=params, timeout=timeout)
+    r.raise_for_status()
+    d = r.json()["hourly"]
+    out: list[HourlyWeather] = []
+    for i, iso in enumerate(d["time"]):
+        t, rh = d["temperature_2m"][i], d["relative_humidity_2m"][i]
+        w, p = d["wind_speed_10m"][i], d["precipitation"][i]
+        if t is None or w is None:
+            break              # обрезаем, как дневной ряд: непрерывность важнее длины
+        out.append(HourlyWeather(
+            time=datetime.strptime(iso, "%Y-%m-%dT%H:%M"),
+            temp=t, rh=rh if rh is not None else 50.0,
+            wind_2m=wind_10m_to_2m(w), rain_mm=p or 0.0))
+    if not out:
+        raise ValueError("Open-Meteo вернул пустой почасовой ряд")
+    return out
 
 
 def fetch_forecast(lat: float, lon: float, days: int = 16,

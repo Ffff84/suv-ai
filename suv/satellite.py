@@ -24,30 +24,38 @@ TOKEN_URL = ("https://identity.dataspace.copernicus.eu/auth/realms/CDSE/"
              "protocol/openid-connect/token")
 PROCESS_URL = "https://sh.dataspace.copernicus.eu/api/v1/process"
 
-# Mean NDVI over the field polygon, cloud-masked via the scene
-# classification band. Returns a single number per request.
+# Mean NDVI + MSAVI over the field polygon, cloud-masked via the scene
+# classification band. Returns per-field means per request.
 #
-# Три канала, а не два: «чистый пиксель» и «пиксель внутри полигона» —
-# разные вещи. Раньше оба сливались в один бэнд, и доля облачности
+# Каналы «чистый пиксель» и «пиксель внутри полигона» разделены не
+# случайно: раньше оба сливались в один бэнд, и доля облачности
 # считалась от ВСЕГО прямоугольника кадра: вытянутое поле, занимающее
 # треть своего bbox, выбраковывалось как «в облаках» при чистом небе —
 # ровно та ошибка, которую field_photo.stats_over_field запрещает со
-# ссылкой на ТЗ §4.2. Третий бэнд отделяет геометрию от погоды.
+# ссылкой на ТЗ §4.2. Последний бэнд отделяет геометрию от погоды.
+#
+# MSAVI (MSAVI2, Qi et al. 1994) едет в том же запросе: на редком пологе
+# NDVI тянет яркость почвы — тёмная мокрая земля после полива поднимает
+# NDVI без единого нового листа, светлая сухая занижает. MSAVI этот
+# почвенный член гасит, и доля покрытия кроны для Kc сада считается по
+# нему, когда он есть (см. crop.fraction_cover).
 EVALSCRIPT = """
 //VERSION=3
 function setup() {
   return {
     input: [{bands: ["B04", "B08", "SCL", "dataMask"]}],
-    output: {bands: 3, sampleType: "FLOAT32"}
+    output: {bands: 4, sampleType: "FLOAT32"}
   };
 }
 function evaluatePixel(s) {
-  if (s.dataMask == 0) return [0, 0, 0];
+  if (s.dataMask == 0) return [0, 0, 0, 0];
   // SCL 3=cloud shadow, 8/9=cloud medium/high, 10=cirrus, 11=snow
   var bad = (s.SCL == 3 || s.SCL == 8 || s.SCL == 9 || s.SCL == 10 || s.SCL == 11);
-  if (bad) return [0, 0, 1];
+  if (bad) return [0, 0, 0, 1];
   var ndvi = (s.B08 - s.B04) / (s.B08 + s.B04);
-  return [ndvi, 1, 1];
+  var t = 2.0 * s.B08 + 1.0;
+  var msavi = (t - Math.sqrt(t * t - 8.0 * (s.B08 - s.B04))) / 2.0;
+  return [ndvi, msavi, 1, 1];
 }
 """
 
@@ -60,6 +68,8 @@ class NdviReading:
     value: float
     observed_on: date
     valid_fraction: float  # share of the field that was cloud-free
+    # MSAVI того же кадра. None у источников без него (Landsat-резерв).
+    msavi: float | None = None
 
 
 def get_token(client_id: str | None = None,
@@ -168,24 +178,15 @@ def _latest_scene_date(polygon: list[list[float]], token: str,
         return None
 
 
-def _reduce_tiff(content: bytes, observed_on: date) -> NdviReading | None:
-    """Average the cloud-free pixels of the returned 3-band GeoTIFF.
+def reduce_index_arrays(clear, inside, *index_arrays):
+    """Средние индексов по чистым пикселям + доля чистых ВНУТРИ полигона.
 
-    Доля облачности — от пикселей ВНУТРИ полигона (бэнд 3), не от всего
-    растра: иначе она мерила бы, какую часть прямоугольника занимает
-    поле, и вытянутый участок отвергался бы в ясный день.
+    Чистая математика без rasterio — чтобы порог облачности и правило
+    «доля считается от поля, а не от прямоугольника кадра» были под
+    тестами без сети. Возвращает (средние..., доля) или None, когда поле
+    не попало в растр или чистых пикселей меньше 30%: слепой кадр не
+    имеет права притворяться замером.
     """
-    try:
-        import numpy as np  # noqa: F401 — rasterio без него не читает
-        import rasterio
-        from io import BytesIO
-        with rasterio.open(BytesIO(content)) as src:
-            ndvi = src.read(1).astype("float32")
-            clear = src.read(2).astype("float32") > 0
-            inside = src.read(3).astype("float32") > 0
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError("fetch_ndvi needs rasterio + numpy installed") from exc
-
     log = logging.getLogger("suv.satellite")
     in_field = int(inside.sum())
     if not in_field:
@@ -200,8 +201,34 @@ def _reduce_tiff(content: bytes, observed_on: date) -> NdviReading | None:
         log.info("чистых пикселей внутри контура %.0f%% (нужно 30%%) — кадр отброшен",
                  frac * 100)
         return None  # too clouded to trust
-    return NdviReading(value=float(ndvi[clear].mean()),
-                       observed_on=observed_on, valid_fraction=frac)
+    return tuple(float(a[clear].mean()) for a in index_arrays) + (frac,)
+
+
+def _reduce_tiff(content: bytes, observed_on: date) -> NdviReading | None:
+    """Average the cloud-free pixels of the returned 4-band GeoTIFF.
+
+    Доля облачности — от пикселей ВНУТРИ полигона (последний бэнд), не
+    от всего растра: иначе она мерила бы, какую часть прямоугольника
+    занимает поле, и вытянутый участок отвергался бы в ясный день.
+    """
+    try:
+        import numpy as np  # noqa: F401 — rasterio без него не читает
+        import rasterio
+        from io import BytesIO
+        with rasterio.open(BytesIO(content)) as src:
+            ndvi = src.read(1).astype("float32")
+            msavi = src.read(2).astype("float32")
+            clear = src.read(3).astype("float32") > 0
+            inside = src.read(4).astype("float32") > 0
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError("fetch_ndvi needs rasterio + numpy installed") from exc
+
+    got = reduce_index_arrays(clear, inside, ndvi, msavi)
+    if got is None:
+        return None
+    ndvi_mean, msavi_mean, frac = got
+    return NdviReading(value=ndvi_mean, observed_on=observed_on,
+                       valid_fraction=frac, msavi=msavi_mean)
 
 
 def bbox_polygon(lat: float, lon: float, size_m: float = 200.0) -> list[list[float]]:

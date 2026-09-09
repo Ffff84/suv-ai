@@ -62,6 +62,10 @@ def load_field(path: str) -> tuple[Field, dict]:
         water_table_depth_m=float(wt),
         wetted_fraction=(float(cfg["wetted_fraction"])
                          if cfg.get("wetted_fraction") is not None else None),
+        harvest_start=(date.fromisoformat(cfg["harvest_start"])
+                       if cfg.get("harvest_start") else None),
+        harvest_end=(date.fromisoformat(cfg["harvest_end"])
+                     if cfg.get("harvest_end") else None),
     )
     return f, cfg
 

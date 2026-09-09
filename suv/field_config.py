@@ -106,6 +106,18 @@ def validate(cfg: Mapping) -> None:
     if fw is not None and not 0.0 < float(fw) <= 1.0:
         raise ValueError("wetted_fraction — доля в (0; 1], например 0.4 "
                          f"для капли; сейчас {fw!r}")
+    hs, he = cfg.get("harvest_start"), cfg.get("harvest_end")
+    if he and not hs:
+        raise ValueError("harvest_end без harvest_start: движку не от чего "
+                         "отсчитать сухую паузу перед съёмом")
+    for key, val in (("harvest_start", hs), ("harvest_end", he)):
+        if val is not None:
+            try:
+                date.fromisoformat(val)
+            except (TypeError, ValueError):
+                raise ValueError(f"{key} — дата ГГГГ-ММ-ДД, сейчас {val!r}")
+    if hs and he and date.fromisoformat(he) < date.fromisoformat(hs):
+        raise ValueError("harvest_end раньше harvest_start")
 
 
 def to_row(cfg: Mapping) -> dict:
@@ -142,6 +154,10 @@ def to_row(cfg: Mapping) -> dict:
         "last_irrigation_date": cfg.get("last_irrigation_date"),
         # Доля смачивания: null = по способу полива (капля 0,40).
         "wetted_fraction": _opt_float(cfg.get("wetted_fraction")),
+        # Окно съёма урожая: движок останавливает поливы за
+        # preharvest_hold_days до начала и до конца окна.
+        "harvest_start": cfg.get("harvest_start"),
+        "harvest_end": cfg.get("harvest_end"),
     }
 
 

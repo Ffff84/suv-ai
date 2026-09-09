@@ -125,7 +125,11 @@ def water_section(rec, last_irr: date | None, today: date,
     if pump is not None and getattr(pump, "m3_per_hour", 0):
         hours = rec.gross_m3 / pump.m3_per_hour
 
-    if rec.action_day is None:
+    if getattr(rec, "reason_key", "") == "harvest_hold":
+        status = Status.OK
+        line = ("Terim davri — sug'orish to'xtatilgan."
+                if uz else "Съём урожая — полив приостановлен.")
+    elif rec.action_day is None:
         status = Status.OK
         line = "Bu hafta shart emas." if uz else "На этой неделе не требуется."
     elif rec.days_until <= 0:
