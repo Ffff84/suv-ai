@@ -150,6 +150,69 @@ def salinity_warning(level: str, lang: str = "uz") -> str | None:
             "Избыточный полив приведёт к засолению.")
 
 
+def why_text(rec, last_irr, lang: str = "uz", degraded: bool = False) -> str:
+    """«Почему такой совет» — детерминированное объяснение из уже
+    посчитанной рекомендации. Никакой генерации: каждая строка — число
+    из расчёта, которое можно проверить по журналу. Это сознательная
+    альтернатива AI-чату: объяснение не умеет приукрасить.
+    """
+    uz = lang == "uz"
+    p = rec.plan[0] if rec.plan else None
+    lines = [rec.field.name, ""]
+
+    if p is not None:
+        if uz:
+            lines.append(f"Tuproq zaxirasi: {p.depletion_mm:.0f} mm sarflangan, "
+                         f"chegara — {p.raw_mm:.0f} mm.")
+            lines.append(f"Bug'lanish: kuniga ~{p.etc_mm:.1f} mm "
+                         f"(ET0 {p.et0_mm:.1f} × Kc {p.kc:g}).")
+            lines.append(f"Kc manbai: {p.kc_source}.")
+        else:
+            lines.append(f"Запас влаги: израсходовано {p.depletion_mm:.0f} мм "
+                         f"из порога {p.raw_mm:.0f} мм.")
+            lines.append(f"Испарение: ~{p.etc_mm:.1f} мм/день "
+                         f"(ET0 {p.et0_mm:.1f} × Kc {p.kc:g}).")
+            lines.append(f"Источник Kc: {p.kc_source}.")
+
+    rain = sum(x.rain_mm for x in rec.plan)
+    if uz:
+        lines.append(f"Yomg'ir (14 kun prognozi): ~{rain:.0f} mm.")
+    else:
+        lines.append(f"Дождь в прогнозе на 14 дней: ~{rain:.0f} мм.")
+
+    if last_irr is not None:
+        gap = (rec.generated_on - last_irr).days
+        lines.append(f"Oxirgi sug'orish: {last_irr.day:02d}.{last_irr.month:02d} "
+                     f"({gap} kun oldin)." if uz else
+                     f"Последний полив: {last_irr.day:02d}.{last_irr.month:02d} "
+                     f"({gap} дн. назад).")
+    else:
+        lines.append("Oxirgi sug'orish sanasi noma'lum — hisob taxminiy."
+                     if uz else
+                     "Дата последнего полива неизвестна — расчёт приблизительный.")
+
+    lines.append("")
+    if rec.reason_key == "harvest_hold":
+        lines.append("Xulosa: terim davri — sug'orish ataylab to'xtatilgan."
+                     if uz else
+                     "Вывод: идёт съём урожая — полив остановлен сознательно.")
+    elif rec.action_day is None:
+        lines.append(("Xulosa: " if uz else "Вывод: ") +
+                     (REASON_UZ if uz else REASON_RU).get(rec.reason_key, ""))
+    else:
+        when = (f"{rec.action_day.day:02d}.{rec.action_day.month:02d}")
+        lines.append(f"Xulosa: zaxira chegaraga {when} kuni yetadi — "
+                     f"sug'orish o'sha kunga belgilandi." if uz else
+                     f"Вывод: запас дойдёт до порога {when} — "
+                     f"полив назначен на этот день.")
+
+    if degraded:
+        lines.append("Diqqat: ob-havo xizmati javob bermadi, hisob "
+                     "me'yorlar bo'yicha." if uz else
+                     "Внимание: прогноз погоды не пришёл, расчёт по нормам.")
+    return "\n".join(lines)
+
+
 def savings_text(summary, lang: str = "uz") -> str:
     if not getattr(summary, "has_baseline", True):
         # Без прежнего расхода экономию не с чем сравнивать. «0 м³»

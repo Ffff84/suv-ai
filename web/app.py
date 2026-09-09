@@ -149,7 +149,7 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
     row = _row_or_404(user, field_id)
     lang = _lang(row, user)
     ctx = _ctx_for(user.id)
-    rec, pump, anchored, degraded, forecast = B._fs_data(row, ctx)
+    rec, pump, anchored, degraded, forecast, _hourly = B._fs_data(row, ctx)
     sections = B._fs_sections(row, ctx, lang)
     last_irr = B._last_irrigation(row["field_id"], row["last_irrigation_date"])
     plan = rec.plan[0] if rec.plan else None
@@ -244,6 +244,14 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
         "savings": sav,
         "irrigations": irrigations,
         "journal": journal,
+        # Полевые заметки фермера: фото живёт у Телеграма (file_id),
+        # кабинет показывает факт, дату и подпись — этого достаточно,
+        # чтобы разбор и акт знали, где искать свидетельства.
+        "notes": [
+            {"day": n["taken_on"], "caption": n["caption"],
+             "has_photo": n["file_id"] is not None,
+             "lat": n["lat"], "lon": n["lon"]}
+            for n in B.LEDGER.notes(field_id)],
         "today": today_tashkent().isoformat(),
     }
 

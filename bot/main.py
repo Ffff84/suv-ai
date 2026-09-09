@@ -55,10 +55,12 @@ from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
                               water_section, weather_section)
 from suv.landsat import enabled as landsat_enabled
 from suv.ledger import Ledger
-from suv.messages import recommendation_text, salinity_warning, savings_text
+from suv.messages import (recommendation_text, salinity_warning,
+                          savings_text, why_text)
 from suv.schedule import Field, recommend, simulate
 from suv.soil import SOILS, WaterBalanceState
-from suv.weather import fetch_forecast
+from suv.spray import build_section as spray_build_section
+from suv.weather import fetch_forecast, fetch_hourly
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -593,7 +595,122 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             _rec_message(rec, pump, lang, anchored=anchored,
                          degraded=degraded),
-            reply_markup=_menu(update.effective_chat.id))
+            reply_markup=_why_markup(update.effective_chat.id,
+                                     rec.field.field_id, lang))
+
+
+# «Почему такой совет?» — закрытое демо (_FIELD_STATUS): фермеру кнопка
+# уедет после обкатки. Инлайн-клавиатура не трогает постоянное меню —
+# reply-клавиатура остаётся от прежних сообщений.
+WHY_BTN_UZ = "🤔 Nega bunday maslahat?"
+WHY_BTN_RU = "🤔 Почему такой совет?"
+
+
+def _why_markup(chat: int, field_id: str, lang: str = "uz"):
+    if chat not in _FIELD_STATUS:
+        return _menu(chat)
+    label = WHY_BTN_UZ if lang == "uz" else WHY_BTN_RU
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton(label, callback_data=f"why:{field_id}")]])
+
+
+async def why_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Детерминированное объяснение совета — из того же расчёта, что и
+    сам совет. Никакой генерации: каждую строку можно проверить по
+    журналу. Это сознательная замена AI-чату (решение 09.09.2026)."""
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    if chat not in _FIELD_STATUS:
+        return
+    fid = query.data.split(":", 1)[1]
+    row = _field_row(fid)
+    if row is None:
+        await query.message.reply_text("Dala topilmadi. /suv ni qayta yuboring.")
+        return
+    lang = "uz" if row["owner_chat_id"] == chat else "ru"
+    rec, _pump, _anchored, degraded = await asyncio.to_thread(
+        _compute_rec, row, today_tashkent())
+    last_irr = _last_irrigation(fid, row["last_irrigation_date"])
+    await query.message.reply_text(why_text(rec, last_irr, lang,
+                                            degraded=degraded))
+
+
+# ------------------------------------------------------------- заметки
+#
+# Фермер шлёт фото — бот подшивает его к полю с датой и подписью;
+# локация, присланная следом, приклеивается к той же заметке. Сам файл
+# живёт у Телеграма (file_id), мы храним ссылку и контекст. Закрытое
+# демо, как всякая новая поверхность.
+NOTE_ATTACH_WINDOW_S = 600.0
+
+
+def _save_note(ctx: ContextTypes.DEFAULT_TYPE, chat: int, row,
+               file_id: str | None, caption: str | None) -> str:
+    nid = LEDGER.add_note(row["field_id"], chat, today_tashkent(),
+                          file_id, caption)
+    ctx.user_data["last_note"] = (nid, time.monotonic())
+    d = today_tashkent()
+    return (f"📝 {row['name']}: yozib olindi ({d.day:02d}.{d.month:02d}).\n"
+            "Joyni biriktirish uchun lokatsiya yuboring.")
+
+
+async def photo_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    chat = update.effective_chat.id
+    if chat not in _FIELD_STATUS or not _authorized(update):
+        return
+    rows = _owner_fields(chat)
+    if not rows:
+        await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+        return
+    file_id = update.message.photo[-1].file_id
+    caption = (update.message.caption or "").strip() or None
+    if len(rows) == 1:
+        await update.message.reply_text(
+            _save_note(ctx, chat, rows[0], file_id, caption))
+        return
+    ctx.user_data["pending_note"] = {"file_id": file_id, "caption": caption,
+                                     "at": time.monotonic()}
+    kb = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(r["name"], callback_data=f"notefld:{r['field_id']}")]
+         for r in rows])
+    await update.message.reply_text("Qaysi dala uchun?", reply_markup=kb)
+
+
+async def note_field_callback(update: Update,
+                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    pending = ctx.user_data.pop("pending_note", None)
+    if not pending or time.monotonic() - pending["at"] > NOTE_ATTACH_WINDOW_S:
+        await query.edit_message_text("Eskirdi — rasmni qaytadan yuboring.")
+        return
+    fid = query.data.split(":", 1)[1]
+    row = _field_row(fid)
+    if row is None or row["owner_chat_id"] != chat:
+        await query.edit_message_text("Dala topilmadi.")
+        return
+    await query.edit_message_text(
+        _save_note(ctx, chat, row, pending["file_id"], pending["caption"]))
+
+
+async def _maybe_attach_note_location(update: Update,
+                                      ctx: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Локация после фото — точка заметки. Одноразово и только в окне:
+    локация, присланная позже по другому поводу, место не переписывает."""
+    last = ctx.user_data.get("last_note")
+    if not last or time.monotonic() - last[1] > NOTE_ATTACH_WINDOW_S:
+        return False
+    msg = update.effective_message
+    loc = getattr(msg, "location", None)
+    if loc is None:
+        return False
+    ctx.user_data.pop("last_note", None)
+    if LEDGER.attach_note_location(last[0], loc.latitude, loc.longitude):
+        await msg.reply_text("📍 Joylashuv eslatmaga biriktirildi.")
+        return True
+    return False
 
 
 async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -905,13 +1022,22 @@ def _fs_data(row, ctx):
         log.warning("dala: прогноз для %s не пришёл: %s",
                     row["field_id"], exc)
         forecast = []
-    data = (rec, pump, anchored, degraded, forecast)
+    # Почасовой ряд — для секции «Опрыскивание». None (а не []) при
+    # сбое: build_section по None просто не выводит секцию — заглушка
+    # хуже молчания.
+    try:
+        hourly = fetch_hourly(row["lat"], row["lon"], hours=48)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("dala: почасовой прогноз для %s не пришёл: %s",
+                    row["field_id"], exc)
+        hourly = None
+    data = (rec, pump, anchored, degraded, forecast, hourly)
     cache[row["field_id"]] = (time.monotonic(), data)
     return data
 
 
 def _fs_sections(row, ctx, lang: str) -> list:
-    rec, pump, _anchored, degraded, forecast = _fs_data(row, ctx)
+    rec, pump, _anchored, degraded, forecast, hourly = _fs_data(row, ctx)
     last_irr = _last_irrigation(row["field_id"],
                                 row["last_irrigation_date"])
     try:
@@ -928,6 +1054,7 @@ def _fs_sections(row, ctx, lang: str) -> list:
         photo_section(row["area_ha"], row["irrigation_method"],
                       photo=_photo_verdict(row, today_tashkent()), lang=lang),
         weather_section(forecast, lang),
+        spray_build_section(hourly, today_tashkent(), lang),
         cost_section(season_m3, pump, lang),
     )
 
@@ -1317,11 +1444,14 @@ async def _draw_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 
 
 async def draw_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Геолокация угла. Вне режима обводки — молчим, как и раньше."""
+    """Геолокация угла. Вне режима обводки — точка для свежей заметки,
+    если она есть; иначе молчим, как и раньше."""
     if not _authorized(update):
         return
     draw = _draw_state(ctx)
     if not draw or update.effective_chat.id not in _FIELD_STATUS:
+        if not draw:
+            await _maybe_attach_note_location(update, ctx)
         return
     # effective_message, а не message: живая геолокация приходит
     # обновлениями edited_message, где update.message пустой.
@@ -1941,7 +2071,7 @@ async def _push_owner(ctx, chat: int, today: date,
             await ctx.bot.send_message(
                 chat, _rec_message(rec, pump, "uz", anchored=anchored,
                                    degraded=degraded),
-                reply_markup=_menu(chat))
+                reply_markup=_why_markup(chat, rec.field.field_id))
         except Exception as exc:  # noqa: BLE001
             log.warning("push: отправка %s не удалась: %s", chat, exc)
             continue
@@ -2099,6 +2229,11 @@ def main() -> None:
     # выше и в состоянии LOCATION забирает её себе, сюда доходит только
     # то, что мастеру не предназначалось.
     app.add_handler(MessageHandler(filters.LOCATION & draw_only, draw_location))
+    # Фото = полевая заметка. Только демо-чаты: новая поверхность не
+    # доходит до Фарруха, пока её не обкатали (правило закрытого демо).
+    app.add_handler(MessageHandler(filters.PHOTO & draw_only, photo_note))
+    app.add_handler(CallbackQueryHandler(why_callback, pattern=r"^why:"))
+    app.add_handler(CallbackQueryHandler(note_field_callback, pattern=r"^notefld:"))
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))
     app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
