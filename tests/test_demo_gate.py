@@ -9,6 +9,13 @@
 
 Правило: вне FIELD_STATUS_CHAT_IDS этот текст ведёт себя ровно так же,
 как до появления экрана.
+
+09.09.2026 смысл пустого списка ПЕРЕВЁРНУТ: пусто = открыто всем, как у
+ALLOWED_CHAT_IDS. Прежнее «пусто = ни у кого» молча выключало главную
+функцию продукта — без обведённого контура NDVI считается по квадрату
+200x200 м вместе с дорогой и соседским полем. Гарантия про мастер
+регистрации при этом не отменяется: она переехала в тест про НЕпустой
+список, где чат вне демо действительно существует.
 """
 
 from __future__ import annotations
@@ -50,17 +57,36 @@ def _text_update(chat_id: int, text: str) -> Update:
     return Update(update_id=1, message=msg)
 
 
-def test_dala_button_is_not_a_menu_button_for_others(monkeypatch, tmp_path):
-    """Пустой список демо: текст кнопки — обычный ответ мастера.
+def test_empty_list_opens_the_screen_to_everyone(monkeypatch, tmp_path):
+    """Пустой список = открыто всем.
 
-    MENU_FILTER вычитается из вопросов регистрации (not_menu). Если он
-    совпадёт, мастер пропустит ответ и упадёт в fallback.
+    Это ровно то правило, по которому уже живёт ALLOWED_CHAT_IDS. Пока
+    оно было обратным, обводка контура была недоступна никому, кроме
+    трёх демо-чатов, — то есть «карта влаги бесплатно навсегда» из
+    PRODUCT.md не работала ни у одного пришедшего сам фермера.
     """
     m = _reload_bot(monkeypatch, tmp_path, "")
+    assert m._field_status_open(FARMER)
     upd = _text_update(FARMER, m.BTN_DALA)
-    assert not m.MENU_FILTER.check_update(upd)
+    assert m.DALA_FILTER.check_update(upd)
+    assert m.MENU_FILTER.check_update(upd)
+    assert m.MENU_FILTER.check_update(_text_update(FARMER, m.BTN_SUV))
+
+
+def test_non_empty_list_still_closes_the_screen_to_others(monkeypatch, tmp_path):
+    """Обратный ход есть и он один: вписать chat_id в переменную.
+
+    И для чата вне списка текст кнопки обязан остаться обычным ответом
+    мастера: MENU_FILTER вычитается из вопросов регистрации (not_menu),
+    и если он совпадёт, мастер пропустит ответ и упадёт в fallback —
+    ровно та тишина, которой бот не отвечает никогда.
+    """
+    m = _reload_bot(monkeypatch, tmp_path, str(DEMO))
+    assert m._field_status_open(DEMO)
+    assert not m._field_status_open(FARMER)
+    upd = _text_update(FARMER, m.BTN_DALA)
     assert not m.DALA_FILTER.check_update(upd)
-    # Прежние кнопки меню продолжают вычитаться, как и раньше.
+    assert not m.MENU_FILTER.check_update(upd)
     assert m.MENU_FILTER.check_update(_text_update(FARMER, m.BTN_SUV))
 
 

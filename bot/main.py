@@ -114,9 +114,13 @@ MAIN_MENU = ReplyKeyboardMarkup(
     [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]],
     resize_keyboard=True)
 
-# Экран «Dala holati» обкатывается в закрытом демо: кнопку и хендлеры
-# видят только chat_id из FIELD_STATUS_CHAT_IDS. Пусто = фичи ни у кого
-# нет, и деплой этой ветки ничего не меняет для пилотного фермера.
+# Экран «Dala holati» и всё, что с него достижимо: обводка контура,
+# сторона входа воды, снимок поля, заметки с фото, окна опрыскивания,
+# «почему такой совет». Правило списка ПЕРЕВЁРНУТО 09.09.2026: пусто =
+# открыто ВСЕМ, как у ALLOWED_CHAT_IDS выше. Раньше пусто значило «ни у
+# кого», и это молча выключало главную функцию продукта — без контура
+# NDVI считается по квадрату 200x200 м вместе с дорогой и соседом.
+# Закрыть обратно = вписать сюда chat_id тех, кому оставляем.
 _FIELD_STATUS: set[int] = _ids_from_env("FIELD_STATUS_CHAT_IDS")
 
 # Веб-кабинет: подробный разбор поля на большом экране. Открывается
@@ -149,7 +153,7 @@ def _menu(chat_id: int) -> ReplyKeyboardMarkup:
     """
     rows = [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]]
     extra: list = []
-    if chat_id in _FIELD_STATUS:
+    if _field_status_open(chat_id):
         extra.append(BTN_DALA)
     # Кнопка кабинета — ОБЫЧНАЯ текстовая, не web_app. Причина
     # проверена на Telegram Desktop 9.6: приложениям из reply-клавиатуры
@@ -186,13 +190,26 @@ _MENU_PATTERN = "|".join(re.escape(b) for b in
 # Кнопка демо-экрана вычитается из вопросов мастера ТОЛЬКО у демо-чатов:
 # filters.Chat(пустое множество) не совпадает ни с кем, так что для всех
 # остальных регистрация ведёт себя ровно как до этой ветки.
-DALA_FILTER = (filters.Regex(f"^{re.escape(BTN_DALA)}$")
-               & filters.Chat(_FIELD_STATUS))
+_DALA_TEXT = filters.Regex(f"^{re.escape(BTN_DALA)}$")
+# filters.Chat(пустое множество) не совпадает НИ С КЕМ, поэтому при
+# открытом гейте фильтр по чату не навешивается вовсе.
+DALA_FILTER = (_DALA_TEXT if not _FIELD_STATUS
+               else _DALA_TEXT & filters.Chat(_FIELD_STATUS))
 MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$") | DALA_FILTER
 
 
 def _authorized(update: Update) -> bool:
     return not _ALLOWED or update.effective_chat.id in _ALLOWED
+
+
+def _field_status_open(chat_id: int) -> bool:
+    """Доступен ли чату экран поля и всё, что с него достижимо.
+
+    Та же конвенция, что у _authorized: пустой список = открыто всем.
+    Одно место, где решается вопрос, — иначе шесть разных проверок
+    разъезжаются, и одна из них рано или поздно останется закрытой.
+    """
+    return not _FIELD_STATUS or chat_id in _FIELD_STATUS
 
 
 async def _reject(update: Update) -> None:
@@ -662,7 +679,7 @@ WHY_BTN_RU = "🤔 Почему такой совет?"
 
 
 def _why_markup(chat: int, field_id: str, lang: str = "uz"):
-    if chat not in _FIELD_STATUS:
+    if not _field_status_open(chat):
         return _menu(chat)
     label = WHY_BTN_UZ if lang == "uz" else WHY_BTN_RU
     return InlineKeyboardMarkup(
@@ -676,7 +693,7 @@ async def why_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     chat = update.effective_chat.id
-    if chat not in _FIELD_STATUS:
+    if not _field_status_open(chat):
         return
     fid = query.data.split(":", 1)[1]
     row = _field_row(fid)
@@ -712,7 +729,7 @@ def _save_note(ctx: ContextTypes.DEFAULT_TYPE, chat: int, row,
 
 async def photo_note(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chat = update.effective_chat.id
-    if chat not in _FIELD_STATUS or not _authorized(update):
+    if not _field_status_open(chat) or not _authorized(update):
         return
     rows = _owner_fields(chat)
     if not rows:
@@ -798,7 +815,7 @@ async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chat = update.effective_chat.id
     dala_line = (f"{BTN_DALA} — dala holati bir ekranda\n"
-                 if chat in _FIELD_STATUS else "")
+                 if _field_status_open(chat) else "")
     # Справка обещала «Yangi dala qo'shish uchun: /start», а start() при
     # заведённых агрономом полях отвечает отказом, и даже в чистом чате
     # мастер не ДОБАВЛЯЕТ поле, а перезаписывает единственное TG-{chat}.
@@ -1233,7 +1250,7 @@ async def dala_holati(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await _reject(update)
         return
     chat = update.effective_chat.id
-    if chat not in _FIELD_STATUS:
+    if not _field_status_open(chat):
         await update.message.reply_text(
             DALA_CLOSED_RU if chat in _OBSERVERS else DALA_CLOSED_UZ,
             reply_markup=_menu(chat))
@@ -1266,7 +1283,7 @@ async def _fs_edit(query, text: str, kb: InlineKeyboardMarkup) -> None:
 async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     chat = update.effective_chat.id
-    if not _authorized(update) or chat not in _FIELD_STATUS:
+    if not _authorized(update) or not _field_status_open(chat):
         await query.answer()
         return
 
@@ -1514,7 +1531,7 @@ async def draw_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return
     draw = _draw_state(ctx)
-    if not draw or update.effective_chat.id not in _FIELD_STATUS:
+    if not draw or not _field_status_open(update.effective_chat.id):
         if not draw:
             await _maybe_attach_note_location(update, ctx)
         return
@@ -1596,7 +1613,7 @@ async def draw_webapp(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _authorized(update):
         return
     chat = update.effective_chat.id
-    if chat not in _FIELD_STATUS:
+    if not _field_status_open(chat):
         return
     msg = update.effective_message
     draw = _draw_state(ctx) or {}
@@ -1759,7 +1776,7 @@ async def photo_callback(update: Update,
                          ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     chat = update.effective_chat.id
-    if not _authorized(update) or chat not in _FIELD_STATUS:
+    if not _authorized(update) or not _field_status_open(chat):
         await query.answer()
         return
     parts = query.data.split(":", 2)
@@ -1936,7 +1953,7 @@ async def inlet_callback(update: Update,
                          ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     chat = update.effective_chat.id
-    if not _authorized(update) or chat not in _FIELD_STATUS:
+    if not _authorized(update) or not _field_status_open(chat):
         await query.answer()
         return
     try:
@@ -1983,7 +2000,7 @@ async def draw_confirm_callback(update: Update,
                                 ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     chat = update.effective_chat.id
-    if not _authorized(update) or chat not in _FIELD_STATUS:
+    if not _authorized(update) or not _field_status_open(chat):
         await query.answer()
         return
     try:
@@ -2350,7 +2367,8 @@ def main() -> None:
     # Обводка контура. Все три текстовые кнопки живут только в режиме
     # рисования: их хендлеры молча выходят, если режим не включён, —
     # поэтому в MENU_FILTER они не добавляются и мастер не задевают.
-    draw_only = filters.Chat(_FIELD_STATUS)
+    draw_only = (filters.ALL if not _FIELD_STATUS
+                 else filters.Chat(_FIELD_STATUS))
     app.add_handler(MessageHandler(
         filters.Regex(f"^{re.escape(BTN_DRAW_DONE)}$") & draw_only, draw_done))
     app.add_handler(MessageHandler(
@@ -2390,7 +2408,11 @@ def main() -> None:
     if _ALLOWED:
         log.info("allowlist active: %s", sorted(_ALLOWED))
     if _FIELD_STATUS:
-        log.info("Dala holati demo: %s", sorted(_FIELD_STATUS))
+        log.info("Dala holati: закрытое демо, чаты %s", sorted(_FIELD_STATUS))
+    else:
+        log.info("Dala holati: ОТКРЫТ ВСЕМ (FIELD_STATUS_CHAT_IDS пуст) — "
+                 "экран поля, обводка контура, снимок, заметки, "
+                 "окна опрыскивания и «почему такой совет»")
     # Каждый гейт называет себя при старте — иначе из журнала не понять,
     # взведён он или нет. У запасного источника снимков это особенно
     # важно: он срабатывает только в облачный день, и без строки на
