@@ -2407,6 +2407,16 @@ def main() -> None:
     app.add_error_handler(on_error)
     if _ALLOWED:
         log.info("allowlist active: %s", sorted(_ALLOWED))
+    # Обводка пальцем по карте — единственный способ обвести поле, не
+    # выходя из дома. Без MINIAPP_URL кнопки нет вовсе, и снятый гейт
+    # даёт фермеру только обход углов ногами: для члена жюри за столом
+    # это то же самое, что функции нет. Гейт обязан называть себя.
+    if MINIAPP_URL:
+        log.info("Mini App обводки: %s", MINIAPP_URL)
+    else:
+        log.warning("MINIAPP_URL пуст — кнопки «%s» НЕТ. Контур можно "
+                    "обвести только обходом углов с геолокацией.",
+                    BTN_DRAW_MAP)
     if _FIELD_STATUS:
         log.info("Dala holati: закрытое демо, чаты %s", sorted(_FIELD_STATUS))
     else:
