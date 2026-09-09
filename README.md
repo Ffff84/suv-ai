@@ -20,7 +20,7 @@ it get blurred in a pitch.
 | Crop coefficients, growth stages | **Working, uncalibrated** | Curve shape tested; Kc values are FAO table defaults, not Uzbek field data. Established trees/vines keep full root depth year-round (FAO-56); orchard NDVI→Kc goes through fraction cover (Allen & Pereira 2009), vines and annuals through the Campos/Calera line |
 | Soil water balance | **Verified** | TAW/RAW/percolation tested against FAO-56 tables; drip uses a wetted-soil fraction (FAO-56 Table 20, 0.40) — without it the orchard got 20+ days between irrigations against the farmer's 4 |
 | Capillary rise from shallow water table | **Working** | Added after the model demanded ~2× real water use; season total now lands inside Uzbek agronomic norms |
-| Irrigation scheduling | **Verified** | Season run = 5,455 m³/ha for cotton in Fergana, inside the 5,000–7,000 norm |
+| Irrigation scheduling | **Working, unvalidated** | Season run = 5,455 m³/ha for cotton in Fergana. The 5,000–7,000 band this was once called “the norm” has no citation in the repo and published Uzbek figures appear to sit higher — the season test is a sanity bound, not a validation (see `tests/test_schedule.py`) |
 | Savings ledger | **Working** | Schema + derivation tested; baseline window and no-action rule locked by tests |
 | Weather feed (Open-Meteo) | **Verified live** | Real forecast pulled on a Samarkand point, ET0 8.9 mm |
 | Sentinel-2 NDVI (Copernicus) | **Verified live** | Real reading: NDVI 0.428, 100% cloud-free pixels, scene date from the catalog |
@@ -51,7 +51,9 @@ textbook implementations drop this term because most of the world has a
 deep table. Uzbekistan does not.
 
 Adding capillary rise brought seasonal use from ~9,700 to 5,455 m³/ha —
-inside the real agronomic band. The same shallow table is the mechanism
+an order of magnitude closer to what the pilot farmer actually applies.
+Whether 5,455 is *right* is still an open question: the band we used to
+call “the norm” is uncited, and published Uzbek figures appear higher. The same shallow table is the mechanism
 behind the salinity damage on half the country's irrigated land, so the
 correction also produced the salinity warning the bot now sends.
 
