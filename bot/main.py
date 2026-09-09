@@ -124,6 +124,12 @@ _FIELD_STATUS: set[int] = _ids_from_env("FIELD_STATUS_CHAT_IDS")
 CABINET_URL = os.environ.get("CABINET_URL", "").strip()
 _CABINET: set[int] = _ids_from_env("CABINET_CHAT_IDS")
 
+# Куда пересылать вопросы фермеров. Пусто = вопрос всё равно получает
+# ответ, просто не уезжает никуда: молчание в ответ на живой вопрос —
+# худшее из двух зол, и терять сообщение из-за незаполненной переменной
+# нельзя. Оно в любом случае остаётся в логе.
+_ADMIN_CHAT: set[int] = _ids_from_env("ADMIN_CHAT_IDS")
+
 MAIN_MENU_DALA = ReplyKeyboardMarkup(
     [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM], [BTN_DALA]],
     resize_keyboard=True)
@@ -511,7 +517,18 @@ def _compute_rec(row, today: date):
                         today - timedelta(days=gap), gap + 14)
         state, forecast = _rewind(fld, last_irr, series, gap, today)
 
-    rec = recommend(fld, forecast, state, today)
+    # Прежний расход берётся ИЗ ПОЛЯ, а не из умолчаний движка. Раньше
+    # здесь стоял голый recommend(fld, forecast, state, today), и на
+    # любое поле садились «типичные» 30 дней по 1100 м³/га: у сада
+    # Olmazor вместо его собственных 228,6 м³/га раз в 4 дня, а у
+    # виноградника Uzumzor, где расхода никто не называл, база бралась
+    # из воздуха. Фермеру эти числа сегодня не показывают — но они лежат
+    # в объекте и ждут первого, кто их напечатает.
+    rec = recommend(
+        fld, forecast, state, today,
+        baseline_interval_days=row["baseline_interval_days"],
+        baseline_application_m3_per_ha=row["baseline_m3_per_ha"],
+    )
 
     pump = None
     if row["pump_kwh_per_hour"] and row["pump_m3_per_hour"]:
@@ -618,12 +635,22 @@ async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chat = update.effective_chat.id
     dala_line = (f"{BTN_DALA} — dala holati bir ekranda\n"
                  if chat in _FIELD_STATUS else "")
+    # Справка обещала «Yangi dala qo'shish uchun: /start», а start() при
+    # заведённых агрономом полях отвечает отказом, и даже в чистом чате
+    # мастер не ДОБАВЛЯЕТ поле, а перезаписывает единственное TG-{chat}.
+    # Обещать функцию, которой нет, хуже, чем её отсутствие: фермер жмёт
+    # и решает, что бот сломался.
+    seeded = [r for r in _owner_fields(chat) if r["field_id"] != f"TG-{chat}"]
+    start_line = ("Dalangiz ro'yxatda. Ma'lumotni o'zgartirish kerak bo'lsa — "
+                  "Amirga yozing." if seeded
+                  else "/start — dalani qaytadan ro'yxatdan o'tkazish")
     await update.message.reply_text(
         f"{BTN_SUV} — bugungi sug'orish tavsiyasi\n"
         f"{BTN_BAJARDIM} — suv berganingizni belgilash\n"
         f"{BTN_TEJALDI} — mavsum davomida tejalgan suv\n"
         f"{dala_line}\n"
-        "Yangi dala qo'shish uchun: /start",
+        f"{start_line}\n\n"
+        "Savolingiz bo'lsa — shu yerga yozing, Amir javob beradi.",
         reply_markup=_menu(chat))
 
 
@@ -2021,6 +2048,50 @@ async def _escape_to_dala(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
     return ConversationHandler.END
 
 
+SAVOL_UZ = ("Savolingizni oldim — Amir javob beradi.\n"
+            "Shoshilinch bo'lsa, tavsiyani “{btn}” tugmasi bilan oling.")
+SAVOL_RU = ("Вопрос получен — Амир ответит.\n"
+            "Если срочно, рекомендация всегда доступна кнопкой «{btn}».")
+
+
+async def savol(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Свободный текст вне мастера: ответить и переслать Амиру.
+
+    До этого текст, не совпавший ни с одной кнопкой, не обрабатывался ни
+    одним хендлером — фермер, написавший вопрос, получал ровно ничего.
+    Это единственное место, где проект сам нарушал собственное правило
+    «тишина читается как бот умер», и заодно единственный канал, из
+    которого вообще можно узнать, что фермер хочет спросить.
+
+    Никакого ИИ: бот не отвечает на вопрос, он подтверждает получение и
+    отдаёт вопрос человеку. Обещать разговор, которого нет, — тот же
+    обман, что и обещать функцию, которой нет.
+    """
+    if not _authorized(update):
+        await _reject(update)
+        return
+    chat = update.effective_chat.id
+    text = (update.message.text or "").strip()
+    if not text:
+        return
+    log.info("вопрос от %s: %s", chat, text[:300])
+
+    for admin in _ADMIN_CHAT:
+        if admin == chat:
+            continue  # Амир не пересылает сам себе
+        try:
+            await ctx.bot.forward_message(chat_id=admin,
+                                          from_chat_id=chat,
+                                          message_id=update.message.message_id)
+        except Exception as exc:  # noqa: BLE001 — доставка Амиру не важнее ответа фермеру
+            log.warning("вопрос не переслан в %s: %s", admin, exc)
+
+    lang = "ru" if chat in _OBSERVERS else "uz"
+    tpl = SAVOL_RU if lang == "ru" else SAVOL_UZ
+    await update.message.reply_text(tpl.format(btn=BTN_SUV),
+                                    reply_markup=_menu(chat))
+
+
 async def on_error(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Фермер не должен получать тишину: тишина читается как «бот умер»."""
     log.exception("handler failed", exc_info=ctx.error)
@@ -2032,9 +2103,33 @@ async def on_error(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             pass
 
 
+async def _post_init(app: Application) -> None:
+    """Синее меню команд в Telegram.
+
+    set_my_commands не вызывался ни разу: /suv и /tejaldi существовали,
+    но найти их можно было только из /yordam или по кнопке. Команда, о
+    которой клиент не знает, для фермера не существует.
+
+    /dala сюда НЕ попадает сознательно: экран живёт в закрытом демо, и
+    показывать его в общем меню значило бы рекламировать всем то, что
+    работает у трёх чатов.
+    """
+    from telegram import BotCommand
+    try:
+        await app.bot.set_my_commands([
+            BotCommand("suv", "Bugungi sug'orish tavsiyasi"),
+            BotCommand("bajardim", "Suv berganingizni belgilash"),
+            BotCommand("tejaldi", "Mavsumda tejalgan suv"),
+            BotCommand("yordam", "Yordam"),
+            BotCommand("start", "Dalani ro'yxatdan o'tkazish"),
+        ])
+    except Exception as exc:  # noqa: BLE001 — меню не повод не стартовать
+        log.warning("set_my_commands не прошёл: %s", exc)
+
+
 def main() -> None:
     token = os.environ["TELEGRAM_TOKEN"]
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_init(_post_init).build()
     # Ro'yxatdan o'tish savollariga JAVOB bo'lishi mumkin bo'lgan matnni
     # menyu tugmalaridan ajratamiz — bo'lmasa, foydalanuvchi savolga
     # javob bermay tugma bossa, vizard uni cheksiz ushlab qoladi.
@@ -2097,6 +2192,17 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(inlet_callback, pattern=r"^fsin:"))
     app.add_handler(CallbackQueryHandler(photo_callback, pattern=r"^fs:map:"))
     app.add_handler(CallbackQueryHandler(fs_callback, pattern=r"^fs:"))
+    # ПОСЛЕДНИМ: всё, что не команда, не кнопка и не ответ мастеру. До
+    # этого такой текст не доходил ни до кого. Кнопки перечислены явно,
+    # хотя порядок регистрации и так отдаёт им приоритет: залипшая в
+    # клавиатуре кнопка обводки вне режима рисования должна вести себя
+    # как раньше — молча выйти, а не превратиться в вопрос Амиру.
+    _handled = "|".join(re.escape(b) for b in (
+        BTN_SUV, BTN_BAJARDIM, BTN_TEJALDI, BTN_YORDAM, BTN_DALA,
+        BTN_KABINET, BTN_DRAW_DONE, BTN_DRAW_UNDO, BTN_DRAW_CANCEL))
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND
+        & ~filters.Regex(f"^({_handled})$"), savol))
     app.add_error_handler(on_error)
     if _ALLOWED:
         log.info("allowlist active: %s", sorted(_ALLOWED))
