@@ -1098,6 +1098,10 @@ RN_TEXT = 90        # состояние диалога переименован
 
 NAME_MAX = 40
 
+# Столько живёт выбор поля кнопкой в /nom — ровно conversation_timeout
+# диалога с одним полем, чтобы две ветки одной команды не расходились.
+RENAME_TTL_SEC = 300
+
 
 async def nom_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     if not _authorized(update):
@@ -1136,6 +1140,12 @@ async def rename_pick_callback(update: Update,
         await query.edit_message_text("Dala topilmadi.")
         return
     ctx.user_data["rename_fid"] = fid
+    # Вне ConversationHandler у этого шага нет своего таймаута: у пути
+    # «одно поле» его даёт conversation_timeout=300, а здесь флаг жил в
+    # user_data бессрочно. Фермер, выбравший поле и ушедший, следующим
+    # свободным текстом переименовывал поле в свой вопрос — и вопрос не
+    # доходил до Амира. Тот же срок, что и у диалога.
+    ctx.user_data["rename_until"] = time.time() + RENAME_TTL_SEC
     await query.edit_message_text(f"«{row['name']}» uchun yangi nom yozing:")
 
 
@@ -1145,6 +1155,7 @@ async def rename_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     row = _field_row(fid) if fid else None
     if row is None or row["owner_chat_id"] != chat:
         ctx.user_data.pop("rename_fid", None)
+        ctx.user_data.pop("rename_until", None)
         await update.message.reply_text("Qaytadan /nom ni bosing.",
                                         reply_markup=_menu(chat))
         return ConversationHandler.END
@@ -1154,6 +1165,7 @@ async def rename_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             f"Nom 1–{NAME_MAX} belgidan iborat bo'lsin.")
         return RN_TEXT
     ctx.user_data.pop("rename_fid", None)
+    ctx.user_data.pop("rename_until", None)
     LEDGER.rename_field(fid, name)
     # Кэш карточки поля держит старое имя до десяти минут.
     ctx.user_data.get("fs_cache", {}).pop(fid, None)
@@ -1167,6 +1179,12 @@ async def rename_text_free(update: Update,
     """Текст после выбора поля кнопкой (вне диалога): тот же шаг, но
     возвращает, съеден ли текст, — иначе он ушёл бы в savol."""
     if not ctx.user_data.get("rename_fid"):
+        return False
+    if ctx.user_data.get("rename_until", 0) < time.time():
+        # Срок вышел: это уже не имя поля, а обычный вопрос — пусть
+        # уходит в savol, как и любой другой текст.
+        ctx.user_data.pop("rename_fid", None)
+        ctx.user_data.pop("rename_until", None)
         return False
     await rename_text(update, ctx)
     return True

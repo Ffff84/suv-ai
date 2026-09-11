@@ -5,10 +5,13 @@ Sug'orish bo'yicha qaror qabul qiluvchi tizim. / Система принятия
 Per-field irrigation scheduling for Uzbek farms. Satellite + weather +
 FAO-56 soil water balance, delivered as one sentence in Uzbek over Telegram.
 
-**Status: pilot / v0.1.0.** The physics engine is tested. The satellite and
-Telegram layers are written against real APIs but have not yet run against
-live credentials. That distinction is stated here on purpose — do not let
-it get blurred in a pitch.
+**Status: pilot / v0.1.0.** The physics engine is tested. The satellite,
+weather and Telegram layers have since run against live credentials — see
+the table below, which is the authority on what is proven. What is still
+missing is not plumbing but ground truth: no flow meter, no yield in tons,
+no on-field moisture measurement. Metered savings are zero. That
+distinction is stated here on purpose — do not let it get blurred in a
+pitch.
 
 ---
 
@@ -28,7 +31,7 @@ it get blurred in a pitch.
 | Telegram bot | **In use by a farmer** | Farrukh, the pilot farmer, runs it on his own two fields and confirms the advice arrives and reads correctly |
 | Savings actually measured | **Not yet** | Until `/bajardim` confirmations accumulate, every saving figure is a back-test, not a measured result |
 
-321 tests, all passing: `python -m pytest tests/ -q`
+435 tests, all passing: `python -m pytest tests/ -q`
 
 **Pilot status, August 2026.** The bot runs 24/7 on a VPS and serves one
 real farm in Samarkand province: an apple orchard (2 ha, drip, pumped)
@@ -72,7 +75,7 @@ correction also produced the salinity warning the bot now sends.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q            # 321 tests, no network needed
+python -m pytest tests/ -q            # 435 tests, no network needed
 
 cp .env.example .env                  # then fill it in — .env is gitignored
 python -m bot.main
@@ -144,12 +147,18 @@ competition pays tranches against a verified KPI.
    orchard (June: 8 sessions × 24 h at 24 m³/h = 288 m³/ha per session).
    Still missing for the vineyard — until it arrives, that field has no
    honest baseline and therefore no saving figure.
-3. **Soil type per field.** Currently defaults to loam at registration.
-   One question to the farmer, or a lookup against the soil map.
+3. ~~**Soil type per field.**~~ Closed 11.09.2026 (`7068224`): the wizard
+   asks the farmer directly — «Suv tez singadimi?» maps to sand / loam /
+   clay. Elevation comes from Open-Meteo in the same step. Loam remains
+   the fallback only for fields seeded by a script.
 4. **Water table depth per field.** The single most influential input, and
    currently unset for bot-registered fields (defaults to 0 = no
    contribution, which over-estimates water need).
-5. **Give the bot real field boundaries.** `bbox_polygon` draws a 200 m
-   square around the point, which can catch a neighbour's crop or a road.
-   Four corner points from the farmer beat a square.
+5. ~~**Give the bot real field boundaries.**~~ Closed 11.09.2026: the
+   farmer traces the contour in a Telegram Mini App, and whole farms load
+   from a file (`3c13351` — KML, KMZ, GeoJSON, ZIP-shapefile, batched).
+   `bbox_polygon`'s 200 m square survives only as the fallback for a field
+   with no polygon (`suv/enrich.py`). Known gaps of the import path:
+   polygon holes are dropped while their area stays in the field,
+   self-intersections are not checked, and WGS84 is the only accepted CRS.
 

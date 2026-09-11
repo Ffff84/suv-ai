@@ -320,6 +320,21 @@ REACH_OK_PCT = -7.0
 REACH_ALERT_PCT = -15.0
 
 
+def _seasons_ru(n: int) -> str:
+    """«1 сезон», «2 сезона», «5 сезонов». Плоское «сезона» врало на
+    всех числах, кроме 2-4, а отказ читает фермер."""
+    tail100, tail10 = n % 100, n % 10
+    if 11 <= tail100 <= 14:
+        word = "сезонов"
+    elif tail10 == 1:
+        word = "сезон"
+    elif 2 <= tail10 <= 4:
+        word = "сезона"
+    else:
+        word = "сезонов"
+    return f"{n} {word}"
+
+
 def uniformity_section(irrigation_method: str, area_ha: float | None,
                        has_reach: bool = False,
                        lang: str = "uz",
@@ -334,10 +349,15 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
     в таких карточках был бы не честностью, а мусором. Снимок поля — не
     здесь: он живёт своей секцией и способа полива не разбирает.
 
-    Пока это только пустые состояния из ТЗ §3.5: сам расчёт приходит с
-    модулем Egat, а карта — с замером. Рисовать «вода не дошла» по
-    нормативам запрещено (§1.1), поэтому статус здесь никогда не хуже
-    NO_DATA — секция не пугает фермера догадкой.
+    Рисовать «вода не дошла» по нормативам запрещено (§1.1): пока нет
+    замера, статус остаётся NO_DATA и секция просит недостающий шаг —
+    контур, сторону входа воды, сам замер. Но с появлением многолетнего
+    композита (9cc173d) статус БЫВАЕТ хуже: измеренное отставание
+    дальнего края даёт WARN и ALERT, и этот ALERT поднимает
+    `overall_status` — красит шапку карточки, эмодзи в списке полей и
+    `overall` в web/api. Вывод спутниковый, наземной проверки под ним
+    нет; тем важнее, что каждая такая строка несёт три числа, а не
+    вердикт без опоры.
     """
     if irrigation_method != "furrow":
         return None
@@ -414,10 +434,18 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
             hint = (f"Zonalar barqaror emas ({share}%) — xarita qurilmaydi"
                     if uz else
                     f"Зоны нестабильны ({share}%) — карту не строю")
+        elif refused == "too_small":
+            # Сезонов хватило, стабильность прошла — не собрался профиль
+            # вдоль борозды: на контур такого размера приходится меньше
+            # горсти ячеек растра. «Снимков мало» здесь было неправдой
+            # ровно в том месте, где мы обещаем честный отказ.
+            hint = ("Dala profil uchun juda kichik — taxmin qilmayman"
+                    if uz else
+                    "Поле мало для профиля по борозде — гадать не буду")
         else:
             hint = (f"Kadr yetarli emas ({n} mavsum) — taxmin qilmayman"
                     if uz else
-                    f"Снимков мало ({n} сезона) — гадать не буду")
+                    f"Снимков мало ({_seasons_ru(n)}) — гадать не буду")
         return Section(
             key="uniformity", order=20, title=title, status=Status.NO_DATA,
             line=f"{drawn} · {entered}", hint=hint, action=redraw)

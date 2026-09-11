@@ -49,6 +49,15 @@ def main() -> int:
                              (args.field_id,)).fetchall()
     if not rows:
         raise SystemExit("Нет полей с контуром — замер строится по контуру.")
+    # --all уже отфильтровал контур в SQL, а одно поле по id — нет:
+    # json.loads(None) падал TypeError вместо внятного отказа.
+    named = [r for r in rows if r["polygon_geojson"]]
+    if not named:
+        raise SystemExit(
+            f"У поля {rows[0]['field_id']} ({rows[0]['name']}) нет контура. "
+            "Замер строится по контуру: обведите поле в Mini App или "
+            "загрузите границу файлом.")
+    rows = named
 
     for row in rows:
         ring = json.loads(row["polygon_geojson"])

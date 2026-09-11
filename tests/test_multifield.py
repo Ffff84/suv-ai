@@ -7,7 +7,10 @@ id последовательные и никогда не переисполь�
 переименование не задевает ничего, кроме имени.
 """
 
+import asyncio
+import time
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
@@ -103,3 +106,59 @@ def test_rename_of_missing_field_is_false(led):
 
 def test_max_fields_cap_constant():
     assert B.MAX_FIELDS_PER_CHAT == 10
+
+
+# ------------------------------- срок жизни выбора поля в /nom
+#
+# Асинхронных тестов в пакете нет, и плагина под них тоже: хендлеры
+# крутим через asyncio.run, чтобы не тащить зависимость ради двух
+# проверок.
+
+class _Msg:
+    def __init__(self, text):
+        self.text, self.message_id = text, 1
+        self.sent: list[str] = []
+
+    async def reply_text(self, t, **kw):
+        self.sent.append(t)
+
+
+class _Upd:
+    def __init__(self, text, chat=777):
+        self.message = _Msg(text)
+        self.effective_chat = SimpleNamespace(id=chat)
+
+
+def _ctx(**user_data):
+    return SimpleNamespace(user_data=dict(user_data), bot=None)
+
+
+def test_stale_rename_pick_does_not_eat_the_next_question(led):
+    """Вопрос фермера не должен превращаться в имя поля.
+
+    При двух и более полях /nom выходит из ConversationHandler и ждёт
+    текст по флагу `rename_fid` в user_data. 12.09.2026 флаг жил там
+    бессрочно: фермер выбирал поле кнопкой, уходил, а следующим
+    свободным текстом — вопросом Амиру — переименовывал поле. Сам
+    вопрос до Амира не доходил: savol возвращался раньше пересылки.
+    """
+    _mk(led, "TG-777", name="Paxta dalasi")
+    ctx = _ctx(rename_fid="TG-777", rename_until=0.0)   # срок вышел
+    upd = _Upd("Amir, uzumga qachon dori sepaman?")
+
+    eaten = asyncio.run(B.rename_text_free(upd, ctx))
+
+    assert eaten is False, "просроченный выбор поля съел вопрос"
+    assert B._field_row("TG-777")["name"] == "Paxta dalasi"
+    assert ctx.user_data.get("rename_fid") is None
+
+
+def test_fresh_rename_pick_still_renames(led):
+    """Обратная сторона того же замка: в пределах срока имя меняется."""
+    _mk(led, "TG-777", name="Paxta dalasi")
+    ctx = _ctx(rename_fid="TG-777",
+               rename_until=time.time() + B.RENAME_TTL_SEC)
+
+    assert asyncio.run(B.rename_text_free(_Upd("Uzumzor"), ctx)) is True
+    assert B._field_row("TG-777")["name"] == "Uzumzor"
+    assert ctx.user_data.get("rename_until") is None

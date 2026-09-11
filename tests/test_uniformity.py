@@ -132,3 +132,36 @@ def test_section_without_measurement_stays_honest():
     s = uniformity_section("furrow", 9.4, inlet_side="shimol", reach=None)
     assert s.status is Status.NO_DATA
     assert "o'lchov hali" in s.hint
+
+
+def test_too_small_does_not_blame_the_number_of_frames():
+    """Отказ обязан называть свою настоящую причину.
+
+    Повод: 12.09.2026 ветка `else` печатала «Снимков мало (5 сезона)»
+    для ЛЮБОГО отказа, кроме `unstable`. При `too_small` порог сезонов
+    как раз пройден, а не построился профиль по восьми ломтикам вдоль
+    борозды — фермеру сообщали неверную причину ровно на том экране,
+    которым мы хвалимся как честным отказом.
+    """
+    small = uniformity_section("furrow", 0.4, inlet_side="shimol",
+                               reach=_reach(None, refused="too_small", n=6))
+    assert small.status is Status.NO_DATA
+    assert "mavsum" not in small.hint, "причина подменена числом сезонов"
+    assert "kichik" in small.hint          # «поле мало для профиля»
+
+    ru = uniformity_section("furrow", 0.4, lang="ru", inlet_side="север",
+                            reach=_reach(None, refused="too_small", n=6))
+    assert "Снимков мало" not in ru.hint
+    assert "мало для профиля" in ru.hint
+
+
+@pytest.mark.parametrize("n,expect", [
+    (1, "1 сезон"), (2, "2 сезона"), (4, "4 сезона"), (5, "5 сезонов"),
+    (11, "11 сезонов"), (21, "21 сезон"), (22, "22 сезона"),
+])
+def test_russian_seasons_agree_with_the_number(n, expect):
+    """«5 сезона» читает фермер, а не разработчик. Плоское «сезона»
+    врало на всех числах, кроме 2-4."""
+    sec = uniformity_section("furrow", 9.4, lang="ru", inlet_side="север",
+                             reach=_reach(None, refused="few_seasons", n=n))
+    assert expect in sec.hint
