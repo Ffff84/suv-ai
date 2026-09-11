@@ -106,6 +106,21 @@ CREATE TABLE IF NOT EXISTS field_notes (
     created_at TEXT NOT NULL
 );
 
+-- Оценка совета одним тапом — «Rate zones» OneSoil, перенесённый на
+-- наш жанр. Один голос на рекомендацию и чат; переголосовать можно —
+-- последнее слово за фермером. Это НЕ метрика качества расчёта
+-- (эталона по-прежнему нет) — это сырьё для разговора с фермером:
+-- «вы трижды ставили 👎 по средам — что не так по средам?»
+CREATE TABLE IF NOT EXISTS advice_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recommendation_id INTEGER NOT NULL REFERENCES recommendations(id),
+    field_id TEXT NOT NULL,
+    chat_id INTEGER,
+    verdict TEXT NOT NULL,              -- 'up' | 'down'
+    created_at TEXT NOT NULL,
+    UNIQUE(recommendation_id, chat_id)
+);
+
 -- Метрика экрана «Dala holati»: каждая строка — фермер сам открыл
 -- состояние поля. Для питча это возвраты между пушами, а не рассылка.
 CREATE TABLE IF NOT EXISTS field_status_views (
@@ -176,6 +191,12 @@ _ADDED_COLUMNS = (
     # рекомендации и отметки, — а журнал у нас не стирается. NULL =
     # поле живое; дата = когда сняли с ро'йхата.
     ("archived_at", "TEXT"),
+    # Опыт «по совету против привычки»: кольца половин (A — по совету)
+    # и дата старта. Сбрасываются при перечерчивании контура — половины
+    # старой границы на новой лежат криво.
+    ("trial_half_a", "TEXT"),
+    ("trial_half_b", "TEXT"),
+    ("trial_started", "TEXT"),
 )
 
 
@@ -321,8 +342,11 @@ class Ledger:
             # «вода заходит с севера» стало бы тихой неправдой.
             # Фото собрано по старой границе — вместе с контуром слетает
             # и оно, иначе фермер увидит заливку не по своему полю.
+            # Половины опыта тоже слетают: они резались по старой границе.
             c.execute("UPDATE fields SET polygon_geojson=?, area_ha=?, "
                       "polygon_source=?, inlet_vertices=NULL, "
+                      "trial_half_a=NULL, trial_half_b=NULL, "
+                      "trial_started=NULL, "
                       "photo_file_id=NULL, photo_key=NULL, photo_caption=NULL "
                       "WHERE field_id=?",
                       (json.dumps(ring), round(area_ha, 2), source, field_id))
@@ -379,6 +403,54 @@ class Ledger:
                        datetime.utcnow().isoformat(),
                        latest_seen or scene_day, field_id))
             c.commit()
+
+    def set_trial(self, field_id: str, half_a_json: str,
+                  half_b_json: str) -> None:
+        """Начать опыт: половины A (по совету) и B (привычка)."""
+        with closing(self._conn()) as c:
+            c.execute(
+                "UPDATE fields SET trial_half_a=?, trial_half_b=?, "
+                "trial_started=? WHERE field_id=?",
+                (half_a_json, half_b_json, datetime.utcnow().isoformat(),
+                 field_id))
+            c.commit()
+
+    def clear_trial(self, field_id: str) -> None:
+        with closing(self._conn()) as c:
+            c.execute("UPDATE fields SET trial_half_a=NULL, "
+                      "trial_half_b=NULL, trial_started=NULL "
+                      "WHERE field_id=?", (field_id,))
+            c.commit()
+
+    def add_feedback(self, recommendation_id: int, field_id: str,
+                     chat_id: int | None, verdict: str) -> None:
+        """Голос по совету. REPLACE — переголосовать можно."""
+        if verdict not in ("up", "down"):
+            raise ValueError(f"verdict up|down, не {verdict!r}")
+        with closing(self._conn()) as c:
+            c.execute(
+                """INSERT OR REPLACE INTO advice_feedback
+                   (recommendation_id, field_id, chat_id, verdict, created_at)
+                   VALUES (?,?,?,?,?)""",
+                (recommendation_id, field_id, chat_id, verdict,
+                 datetime.utcnow().isoformat()))
+            c.commit()
+
+    def feedback_counts(self, field_id: str) -> tuple[int, int]:
+        """(👍, 👎) по полю за всё время."""
+        with closing(self._conn()) as c:
+            row = c.execute(
+                """SELECT SUM(verdict='up'), SUM(verdict='down')
+                   FROM advice_feedback WHERE field_id=?""",
+                (field_id,)).fetchone()
+        return int(row[0] or 0), int(row[1] or 0)
+
+    def recommendation_field(self, recommendation_id: int) -> str | None:
+        with closing(self._conn()) as c:
+            row = c.execute(
+                "SELECT field_id FROM recommendations WHERE id=?",
+                (recommendation_id,)).fetchone()
+        return row[0] if row else None
 
     def rename_field(self, field_id: str, name: str) -> bool:
         """Новое имя поля. Право владения проверяет вызывающий слой."""

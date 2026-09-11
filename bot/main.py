@@ -721,6 +721,7 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # водного баланса. Правило журнала прямое: храним то, что
         # СКАЗАЛИ фермеру. Сказали — значит записываем; о приблизительности
         # предупреждает сам текст сообщения.
+        rid = None
         if not observer:
             rid = LEDGER.log_recommendation(rec, __version__)
             ctx.user_data["last_rec_ids"][rec.field.field_id] = rid
@@ -728,7 +729,7 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             _rec_message(rec, pump, lang, anchored=anchored,
                          degraded=degraded),
             reply_markup=_why_markup(update.effective_chat.id,
-                                     rec.field.field_id, lang))
+                                     rec.field.field_id, lang, rid=rid))
 
 
 # «Почему такой совет?» — закрытое демо (_FIELD_STATUS): фермеру кнопка
@@ -736,14 +737,54 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 # reply-клавиатура остаётся от прежних сообщений.
 WHY_BTN_UZ = "🤔 Nega bunday maslahat?"
 WHY_BTN_RU = "🤔 Почему такой совет?"
+FB_UP = "👍 Foydali"
+FB_DOWN = "👎 Xato"
 
 
-def _why_markup(chat: int, field_id: str, lang: str = "uz"):
+def _why_markup(chat: int, field_id: str, lang: str = "uz",
+                rid: int | None = None):
+    """Кнопки под советом: «почему» + оценка одним тапом (при известном
+    id рекомендации — голос привязывается к конкретному совету)."""
     if not _field_status_open(chat):
         return _menu(chat)
     label = WHY_BTN_UZ if lang == "uz" else WHY_BTN_RU
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton(label, callback_data=f"why:{field_id}")]])
+    rows = [[InlineKeyboardButton(label, callback_data=f"why:{field_id}")]]
+    if rid is not None:
+        rows.append([InlineKeyboardButton(FB_UP, callback_data=f"fb:up:{rid}"),
+                     InlineKeyboardButton(FB_DOWN, callback_data=f"fb:down:{rid}")])
+    return InlineKeyboardMarkup(rows)
+
+
+async def feedback_callback(update: Update,
+                            ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """👍/👎 под советом — «Rate zones» OneSoil на нашем жанре.
+
+    Голос пишется в журнал (advice_feedback), не в метрику точности:
+    эталона по-прежнему нет, и 👍 не делает совет верным. Это сырьё для
+    разговора с фермером и для разборов."""
+    query = update.callback_query
+    chat = update.effective_chat.id
+    try:
+        _, verdict, raw = query.data.split(":", 2)
+        rid = int(raw)
+    except ValueError:
+        await query.answer()
+        return
+    fid = LEDGER.recommendation_field(rid)
+    if fid is None:
+        await query.answer("Eskirgan maslahat.")
+        return
+    LEDGER.add_feedback(rid, fid, chat, verdict)
+    await query.answer("Rahmat! Yozib olindi.")
+    # Кнопки оценки сворачиваются в выбранную; «почему» остаётся.
+    chosen = FB_UP if verdict == "up" else FB_DOWN
+    try:
+        await query.edit_message_reply_markup(InlineKeyboardMarkup([
+            [InlineKeyboardButton(WHY_BTN_UZ, callback_data=f"why:{fid}")],
+            [InlineKeyboardButton(f"✅ {chosen}",
+                                  callback_data=f"fb:{verdict}:{rid}")]]))
+    except Exception:  # noqa: BLE001 — правка клавиатуры не критична
+        pass
 
 
 async def why_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2497,7 +2538,7 @@ async def _push_owner(ctx, chat: int, today: date,
     delivered = 0
     for rec, pump, anchored, degraded in recs:
         try:
-            await ctx.bot.send_message(
+            sent = await ctx.bot.send_message(
                 chat, _rec_message(rec, pump, "uz", anchored=anchored,
                                    degraded=degraded),
                 reply_markup=_why_markup(chat, rec.field.field_id))
@@ -2516,6 +2557,16 @@ async def _push_owner(ctx, chat: int, today: date,
         except Exception as exc:  # noqa: BLE001
             log.warning("push: журнал по %s не записан: %s",
                         rec.field.field_id, exc)
+            continue
+        # Кнопки оценки требуют id рекомендации, а id появляется только
+        # после записи в журнал — журнал же пишет только ДОСТАВЛЕННОЕ
+        # (правило «храним сказанное»). Поэтому клавиатура правится
+        # задним числом; сбой правки не роняет обход.
+        try:
+            await sent.edit_reply_markup(
+                _why_markup(chat, rec.field.field_id, rid=rid))
+        except Exception:  # noqa: BLE001
+            pass
     # «Отправлено» здесь однажды соврало: единственная отправка упала с
     # Forbidden (владелец заблокировал бота), continue проскочил мимо
     # журнала — а итоговая строка всё равно отчиталась об успехе, и по
@@ -2750,6 +2801,7 @@ def main() -> None:
     # Файл границ = пакетный посев полей (KML/KMZ/GeoJSON/shapefile-zip).
     app.add_handler(MessageHandler(filters.Document.ALL, import_doc))
     app.add_handler(CallbackQueryHandler(why_callback, pattern=r"^why:"))
+    app.add_handler(CallbackQueryHandler(feedback_callback, pattern=r"^fb:"))
     app.add_handler(CallbackQueryHandler(rename_pick_callback, pattern=r"^rnm:"))
     app.add_handler(CallbackQueryHandler(import_flow_callback,
                                          pattern=r"^imp[cmasw]:"))
