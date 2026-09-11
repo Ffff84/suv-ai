@@ -1506,6 +1506,26 @@ def _fs_data(row, ctx):
     return data
 
 
+# Замер равномерности живёт в базе (собирает scripts/build_uniformity.py):
+# карточка его только читает. Старше 90 дней — не показываем: канал
+# могли почистить, привычку полива поменять.
+UNIFORMITY_TTL_DAYS = 90
+
+
+def _uniformity_payload(row) -> dict | None:
+    if "uniformity_json" not in row.keys() or not row["uniformity_json"]:
+        return None
+    import json
+    try:
+        payload = json.loads(row["uniformity_json"])
+        built = date.fromisoformat(payload.get("built", ""))
+    except (ValueError, TypeError):
+        return None
+    if (today_tashkent() - built).days > UNIFORMITY_TTL_DAYS:
+        return None
+    return payload
+
+
 def _fs_sections(row, ctx, lang: str) -> list:
     rec, pump, _anchored, degraded, forecast, hourly = _fs_data(row, ctx)
     last_irr = _last_irrigation(row["field_id"],
@@ -1520,7 +1540,8 @@ def _fs_sections(row, ctx, lang: str) -> list:
         uniformity_section(row["irrigation_method"], row["area_ha"],
                            has_reach=False, lang=lang,
                            declared_ha=row["hectares"],
-                           inlet_side=_inlet_side(row, lang)),
+                           inlet_side=_inlet_side(row, lang),
+                           reach=_uniformity_payload(row)),
         photo_section(row["area_ha"], row["irrigation_method"],
                       photo=_photo_verdict(row, today_tashkent()), lang=lang),
         weather_section(forecast, lang),

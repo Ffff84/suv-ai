@@ -197,6 +197,10 @@ _ADDED_COLUMNS = (
     ("trial_half_a", "TEXT"),
     ("trial_half_b", "TEXT"),
     ("trial_started", "TEXT"),
+    # Замер равномерности по многолетнему композиту (uniformity.build):
+    # JSON с тремя честными числами или честным отказом. Пересобирается
+    # скриптом, карточка поля только читает.
+    ("uniformity_json", "TEXT"),
 )
 
 
@@ -402,6 +406,12 @@ class Ledger:
                       (file_id, scene_day, key, caption,
                        datetime.utcnow().isoformat(),
                        latest_seen or scene_day, field_id))
+            c.commit()
+
+    def save_uniformity(self, field_id: str, payload_json: str) -> None:
+        with closing(self._conn()) as c:
+            c.execute("UPDATE fields SET uniformity_json=? WHERE field_id=?",
+                      (payload_json, field_id))
             c.commit()
 
     def set_trial(self, field_id: str, half_a_json: str,

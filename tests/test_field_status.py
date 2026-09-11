@@ -176,12 +176,12 @@ def test_uniformity_with_contour_asks_for_the_inlet_side():
 
 def test_uniformity_with_inlet_asks_for_a_measurement():
     """Контур и сторона входа есть, замера нет: карту рисовать запрещено
-    (§1.1), поэтому секция честно просит недостающий шаг."""
+    (§1.1), поэтому секция честно говорит, что замер ещё не собран."""
     s = uniformity_section("furrow", 9.4, inlet_side="shimol")
     assert s.status is Status.NO_DATA
     assert "9,4 ga" in s.line
     assert "shimol tomondan kiradi" in s.line
-    assert "yetganini" in s.hint       # «докуда дошла вода»
+    assert "o'lchov hali" in s.hint    # замер по снимкам ещё не собран
     # Сторону входа можно переназначить: ошибиться в списке легко, а
     # обходить ради этого поле заново фермер не должен.
     assert s.action is not None and s.action.callback == "fs:inlet"

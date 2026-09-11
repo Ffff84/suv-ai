@@ -314,11 +314,18 @@ def photo_section(area_ha: float | None, irrigation_method: str,
     return None
 
 
+# Дальний край относительно ближнего по многолетнему композиту: не хуже
+# -7% — вода доходит; -7…-15% — не всегда; хуже — стабильно сухой край.
+REACH_OK_PCT = -7.0
+REACH_ALERT_PCT = -15.0
+
+
 def uniformity_section(irrigation_method: str, area_ha: float | None,
                        has_reach: bool = False,
                        lang: str = "uz",
                        declared_ha: float | None = None,
-                       inlet_side: str | None = None) -> Section | None:
+                       inlet_side: str | None = None,
+                       reach: dict | None = None) -> Section | None:
     """Равномерность полива. None = секция неприменима и не рисуется.
 
     Расчёт движения воды по борозде (модуль Egat) осмыслен только для
@@ -385,21 +392,53 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
     # под карточкой не разрасталась клавиатура.
     redraw = Action(INLET_CHANGE_UZ if uz else INLET_CHANGE_RU, "fs:inlet")
 
-    if not has_reach:
-        # Контур и сторона входа есть, замера нет. Карту рисовать
-        # запрещено (§1.1): пока не измерено, докуда вода дошла,
-        # любая заливка — догадка, а догадка убедительнее данных.
+    if reach is None:
+        # Контур и сторона входа есть, замера ещё нет. Карту рисовать
+        # запрещено (§1.1): пока не измерено, любая заливка — догадка,
+        # а догадка убедительнее данных.
         return Section(
             key="uniformity", order=20, title=title, status=Status.NO_DATA,
             line=f"{drawn} · {entered}",
-            hint=("Suv qayergacha yetganini belgilasang, tekislikni ko'rsataman"
+            hint=("Ko'p yillik suratlar bo'yicha o'lchov hali yig'ilmagan"
                   if uz else
-                  "Отметьте, докуда дошла вода — покажу равномерность"),
+                  "Замер по многолетним снимкам ещё не собран"),
             action=redraw)
 
+    n = reach.get("seasons_used", 0)
+    share = round(100 * (reach.get("stable_share") or 0.0))
+    refused = reach.get("refused")
+    if refused:
+        # Порог применимости — вслух. «Карту не строю» честнее карты,
+        # натянутой на два сезона или на мигающие зоны.
+        if refused == "unstable":
+            hint = (f"Zonalar barqaror emas ({share}%) — xarita qurilmaydi"
+                    if uz else
+                    f"Зоны нестабильны ({share}%) — карту не строю")
+        else:
+            hint = (f"Kadr yetarli emas ({n} mavsum) — taxmin qilmayman"
+                    if uz else
+                    f"Снимков мало ({n} сезона) — гадать не буду")
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=f"{drawn} · {entered}", hint=hint, action=redraw)
+
+    tail = reach.get("tail_pct") or 0.0
+    three = (f"{n} mavsum · barqaror {share}% · chekka {tail:+.0f}%"
+             if uz else
+             f"{n} сезонов · стабильно {share}% · дальний край {tail:+.0f}%")
+    if tail >= REACH_OK_PCT:
+        status, verdict = Status.OK, ("Suv dala oxirigacha yetadi" if uz
+                                      else "Вода доходит до конца поля")
+    elif tail >= REACH_ALERT_PCT:
+        status, verdict = Status.WARN, ("Suv oxiriga to'liq yetmayapti" if uz
+                                        else "Вода не всегда доходит до края")
+    else:
+        status, verdict = Status.ALERT, ("Dala oxiri yildan-yilga quruq" if uz
+                                         else "Дальний край сухой из года в год")
     return Section(
-        key="uniformity", order=20, title=title, status=Status.NO_DATA,
-        line=f"{drawn} · {entered}", action=redraw)
+        key="uniformity", order=20, title=title, status=status,
+        line=f"{verdict} · {three}", hint=f"{drawn} · {entered}",
+        action=redraw)
 
 
 def cost_section(season_m3: float, pump: PumpProfile | None,

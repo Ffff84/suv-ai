@@ -91,6 +91,13 @@ def _long_axis_bearing(xy) -> float:
     return bearing
 
 
+def default_flow_bearing(ring: list[list[float]]) -> float:
+    """Ход воды, когда вход не отмечен: вдоль длинной оси контура."""
+    pts = from_geojson_ring(ring)
+    xy, _ = _local(pts)
+    return round(_long_axis_bearing(xy), 1)
+
+
 def flow_bearing_from_inlet(ring: list[list[float]], i: int, j: int) -> float:
     """Куда течёт вода: перпендикуляр к ребру входа, В поле (к центроиду)."""
     pts = from_geojson_ring(ring)
