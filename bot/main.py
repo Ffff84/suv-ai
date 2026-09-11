@@ -53,6 +53,8 @@ from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
                               field_list_label, overall_status,
                               photo_section, render_card, uniformity_section,
                               water_section, weather_section)
+from suv.boundary_import import parse_file as parse_boundaries
+from suv.boundary_import import seed as seed_boundaries
 from suv.landsat import enabled as landsat_enabled
 from suv.ledger import Ledger
 from suv.messages import (recommendation_text, salinity_warning,
@@ -854,6 +856,166 @@ async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "/ochirish — dalani ro'yxatdan olish (tarix saqlanadi)\n\n"
         "Savolingiz bo'lsa — shu yerga yozing, Amir javob beradi.",
         reply_markup=_menu(chat))
+
+
+# ------------------------------------------------- импорт границ файлом
+#
+# Агроном хозяйства присылает боту файл границ (KML/KMZ/GeoJSON/ZIP c
+# shapefile) — и получает все поля разом, вместо тридцати проходов
+# мастера. Одна культура и один способ полива на файл: клинья
+# однородны, исключения правятся точечно после посева. Четыре вопроса —
+# четыре тапа: культура -> дата (месяц или возраст) -> почва -> полив.
+IMPORT_EXTS = (".kml", ".kmz", ".geojson", ".json", ".zip")
+IMPORT_MAX_BYTES = 15 * 1024 * 1024
+IMPORT_MAX_FIELDS = 50          # за один файл через бот; больше — CLI
+IMPORT_TTL_S = 900.0
+PERENNIAL_AGES = (1, 2, 3, 5, 10, 15)
+
+
+def _imp_label(key: str) -> str:
+    return f"{CROP_EMOJI.get(key, '🌱')} {CROPS[key].name_uz}"
+
+
+def _imp_pending(ctx) -> dict | None:
+    pend = ctx.user_data.get("pending_import")
+    if not pend or time.monotonic() - pend["at"] > IMPORT_TTL_S:
+        ctx.user_data.pop("pending_import", None)
+        return None
+    return pend
+
+
+async def import_doc(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        await _reject(update)
+        return
+    doc = update.message.document
+    fname = (doc.file_name or "").strip()
+    if not fname.lower().endswith(IMPORT_EXTS):
+        await update.message.reply_text(
+            "Dala chegaralari faylini yuboring: KML, KMZ, GeoJSON yoki "
+            "ZIP (shapefile).")
+        return
+    if doc.file_size and doc.file_size > IMPORT_MAX_BYTES:
+        await update.message.reply_text("Fayl juda katta (15 MB gacha).")
+        return
+    tg_file = await doc.get_file()
+    data = bytes(await tg_file.download_as_bytearray())
+    fields, problems = await asyncio.to_thread(parse_boundaries, data, fname)
+    if not fields:
+        text = "Fayldan dala chiqmadi." if not problems else             "Fayldan dala chiqmadi:\n" + "\n".join(f"• {p}" for p in problems[:5])
+        await update.message.reply_text(text)
+        return
+    if len(fields) > IMPORT_MAX_FIELDS:
+        problems.append(f"Bot orqali bir faylda {IMPORT_MAX_FIELDS} tagacha "
+                        f"dala: birinchi {IMPORT_MAX_FIELDS} tasi olinadi.")
+        fields = fields[:IMPORT_MAX_FIELDS]
+
+    ctx.user_data["pending_import"] = {"fields": fields,
+                                       "at": time.monotonic()}
+    total = sum(f.area_ha for f in fields)
+    listing = "\n".join(f"• {f.name} — {f.area_ha:g} ga" for f in fields[:6])
+    if len(fields) > 6:
+        listing += f"\n… va yana {len(fields) - 6} ta"
+    warn = ""
+    if problems:
+        warn = "\n\n⚠️ " + "\n⚠️ ".join(problems[:3])
+    keys = list(CROPS)
+    kb = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(_imp_label(k), callback_data=f"impc:{k}")
+          for k in keys[i:i + 2]] for i in range(0, len(keys), 2)])
+    await update.message.reply_text(
+        f"Fayldan {len(fields)} ta dala o'qildi, jami {total:.1f} ga:\n"
+        f"{listing}{warn}\n\nHammasida nima ekilgan?", reply_markup=kb)
+
+
+async def import_flow_callback(update: Update,
+                               ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    pend = _imp_pending(ctx)
+    if pend is None:
+        await query.edit_message_text("Eskirdi — faylni qaytadan yuboring.")
+        return
+    kind, value = query.data.split(":", 1)
+
+    if kind == "impc":
+        if value not in CROPS:
+            return
+        pend["crop"] = value
+        crop = CROPS[value]
+        if crop.perennial:
+            kb = InlineKeyboardMarkup(
+                [[InlineKeyboardButton(f"{a} yosh", callback_data=f"impa:{a}")
+                  for a in PERENNIAL_AGES[i:i + 3]]
+                 for i in range(0, len(PERENNIAL_AGES), 3)])
+            await query.edit_message_text(
+                f"{crop.name_uz}: daraxt/tok necha yoshda?", reply_markup=kb)
+        else:
+            kb = InlineKeyboardMarkup(
+                [[InlineKeyboardButton(MONTHS_UZ[m - 1], callback_data=f"impm:{m}")
+                  for m in range(r, r + 3)] for r in (1, 4, 7, 10)])
+            await query.edit_message_text("Qaysi oyda ekilgan?",
+                                          reply_markup=kb)
+        return
+
+    if kind in ("impm", "impa"):
+        crop = CROPS.get(pend.get("crop", ""))
+        if crop is None:
+            return
+        today = today_tashkent()
+        if kind == "impa":
+            years = int(value)
+            month, day = crop.typical_sowing
+            pend["planting"] = date(today.year - years, month, day)
+        else:
+            month = int(value)
+            year = today.year if month <= today.month else today.year - 1
+            day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
+            pend["planting"] = date(year, month, day)
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(SOIL_FAST, callback_data="imps:sand")],
+            [InlineKeyboardButton(SOIL_MID, callback_data="imps:loam")],
+            [InlineKeyboardButton(SOIL_SLOW, callback_data="imps:clay")]])
+        await query.edit_message_text(
+            "Tuproq suvni qanday ushlaydi? (hammasi uchun)", reply_markup=kb)
+        return
+
+    if kind == "imps":
+        if value not in SOILS:
+            return
+        pend["soil"] = value
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(METHOD_LABELS["furrow"], callback_data="impw:furrow")],
+            [InlineKeyboardButton(METHOD_LABELS["sprinkler"], callback_data="impw:sprinkler")],
+            [InlineKeyboardButton(METHOD_LABELS["drip"], callback_data="impw:drip")]])
+        await query.edit_message_text("Qanday sug'oriladi? (hammasi uchun)",
+                                      reply_markup=kb)
+        return
+
+    if kind == "impw":
+        if value not in ("furrow", "sprinkler", "drip") or "soil" not in pend:
+            return
+        ctx.user_data.pop("pending_import", None)
+        fields = pend["fields"]
+        await query.edit_message_text(
+            f"{len(fields)} ta dala yaratilmoqda…")
+
+        def _do():
+            return seed_boundaries(
+                LEDGER, fields, owner_chat=chat,
+                crop_key=pend["crop"], soil_key=pend["soil"],
+                irrigation_method=value,
+                planting_iso=pend["planting"].isoformat(),
+                make_id=lambda: _next_field_id(chat),
+                elevation_for=fetch_elevation)
+
+        created = await asyncio.to_thread(_do)
+        total = sum(f.area_ha for f in fields)
+        await query.edit_message_text(
+            f"Tayyor: {len(created)} ta dala saqlandi, jami {total:.1f} ga.\n"
+            f"Har biriga ertalab alohida tavsiya keladi.\n"
+            f"Hozir tekshirish: “{BTN_SUV}”. Nom o'zgartirish: /nom.")
 
 
 # ------------------------------------------------- имя и ро'йхат поля
@@ -2555,8 +2717,12 @@ def main() -> None:
     # Фото = полевая заметка. Только демо-чаты: новая поверхность не
     # доходит до Фарруха, пока её не обкатали (правило закрытого демо).
     app.add_handler(MessageHandler(filters.PHOTO & draw_only, photo_note))
+    # Файл границ = пакетный посев полей (KML/KMZ/GeoJSON/shapefile-zip).
+    app.add_handler(MessageHandler(filters.Document.ALL, import_doc))
     app.add_handler(CallbackQueryHandler(why_callback, pattern=r"^why:"))
     app.add_handler(CallbackQueryHandler(rename_pick_callback, pattern=r"^rnm:"))
+    app.add_handler(CallbackQueryHandler(import_flow_callback,
+                                         pattern=r"^imp[cmasw]:"))
     app.add_handler(CallbackQueryHandler(archive_callback, pattern=r"^arx(ok|no)?:"))
     app.add_handler(CallbackQueryHandler(note_field_callback, pattern=r"^notefld:"))
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
