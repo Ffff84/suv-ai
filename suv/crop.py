@@ -98,6 +98,39 @@ CROPS: dict[str, Crop] = {
         # (Campos et al. 2010), поэтому лозе она оставлена.
         ndvi_kc_model="linear", canopy_height_m=2.0,
     ),
+    # Три культуры фазы 1 (11.09.2026) — по структуре посевов страны
+    # (косточковые, люцерна, ячмень закрывают вместе с прежней шестёркой
+    # ~65% орошаемой площади) и под клинья гиганта из Самарканда.
+    # Значения — те же FAO-56 табл. 11/12/22, НЕ полевые измерения.
+    "apricot": Crop(
+        key="apricot", name_uz="O'rik", name_ru="Абрикос",
+        # Листва с распускания в марте до осени; съём в июне-июле
+        # закрывается режимом терима, а не формой кривой Kc.
+        stages=(20, 70, 90, 30),
+        kc_ini=0.45, kc_mid=0.90, kc_end=0.65,   # табл. 12: косточковые без задернения
+        root_depth_m=1.50, depletion_fraction=0.50,
+        typical_sowing=(3, 15),  # распускание почек
+        perennial=True,
+        ndvi_kc_model="cover", canopy_height_m=3.0, canopy_ml=1.5,
+    ),
+    "alfalfa": Crop(
+        key="alfalfa", name_uz="Beda", name_ru="Люцерна",
+        # «Averaged cutting effects» из табл. 12: Kc усреднён по укосам,
+        # отдельные укосы движок не моделирует — и говорит об этом здесь.
+        stages=(10, 30, 160, 20),
+        kc_ini=0.40, kc_mid=0.95, kc_end=0.90,
+        root_depth_m=1.50, depletion_fraction=0.55,
+        typical_sowing=(3, 10),  # отрастание весной
+        perennial=True,          # травостой: NDVI->Kc линейная, родная Calera
+    ),
+    "barley": Crop(
+        key="barley", name_uz="Arpa", name_ru="Ячмень",
+        # Озимый, как пшеница, но короче и с более сухим финишем.
+        stages=(30, 130, 40, 25),
+        kc_ini=0.40, kc_mid=1.15, kc_end=0.25,
+        root_depth_m=1.30, depletion_fraction=0.55,
+        typical_sowing=(10, 1),
+    ),
 }
 
 STAGE_NAMES_UZ = ("Boshlang'ich", "Rivojlanish", "O'rta", "Yakuniy")

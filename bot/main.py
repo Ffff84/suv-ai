@@ -90,8 +90,14 @@ _ALLOWED: set[int] = _ids_from_env("ALLOWED_CHAT_IDS")
 # дисциплина фермера. Отмечать поливы наблюдатель тоже не может.
 _OBSERVERS: set[int] = _ids_from_env("OBSERVER_CHAT_IDS")
 
-CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅", "tomato": "🍅"}
-CROP_ORDER = ("cotton", "winter_wheat", "onion", "tomato")
+CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅",
+              "tomato": "🍅", "apple": "🍎", "grape": "🍇",
+              "apricot": "🍑", "alfalfa": "🌿", "barley": "🌾"}
+# Все культуры движка, включая многолетники: сад и виноградник раньше
+# заводились только агрономом, и садовод из жюри был вынужден выбирать
+# чужую культуру — совет получался неверным от Kc до корней.
+CROP_ORDER = ("cotton", "winter_wheat", "barley", "onion", "tomato",
+              "alfalfa", "apple", "grape", "apricot")
 
 
 def _crop_label(key: str) -> str:
@@ -295,13 +301,21 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         intro = (f"Ro'yxatda {len(rows)} ta dalangiz bor: {names}.\n"
                  "Yana bitta dala qo'shamiz.\n\n")
 
-    kb = [[_crop_label(CROP_ORDER[0]), _crop_label(CROP_ORDER[1])],
-          [_crop_label(CROP_ORDER[2]), _crop_label(CROP_ORDER[3])]]
+    labels = [_crop_label(k) for k in CROP_ORDER]
+    kb = [labels[i:i + 3] for i in range(0, len(labels), 3)]
     await update.message.reply_text(
         intro + "Dalangizda nima ekilgan?",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True,
                                          resize_keyboard=True))
     return CROP
+
+
+# Возраст многолетника вместо месяца сева: у сада и лозы дата «сева» —
+# это год посадки, и от него движок считает, выросли ли корни
+# (PERENNIAL_ESTABLISHED_YEARS). Точный год фермер помнит не всегда,
+# диапазона хватает: после трёх лет корни считаются взрослыми.
+AGE_BY_ANSWER = {"1 yosh": 1, "2 yosh": 2, "3 yosh": 3,
+                 "5 yosh": 5, "10 yosh": 10, "15+ yosh": 15}
 
 
 async def got_crop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -311,6 +325,14 @@ async def got_crop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text("Iltimos, ro'yxatdan tanlang.")
         return CROP
     ctx.user_data["crop"] = key
+    if CROPS[key].perennial:
+        ages = list(AGE_BY_ANSWER)
+        kb = [ages[i:i + 3] for i in range(0, len(ages), 3)]
+        await update.message.reply_text(
+            "Daraxt (tok) necha yoshda?",
+            reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True,
+                                             resize_keyboard=True))
+        return PLANTING
     kb = [list(MONTHS_UZ[i:i + 3]) for i in range(0, 12, 3)]
     await update.message.reply_text(
         "Qaysi oyda ekkansiz?",
@@ -330,15 +352,23 @@ async def got_planting(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     несравнима с ошибкой в четыре месяца.
     """
     name = update.message.text.strip()
-    if name not in MONTHS_UZ:
-        await update.message.reply_text("Iltimos, oyni ro'yxatdan tanlang.")
-        return PLANTING
-    month = MONTHS_UZ.index(name) + 1
-    today = today_tashkent()
-    year = today.year if month <= today.month else today.year - 1
     crop = CROPS[ctx.user_data["crop"]]
-    day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
-    ctx.user_data["planting"] = date(year, month, day)
+    today = today_tashkent()
+    if crop.perennial:
+        years = AGE_BY_ANSWER.get(name)
+        if years is None:
+            await update.message.reply_text("Iltimos, yoshini ro'yxatdan tanlang.")
+            return PLANTING
+        month, day = crop.typical_sowing
+        ctx.user_data["planting"] = date(today.year - years, month, day)
+    else:
+        if name not in MONTHS_UZ:
+            await update.message.reply_text("Iltimos, oyni ro'yxatdan tanlang.")
+            return PLANTING
+        month = MONTHS_UZ.index(name) + 1
+        year = today.year if month <= today.month else today.year - 1
+        day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
+        ctx.user_data["planting"] = date(year, month, day)
     await update.message.reply_text("Dala necha gektar?",
                                     reply_markup=ReplyKeyboardRemove())
     return HECTARES
