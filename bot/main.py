@@ -217,19 +217,40 @@ async def _reject(update: Update) -> None:
         "Bu bot yopiq sinovda. Qatnashish uchun egasiga murojaat qiling.")
 
 
-def _owner_fields(chat_id: int) -> list:
+def _owner_fields(chat_id: int, include_archived: bool = False) -> list:
     import sqlite3
+    cond = "" if include_archived else " AND archived_at IS NULL"
     with sqlite3.connect(LEDGER.path) as c:
         c.row_factory = sqlite3.Row
-        return c.execute("SELECT * FROM fields WHERE owner_chat_id=? "
-                         "ORDER BY field_id", (chat_id,)).fetchall()
+        return c.execute("SELECT * FROM fields WHERE owner_chat_id=?" + cond +
+                         " ORDER BY field_id", (chat_id,)).fetchall()
 
 
 def _all_fields() -> list:
     import sqlite3
     with sqlite3.connect(LEDGER.path) as c:
         c.row_factory = sqlite3.Row
-        return c.execute("SELECT * FROM fields ORDER BY field_id").fetchall()
+        return c.execute("SELECT * FROM fields WHERE archived_at IS NULL "
+                         "ORDER BY field_id").fetchall()
+
+
+# Потолок полей на чат: не тариф, а предохранитель от случайного зоопарка
+# и от чужого скрипта, молотящего /start. Гиганту поля заводим импортом.
+MAX_FIELDS_PER_CHAT = 10
+
+
+def _next_field_id(chat: int) -> str:
+    """TG-{chat}, затем TG-{chat}-2, -3… Архивные id остаются занятыми:
+    к старому id привязан журнал, и «новое поле №2» не имеет права
+    унаследовать чужую историю."""
+    taken = {r["field_id"]
+             for r in _owner_fields(chat, include_archived=True)}
+    if f"TG-{chat}" not in taken:
+        return f"TG-{chat}"
+    n = 2
+    while f"TG-{chat}-{n}" in taken:
+        n += 1
+    return f"TG-{chat}-{n}"
 
 
 def _fields_for_view(chat_id: int) -> tuple[list, bool]:
@@ -255,25 +276,27 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # ответы на свои вопросы. Раз начали заново — режим обводки закрыт.
     ctx.user_data.pop("draw", None)
     ctx.user_data.pop("draw_pending", None)
-    seeded = [r for r in _owner_fields(chat) if r["field_id"] != f"TG-{chat}"]
-    if seeded:
-        # Поля этого хозяйства заведены агрономом из конфига. Повторная
-        # регистрация создала бы третье поле с параметрами по умолчанию
-        # (суглинок, 500 м, без насоса) — и /suv слал бы лишний, неверный
-        # совет рядом с двумя настоящими.
-        names = ", ".join(r["name"] for r in seeded)
+    rows = _owner_fields(chat)
+    # Раньше при заведённых агрономом полях мастер отвечал отказом:
+    # повторная регистрация ПЕРЕЗАПИСЫВАЛА единственное TG-{chat} полями
+    # по умолчанию. Теперь id последовательные и мастер спрашивает почву
+    # и высоту сам — /start честно ДОБАВЛЯЕТ поле (фаза 1 карты OneSoil).
+    if len(rows) >= MAX_FIELDS_PER_CHAT:
         await update.message.reply_text(
-            f"Sizning dalalaringiz allaqachon ro'yxatda: {names}.\n"
-            f"Tavsiya olish uchun “{BTN_SUV}” tugmasini bosing.",
+            f"Sizda allaqachon {len(rows)} ta dala bor — bu chegara.\n"
+            "Yana qo'shish kerak bo'lsa — Amirga yozing.",
             reply_markup=_menu(chat))
         return ConversationHandler.END
+    intro = "Assalomu alaykum!\n\nMen sizga qachon va qancha sug'orish kerakligini aytaman.\n\n"
+    if rows:
+        names = ", ".join(r["name"] for r in rows)
+        intro = (f"Ro'yxatda {len(rows)} ta dalangiz bor: {names}.\n"
+                 "Yana bitta dala qo'shamiz.\n\n")
 
     kb = [[_crop_label(CROP_ORDER[0]), _crop_label(CROP_ORDER[1])],
           [_crop_label(CROP_ORDER[2]), _crop_label(CROP_ORDER[3])]]
     await update.message.reply_text(
-        "Assalomu alaykum!\n\n"
-        "Men sizga qachon va qancha sug'orish kerakligini aytaman.\n\n"
-        "Dalangizda nima ekilgan?",
+        intro + "Dalangizda nima ekilgan?",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True,
                                          resize_keyboard=True))
     return CROP
@@ -381,7 +404,11 @@ async def got_soil(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     loc = update.message.location
     chat = update.effective_chat.id
-    fid = f"TG-{chat}"
+    fid = _next_field_id(chat)
+    n_before = len(_owner_fields(chat))
+    # Имя различимое сразу: два «Mening dalam» в списке «Suv berdim»
+    # неотличимы, а /nom есть не у всех в привычке.
+    name = "Mening dalam" if n_before == 0 else f"Dala {n_before + 1}"
 
     # Высота — из точки, которую фермер только что прислал, а не 500 м
     # для всех подряд: она входит в ET0 через атмосферное давление
@@ -391,7 +418,7 @@ async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         log.info("%s: высота не получена, беру 500 м", fid)
 
     LEDGER.upsert_field(
-        field_id=fid, name="Mening dalam", owner_chat_id=chat,
+        field_id=fid, name=name, owner_chat_id=chat,
         hectares=ctx.user_data["hectares"], lat=loc.latitude, lon=loc.longitude,
         elevation_m=500.0 if elev is None else elev,
         crop_key=ctx.user_data["crop"],
@@ -402,9 +429,10 @@ async def got_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         baseline_interval_days=30, last_irrigation_date=None)
 
     await update.message.reply_text(
-        "Dala saqlandi.\n\n"
+        f"«{name}» saqlandi.\n\n"
         "Har kuni ertalab sizga sug'orish bo'yicha xabar yuboraman.\n"
-        f"Hozir tekshirish uchun pastdagi “{BTN_SUV}” tugmasini bosing.",
+        f"Hozir tekshirish uchun pastdagi “{BTN_SUV}” tugmasini bosing.\n"
+        "Nomini o'zgartirish: /nom · Ro'yxatdan olish: /ochirish",
         reply_markup=_menu(chat))
     return ConversationHandler.END
 
@@ -816,23 +844,150 @@ async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     chat = update.effective_chat.id
     dala_line = (f"{BTN_DALA} — dala holati bir ekranda\n"
                  if _field_status_open(chat) else "")
-    # Справка обещала «Yangi dala qo'shish uchun: /start», а start() при
-    # заведённых агрономом полях отвечает отказом, и даже в чистом чате
-    # мастер не ДОБАВЛЯЕТ поле, а перезаписывает единственное TG-{chat}.
-    # Обещать функцию, которой нет, хуже, чем её отсутствие: фермер жмёт
-    # и решает, что бот сломался.
-    seeded = [r for r in _owner_fields(chat) if r["field_id"] != f"TG-{chat}"]
-    start_line = ("Dalangiz ro'yxatda. Ma'lumotni o'zgartirish kerak bo'lsa — "
-                  "Amirga yozing." if seeded
-                  else "/start — dalani qaytadan ro'yxatdan o'tkazish")
     await update.message.reply_text(
         f"{BTN_SUV} — bugungi sug'orish tavsiyasi\n"
         f"{BTN_BAJARDIM} — suv berganingizni belgilash\n"
         f"{BTN_TEJALDI} — mavsum davomida tejalgan suv\n"
         f"{dala_line}\n"
-        f"{start_line}\n\n"
+        "/start — yangi dala qo'shish\n"
+        "/nom — dala nomini o'zgartirish\n"
+        "/ochirish — dalani ro'yxatdan olish (tarix saqlanadi)\n\n"
         "Savolingiz bo'lsa — shu yerga yozing, Amir javob beradi.",
         reply_markup=_menu(chat))
+
+
+# ------------------------------------------------- имя и ро'йхат поля
+#
+# /nom и /ochirish — санобслуживание поля (фаза 1 карты OneSoil): имя
+# правится, поле снимается с ро'йхата АРХИВОМ. DELETE в журнале
+# запрещён идеологией: история рекомендаций и отметок — это KPI.
+RN_TEXT = 90        # состояние диалога переименования
+
+NAME_MAX = 40
+
+
+async def nom_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    if not _authorized(update):
+        await _reject(update)
+        return ConversationHandler.END
+    chat = update.effective_chat.id
+    rows = _owner_fields(chat)
+    if not rows:
+        await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+        return ConversationHandler.END
+    if len(rows) == 1:
+        ctx.user_data["rename_fid"] = rows[0]["field_id"]
+        await update.message.reply_text(
+            f"«{rows[0]['name']}» uchun yangi nom yozing:",
+            reply_markup=ReplyKeyboardRemove())
+        return RN_TEXT
+    kb = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(r["name"], callback_data=f"rnm:{r['field_id']}")]
+         for r in rows])
+    await update.message.reply_text("Qaysi dala nomini o'zgartiramiz?",
+                                    reply_markup=kb)
+    return ConversationHandler.END
+
+
+async def rename_pick_callback(update: Update,
+                               ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Выбор поля кнопкой. Живёт ВНЕ диалога: дальше фермера ловит
+    текстовый шаг диалога по флагу rename_fid — сам /nom с одним полем
+    идёт тем же путём."""
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    fid = query.data.split(":", 1)[1]
+    row = _field_row(fid)
+    if row is None or row["owner_chat_id"] != chat:
+        await query.edit_message_text("Dala topilmadi.")
+        return
+    ctx.user_data["rename_fid"] = fid
+    await query.edit_message_text(f"«{row['name']}» uchun yangi nom yozing:")
+
+
+async def rename_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    chat = update.effective_chat.id
+    fid = ctx.user_data.get("rename_fid")
+    row = _field_row(fid) if fid else None
+    if row is None or row["owner_chat_id"] != chat:
+        ctx.user_data.pop("rename_fid", None)
+        await update.message.reply_text("Qaytadan /nom ni bosing.",
+                                        reply_markup=_menu(chat))
+        return ConversationHandler.END
+    name = update.message.text.strip()
+    if not 1 <= len(name) <= NAME_MAX:
+        await update.message.reply_text(
+            f"Nom 1–{NAME_MAX} belgidan iborat bo'lsin.")
+        return RN_TEXT
+    ctx.user_data.pop("rename_fid", None)
+    LEDGER.rename_field(fid, name)
+    # Кэш карточки поля держит старое имя до десяти минут.
+    ctx.user_data.get("fs_cache", {}).pop(fid, None)
+    await update.message.reply_text(f"Yangi nomi: «{name}».",
+                                    reply_markup=_menu(chat))
+    return ConversationHandler.END
+
+
+async def rename_text_free(update: Update,
+                           ctx: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Текст после выбора поля кнопкой (вне диалога): тот же шаг, но
+    возвращает, съеден ли текст, — иначе он ушёл бы в savol."""
+    if not ctx.user_data.get("rename_fid"):
+        return False
+    await rename_text(update, ctx)
+    return True
+
+
+async def ochirish(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _authorized(update):
+        await _reject(update)
+        return
+    chat = update.effective_chat.id
+    rows = _owner_fields(chat)
+    if not rows:
+        await update.message.reply_text("Avval /start buyrug'ini yuboring.")
+        return
+    kb = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(f"🗑 {r['name']}",
+                               callback_data=f"arx:{r['field_id']}")]
+         for r in rows])
+    await update.message.reply_text(
+        "Qaysi dalani ro'yxatdan olamiz? Tarix jurnalda saqlanadi.",
+        reply_markup=kb)
+
+
+async def archive_callback(update: Update,
+                           ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    action, fid = query.data.split(":", 1)
+    if action == "arxno":
+        await query.edit_message_text("Bekor qilindi.")
+        return
+    row = _field_row(fid)
+    if row is None or row["owner_chat_id"] != chat:
+        await query.edit_message_text("Dala topilmadi.")
+        return
+    if action == "arx":
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("Ha, ro'yxatdan ol",
+                                 callback_data=f"arxok:{fid}"),
+            InlineKeyboardButton("Yo'q", callback_data=f"arxno:{fid}"),
+        ]])
+        await query.edit_message_text(
+            f"«{row['name']}» ro'yxatdan olinadimi?\n"
+            "Sug'orish tarixi jurnalda saqlanadi, ertalabki xabarlar "
+            "bu dala uchun to'xtaydi.", reply_markup=kb)
+        return
+    if action == "arxok":
+        if LEDGER.archive_field(fid):
+            ctx.user_data.get("fs_cache", {}).pop(fid, None)
+            await query.edit_message_text(
+                f"«{row['name']}» ro'yxatdan olindi. Tarix saqlanadi.")
+        else:
+            await query.edit_message_text("Bu dala allaqachon olib tashlangan.")
 
 
 # ---------------------------------------------------------------- bajardim
@@ -2097,7 +2252,7 @@ async def daily_push(ctx: ContextTypes.DEFAULT_TYPE,
     with sqlite3.connect(LEDGER.path) as c:
         owners = [r[0] for r in c.execute(
             "SELECT DISTINCT owner_chat_id FROM fields "
-            "WHERE owner_chat_id IS NOT NULL")]
+            "WHERE owner_chat_id IS NOT NULL AND archived_at IS NULL")]
 
     for chat in owners:
         # Ошибка на одном владельце не смеет оставить без утреннего
@@ -2249,6 +2404,8 @@ SAVOL_RU = ("Вопрос получен — Амир ответит.\n"
 
 
 async def savol(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if await rename_text_free(update, ctx):
+        return
     """Свободный текст вне мастера: ответить и переслать Амиру.
 
     До этого текст, не совпавший ни с одной кнопкой, не обрабатывался ни
@@ -2315,7 +2472,9 @@ async def _post_init(app: Application) -> None:
             BotCommand("bajardim", "Suv berganingizni belgilash"),
             BotCommand("tejaldi", "Mavsumda tejalgan suv"),
             BotCommand("yordam", "Yordam"),
-            BotCommand("start", "Dalani ro'yxatdan o'tkazish"),
+            BotCommand("start", "Yangi dala qo'shish"),
+            BotCommand("nom", "Dala nomini o'zgartirish"),
+            BotCommand("ochirish", "Dalani ro'yxatdan olish"),
         ])
     except Exception as exc:  # noqa: BLE001 — меню не повод не стартовать
         log.warning("set_my_commands не прошёл: %s", exc)
@@ -2349,6 +2508,18 @@ def main() -> None:
             MessageHandler(DALA_FILTER, _escape_to_dala),
         ],
     ))
+    app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("nom", nom_start)],
+        states={RN_TEXT: [MessageHandler(not_menu, rename_text)]},
+        fallbacks=[
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_SUV)}$"), _escape_to_suv),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_TEJALDI)}$"), _escape_to_tejaldi),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_BAJARDIM)}$"), _escape_to_bajardim),
+            MessageHandler(filters.Regex(f"^{re.escape(BTN_YORDAM)}$"), _escape_to_yordam),
+        ],
+        conversation_timeout=300,
+    ))
+    app.add_handler(CommandHandler("ochirish", ochirish))
     app.add_handler(CommandHandler("suv", suv))
     app.add_handler(CommandHandler("tejaldi", tejaldi))
     app.add_handler(CommandHandler("bajardim", bajardim))
@@ -2385,6 +2556,8 @@ def main() -> None:
     # доходит до Фарруха, пока её не обкатали (правило закрытого демо).
     app.add_handler(MessageHandler(filters.PHOTO & draw_only, photo_note))
     app.add_handler(CallbackQueryHandler(why_callback, pattern=r"^why:"))
+    app.add_handler(CallbackQueryHandler(rename_pick_callback, pattern=r"^rnm:"))
+    app.add_handler(CallbackQueryHandler(archive_callback, pattern=r"^arx(ok|no)?:"))
     app.add_handler(CallbackQueryHandler(note_field_callback, pattern=r"^notefld:"))
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))

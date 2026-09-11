@@ -172,6 +172,10 @@ _ADDED_COLUMNS = (
     # не назначает поливов — режим терима.
     ("harvest_start", "TEXT"),
     ("harvest_end", "TEXT"),
+    # Архив вместо удаления: DELETE стёр бы поле, на которое ссылаются
+    # рекомендации и отметки, — а журнал у нас не стирается. NULL =
+    # поле живое; дата = когда сняли с ро'йхата.
+    ("archived_at", "TEXT"),
 )
 
 
@@ -375,6 +379,25 @@ class Ledger:
                        datetime.utcnow().isoformat(),
                        latest_seen or scene_day, field_id))
             c.commit()
+
+    def rename_field(self, field_id: str, name: str) -> bool:
+        """Новое имя поля. Право владения проверяет вызывающий слой."""
+        with closing(self._conn()) as c:
+            cur = c.execute("UPDATE fields SET name=? WHERE field_id=?",
+                            (name, field_id))
+            c.commit()
+            return cur.rowcount > 0
+
+    def archive_field(self, field_id: str) -> bool:
+        """Снять поле с ро'йхата, ничего не стирая: история рекомендаций
+        и отметок остаётся, id никогда не переиспользуется."""
+        with closing(self._conn()) as c:
+            cur = c.execute(
+                "UPDATE fields SET archived_at=? "
+                "WHERE field_id=? AND archived_at IS NULL",
+                (datetime.utcnow().isoformat(), field_id))
+            c.commit()
+            return cur.rowcount > 0
 
     def add_note(self, field_id: str, chat_id: int | None, taken_on: date,
                  file_id: str | None = None,
