@@ -201,3 +201,28 @@ def test_no_silent_line_when_journal_is_complete():
     s = SavingsSummary("T-1", 3, 3, 1728.0, 1728.0, 0.0, False, True, 0)
     assert "без отметок" not in savings_text(s, "ru")
     assert "belgisiz" not in savings_text(s, "uz")
+
+
+
+
+# --------------------------------------- 5. текст не выдаёт имён переменных
+
+def test_no_baseline_text_asks_the_farmer_not_the_developer(tmp_path):
+    """FAR-UZUM: объём одного полива Фаррух не называл. Русскую ветку на
+    показе читает наблюдатель, и она отправляла его вписать
+    baseline_m3_per_ha в конфиг поля — имя переменной наружу вместо
+    ответа. Обе ветки обязаны спрашивать одно и то же: сколько воды
+    уходит за один полив, — и по-прежнему не называть никакого числа."""
+    led = _ledger(tmp_path, baseline_per_ha=None)
+    _confirm(led, date(2026, 8, 1))
+    s = led.savings("T-1")
+    assert not s.has_baseline
+    ru, uz = savings_text(s, "ru"), savings_text(s, "uz")
+    # Ни имени переменной, ни snake_case, ни отсылки к файлу конфига.
+    assert "baseline" not in ru.lower() and "baseline" not in uz.lower()
+    assert "_" not in ru and "конфиг" not in ru
+    # Спрашиваем про полив, а не отчитываемся «сэкономлено 0».
+    assert "полив" in ru and "sug'orish" in uz
+    assert "0 м³" not in ru and "0 m³" not in uz
+    # Отказ остаётся отказом: минуса в первой строке нет (см. аудит 17.08).
+    assert "-" not in ru.split("\n")[0]

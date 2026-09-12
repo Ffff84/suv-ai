@@ -39,7 +39,7 @@ load_env()
 from suv import __version__
 from suv.climate import STATIONS, nearest_station, season
 from suv.clock import today as today_tashkent
-from suv.crop import CROPS
+from suv.crop import CROPS, sowing_from_month
 from suv.field_shape import MAX_VERTICES
 from suv.field_shape import area_ha as polygon_area_ha
 from suv.field_photo import can_show_photo
@@ -169,7 +169,7 @@ def _menu(chat_id: int) -> ReplyKeyboardMarkup:
     # темы), и кабинет не может подтвердить личность. Поэтому нажатие
     # обрабатывает kabinet(), отвечающий inline-кнопкой — этот способ
     # запуска несёт подпись на всех клиентах.
-    if chat_id in _CABINET and CABINET_URL:
+    if CABINET_URL and _cabinet_open(chat_id):
         extra.append(BTN_KABINET)
     if extra:
         rows.append(extra)
@@ -184,6 +184,9 @@ REC_MAX_AGE_DAYS = 7
 
 # Утренний автопуш: фермер читает до выхода в поле.
 PUSH_HOUR_TASHKENT = 6
+# До какого часа догонять пуш, пропущенный рестартом. Дальше это
+# уже не утренний обход, а рассылка по факту деплоя.
+PUSH_CATCHUP_UNTIL_HOUR = 11
 # Сообщение приходит КАЖДОЕ утро — решение Амира 17.08.2026: тишина
 # читается фермером как «бот умер», а не как «всё в порядке». Единица
 # здесь значит «молчим, только если совет уже уходил сегодня» (кнопкой
@@ -203,6 +206,14 @@ _DALA_TEXT = filters.Regex(f"^{re.escape(BTN_DALA)}$")
 # открытом гейте фильтр по чату не навешивается вовсе.
 DALA_FILTER = (_DALA_TEXT if not _FIELD_STATUS
                else _DALA_TEXT & filters.Chat(_FIELD_STATUS))
+# Гейт всего, что приходит с экрана поля НЕ текстом: кнопки обводки,
+# данные Mini App, локация, фото-заметка, файл границ. Собирался внутри
+# main(), и проверить его тестом было нечем — а потерять на одной
+# строке из шести оказалось легко: регистрация импорта файлов жила
+# вообще без гейта, и при снятом allowlist любой чат мог прислать KML
+# и засеять полями живой журнал.
+DRAW_FILTER = (filters.ALL if not _FIELD_STATUS
+               else filters.Chat(_FIELD_STATUS))
 MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$") | DALA_FILTER
 
 
@@ -218,6 +229,35 @@ def _field_status_open(chat_id: int) -> bool:
     разъезжаются, и одна из них рано или поздно останется закрытой.
     """
     return not _FIELD_STATUS or chat_id in _FIELD_STATUS
+
+
+def _cabinet_open(chat_id: int) -> bool:
+    """Показывать ли чату кнопку веб-кабинета.
+
+    Третий список доступа читался ОБРАТНО двум соседним: проверка
+    писалась прямо по месту, `chat_id in _CABINET`, поэтому пустая
+    переменная закрывала кабинет всем, включая Амира, — и увидеть это
+    можно было только по отсутствующей кнопке. Хуже, что проверка жила
+    в двух местах сразу (меню и сам обработчик), и поправить одно из
+    двух означало показать кнопку, отвечающую отказом.
+
+    Теперь конвенция общая: пусто = открыто всем. Но одной инверсии
+    мало. Бот открыт жюри, и «открыто всем» без второго условия
+    означало бы кнопку у каждого постороннего — а за ней пустой экран:
+    web/app.py про этот список не знает вовсе, пускает по подписи
+    Telegram и отдаёт поля через _fields_for_view, то есть чужому — ни
+    одного. Дверь в пустую комнату хуже, чем отсутствие двери, поэтому
+    кнопку видит только тот, кому есть что в ней показать.
+    """
+    if _CABINET and chat_id not in _CABINET:
+        return False
+    try:
+        rows, _observer = _fields_for_view(chat_id)
+    except Exception as exc:  # noqa: BLE001 — меню важнее кнопки в нём
+        log.warning("кабинет: не смог посмотреть поля чата %s: %s",
+                    chat_id, exc)
+        return False
+    return bool(rows)
 
 
 async def _reject(update: Update) -> None:
@@ -263,13 +303,23 @@ def _next_field_id(chat: int) -> str:
 
 def _fields_for_view(chat_id: int) -> tuple[list, bool]:
     """Поля для показа: свои — как владелец; чужие — только наблюдателю.
-    Возвращает (строки, наблюдатель_ли)."""
-    rows = _owner_fields(chat_id)
-    if rows:
-        return rows, False
+    Возвращает (строки, наблюдатель_ли).
+
+    Роль чата решается ПЕРВОЙ. Раньше первыми шли свои поля, и роль
+    слетала: импорт границ сеет поля с owner_chat сеющего, поэтому
+    после показа импорта в чате наблюдателя /suv, «Tejaldi» и «Dala
+    holati» молча переходили на узбекский и показывали импортированные
+    пустышки вместо полей, за которыми он и следит. Вернуть роль можно
+    было только сняв импортированные поля по одному через /ochirish.
+
+    Свои поля из показа при этом не выпадают: _all_fields() отдаёт и их
+    тоже. Право писать в журнал и отмечать полив решается не ролью
+    чата, а хозяином КАЖДОГО поля (owner_chat_id == chat) — см. suv() и
+    _fs_card().
+    """
     if chat_id in _OBSERVERS:
         return _all_fields(), True
-    return [], False
+    return _owner_fields(chat_id), False
 
 
 # ---------------------------------------------------------------- wizard
@@ -366,9 +416,12 @@ async def got_planting(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             await update.message.reply_text("Iltimos, oyni ro'yxatdan tanlang.")
             return PLANTING
         month = MONTHS_UZ.index(name) + 1
-        year = today.year if month <= today.month else today.year - 1
-        day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
-        ctx.user_data["planting"] = date(year, month, day)
+        # Перевод месяца в дату уехал в suv.crop: там лежат typical_sowing
+        # и длины стадий, по которым видно, что сев не бывает в будущем, а
+        # «Oktabr», выбранный в сентябре, — это прошлый, уже убранный
+        # сезон. Прежняя строка year = ... if month <= today.month давала
+        # озимым и мёртвый сезон, и дату на три дня вперёд.
+        ctx.user_data["planting"] = sowing_from_month(crop, month, today)
     await update.message.reply_text("Dala necha gektar?",
                                     reply_markup=ReplyKeyboardRemove())
     return HECTARES
@@ -604,8 +657,14 @@ def _field_polygon(row) -> list[list[float]] | None:
     return ring if isinstance(ring, list) and len(ring) >= 4 else None
 
 
-def _compute_rec(row, today: date):
+def _compute_rec(row, today: date, out: dict | None = None):
     """Полный расчёт по одному полю: спутник, warm-start, рекомендация.
+
+    out — необязательный словарь, куда складывается побочная добыча
+    расчёта: живой прогноз, за которым warm-start уже сходил. Нужен он
+    ровно одному вызывающему (карточка «Dala holati»), а менять форму
+    возврата нельзя — её разбирают ещё три места, включая утренний
+    автопуш и scripts/why_today.py.
 
     Общий путь для кнопки «Suv holati» и утреннего автопуша — совет
     обязан быть одинаковым, каким бы способом фермер его ни получил.
@@ -650,6 +709,12 @@ def _compute_rec(row, today: date):
     # виноградника Uzumzor, где расхода никто не называл, база бралась
     # из воздуха. Фермеру эти числа сегодня не показывают — но они лежат
     # в объекте и ждут первого, кто их напечатает.
+    if out is not None and not degraded:
+        # Отдаём только ЖИВОЙ ряд. Нормали из ветки degraded так же
+        # называются forecast, но это не прогноз, и показывать их в
+        # секции погоды как прогноз — то самое выдуманное число.
+        out["forecast"] = forecast
+
     rec = recommend(
         fld, forecast, state, today,
         baseline_interval_days=row["baseline_interval_days"],
@@ -671,15 +736,56 @@ WEATHER_DOWN_RU = ("⚠️ Прогноз погоды недоступен — 
                    "нормам, приблизительный.")
 
 
+def _no_anchor_text(rec, lang: str) -> str:
+    """Первый ответ по полю, у которого нет якоря водного баланса.
+
+    «Полив не требуется. Почва ещё достаточно влажная» — это утверждение
+    о влаге, которую никто не мерил: без даты полива _rewind стартует с
+    нуля, порог RAW набирается за 30-35 дней, и на нормалях Самарканда
+    от 12.09.2026 ноль поливов за две недели выходит у восьми культур из
+    девяти — не потому что почва влажная, а потому что отсчёт начат
+    сегодня. Предупреждение внизу сообщения этого не лечило: фермер
+    читает первую строку и идёт работать, и правило messages.py «одна
+    инструкция, одна причина» работает тут против нас. Поэтому вместо
+    несделанного замера — прямой отказ и одно действие, которое его
+    снимает.
+    """
+    from suv.messages import snapshot_line
+    snap = snapshot_line(rec, lang)
+    if lang == "uz":
+        return (f"{rec.field.name}\n\n"
+                "Hozircha ayta olmayman: dala qachon sug'orilgani noma'lum.\n"
+                "Hisob «dala hozirgina sug'orilgan» degandan boshlandi — "
+                "bu o'lchov emas, taxmin.\n\n"
+                f"Sug'organingizda «{BTN_BAJARDIM}» tugmasini bosing — "
+                f"hisob o'sha kundan yuriladi, maslahat aniq bo'ladi.\n{snap}")
+    return (f"{rec.field.name}\n\n"
+            "Пока не отвечаю: дата последнего полива неизвестна.\n"
+            "Расчёт начат с допущения «поле только что полито» — это не "
+            "измерение.\n\n"
+            f"Отметьте «{BTN_BAJARDIM}» в день полива — с него пойдёт "
+            f"отсчёт, и совет станет точным.\n{snap}")
+
+
 def _rec_message(rec, pump, lang: str, anchored: bool = True,
                  degraded: bool = False) -> str:
-    msg = recommendation_text(rec, lang, pump=pump)
+    # Без якоря сказать «поливать не надо» нечем — говорим это прямо, а
+    # не сноской под готовым советом. Назначенный день при том же
+    # незнании остаётся советом: он ошибается в сторону «позже, чем
+    # надо», и об этом предупреждает NO_ANCHOR. Съём урожая — тоже
+    # совет: он стоит на датах терима, а не на водном балансе.
+    unmeasured = (not anchored and rec.action_day is None
+                  and rec.reason_key != "harvest_hold")
+    msg = (_no_anchor_text(rec, lang) if unmeasured
+           else recommendation_text(rec, lang, pump=pump))
     warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
     if warn:
         msg += "\n\n" + warn
     if degraded:
         msg += "\n\n" + (WEATHER_DOWN_UZ if lang == "uz" else WEATHER_DOWN_RU)
-    if not anchored:
+    if not anchored and not unmeasured:
+        # В тексте отказа предупреждение уже сказано целиком — второй
+        # раз тем же абзацем оно только удлиняет сообщение.
         msg += "\n\n" + (NO_ANCHOR_UZ if lang == "uz" else NO_ANCHOR_RU)
     return msg
 
@@ -701,8 +807,18 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     lang = "ru" if observer else "uz"
     if observer:
+        # Отсутствие кнопок 👍/👎 под чужими полями надо назвать вслух:
+        # наблюдатель видит русский текст и читает пустое место как
+        # «не доделали». Голос привязывается к id записи в журнале, а
+        # чужого просмотра там нет и быть не должно — иначе любопытство
+        # наблюдателя село бы в KPI чужого поля: лишняя рекомендация,
+        # сдвиг окна базы, «сегодня уже слали» вместо утреннего пуша
+        # фермеру. Свои поля наблюдателя это не касается: за них он
+        # отвечает сам, и под ними кнопки есть.
         await update.message.reply_text(
-            "👁 Режим наблюдателя: показываю все поля, в журнал не пишу.")
+            "👁 Режим наблюдателя: показываю все поля.\n"
+            "По чужим полям в журнал не пишу — поэтому под ними нет "
+            "кнопок 👍/👎: голос ставится на запись в журнале.")
 
     today = today_tashkent()
     ctx.user_data.setdefault("last_rec_ids", {})
@@ -721,8 +837,15 @@ async def suv(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # водного баланса. Правило журнала прямое: храним то, что
         # СКАЗАЛИ фермеру. Сказали — значит записываем; о приблизительности
         # предупреждает сам текст сообщения.
+        # Журнал — по хозяину ПОЛЯ, а не по роли чата. Наблюдатель,
+        # заведший свои поля (мастером или показом импорта), остаётся
+        # наблюдателем, но за свои поля отвечает сам: без rid его же
+        # «✅ Suv berdim» утыкался бы в пустоту и полив не записался бы.
+        # Чужие поля он по-прежнему только смотрит — его любопытство не
+        # плодит строки recommendations, по которым потом считается
+        # дисциплина фермера.
         rid = None
-        if not observer:
+        if row["owner_chat_id"] == update.effective_chat.id:
             rid = LEDGER.log_recommendation(rec, __version__)
             ctx.user_data["last_rec_ids"][rec.field.field_id] = rid
         await update.message.reply_text(
@@ -745,13 +868,24 @@ def _why_markup(chat: int, field_id: str, lang: str = "uz",
                 rid: int | None = None):
     """Кнопки под советом: «почему» + оценка одним тапом (при известном
     id рекомендации — голос привязывается к конкретному совету)."""
-    if not _field_status_open(chat):
-        return _menu(chat)
-    label = WHY_BTN_UZ if lang == "uz" else WHY_BTN_RU
-    rows = [[InlineKeyboardButton(label, callback_data=f"why:{field_id}")]]
+    rows = []
+    # За гейтом экрана поля — только «почему»: объяснение ведёт в ту же
+    # кухню, что и «Dala holati». Оценка 👍/👎 к экрану поля отношения
+    # не имеет, но исчезала вместе с ним: при закрытом гейте функция
+    # возвращала reply-меню целиком, и фермер вне демо не мог сказать
+    # «совет не тот» — а спросить это надо в первую очередь у него.
+    if _field_status_open(chat):
+        label = WHY_BTN_UZ if lang == "uz" else WHY_BTN_RU
+        rows.append([InlineKeyboardButton(label,
+                                          callback_data=f"why:{field_id}")])
     if rid is not None:
         rows.append([InlineKeyboardButton(FB_UP, callback_data=f"fb:up:{rid}"),
                      InlineKeyboardButton(FB_DOWN, callback_data=f"fb:down:{rid}")])
+    # Пустую инлайн-клавиатуру Telegram не примет: гейт закрыт и
+    # оценивать нечего (совет ещё не в журнале) — под советом остаётся
+    # обычное меню, ровно как было до появления кнопок.
+    if not rows:
+        return _menu(chat)
     return InlineKeyboardMarkup(rows)
 
 
@@ -776,13 +910,19 @@ async def feedback_callback(update: Update,
         return
     LEDGER.add_feedback(rid, fid, chat, verdict)
     await query.answer("Rahmat! Yozib olindi.")
-    # Кнопки оценки сворачиваются в выбранную; «почему» остаётся.
+    # Кнопки оценки сворачиваются в выбранную; «почему» остаётся — но
+    # только там, где она отвечает. При закрытом гейте экрана поля
+    # why_callback молча выходит, и дорисовать сюда эту кнопку значит
+    # пообещать фермеру объяснение, которого не будет.
     chosen = FB_UP if verdict == "up" else FB_DOWN
+    rows = []
+    if _field_status_open(chat):
+        rows.append([InlineKeyboardButton(WHY_BTN_UZ,
+                                          callback_data=f"why:{fid}")])
+    rows.append([InlineKeyboardButton(f"✅ {chosen}",
+                                      callback_data=f"fb:{verdict}:{rid}")])
     try:
-        await query.edit_message_reply_markup(InlineKeyboardMarkup([
-            [InlineKeyboardButton(WHY_BTN_UZ, callback_data=f"why:{fid}")],
-            [InlineKeyboardButton(f"✅ {chosen}",
-                                  callback_data=f"fb:{verdict}:{rid}")]]))
+        await query.edit_message_reply_markup(InlineKeyboardMarkup(rows))
     except Exception:  # noqa: BLE001 — правка клавиатуры не критична
         pass
 
@@ -886,6 +1026,38 @@ async def _maybe_attach_note_location(update: Update,
     return False
 
 
+# Потолок текста у Telegram — 4096 символов. /tejaldi его перерастает на
+# сороковом поле: замер 12.09.2026 — 30 полей 3349 символов, 40 — 4469,
+# 50 — 5589. Всё уходило одним reply_text, и вместо KPI фермер получал
+# «Kechirasiz, xatolik yuz berdi». Режем по границе полей: половина
+# карточки поля — не отчёт, а мусор.
+TG_TEXT_LIMIT = 4096
+# Запас под потолком: имена полей фермер пишет сам, и длину их мы заранее
+# не знаем; эмодзи Telegram считает по UTF-16, а не по символам Python.
+TG_CHUNK_CHARS = 3500
+
+
+def _chunk_blocks(blocks: list[str], limit: int = TG_CHUNK_CHARS,
+                  sep: str = "\n\n") -> list[str]:
+    """Склеить блоки в сообщения не длиннее limit, не разрывая блок.
+
+    Блок, который и сам длиннее потолка, уходит отдельным сообщением как
+    есть. Обрезать его — соврать фермеру усечённой цифрой, выбросить —
+    молча потерять поле; пусть лучше Telegram откажет по одному полю.
+    """
+    out: list[str] = []
+    cur = ""
+    for b in blocks:
+        if cur and len(cur) + len(sep) + len(b) > limit:
+            out.append(cur)
+            cur = b
+        else:
+            cur = f"{cur}{sep}{b}" if cur else b
+    if cur:
+        out.append(cur)
+    return out
+
+
 async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """
     /tejaldi — how much has been saved. The KPI, farmer-facing.
@@ -909,8 +1081,23 @@ async def tejaldi(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         except KeyError:
             continue
         parts.append(f"{row['name']}\n{savings_text(s, lang)}")
-    await update.message.reply_text("\n\n".join(parts),
-                                    reply_markup=_menu(update.effective_chat.id))
+    if not parts:
+        # Пустой текст Telegram отвергает, а молчание фермер читает как
+        # «бот умер». Сказать нечего — это и говорим словами.
+        await update.message.reply_text(
+            "Tejamkorlik bo'yicha ma'lumot yo'q." if lang == "uz"
+            else "Данных по экономии нет.",
+            reply_markup=_menu(update.effective_chat.id))
+        return
+    chunks = _chunk_blocks(parts)
+    for i, chunk in enumerate(chunks, 1):
+        # Нумерация только когда кусков правда несколько: «(1/1)» под
+        # единственным полем — шум. Меню цепляем к последнему: reply-
+        # клавиатура в чате одна, и слать её к каждой части незачем.
+        text = chunk if len(chunks) == 1 else f"{chunk}\n\n({i}/{len(chunks)})"
+        await update.message.reply_text(
+            text, reply_markup=(_menu(update.effective_chat.id)
+                                if i == len(chunks) else None))
 
 
 async def yordam(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -980,6 +1167,23 @@ async def import_doc(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         problems.append(f"Bot orqali bir faylda {IMPORT_MAX_FIELDS} tagacha "
                         f"dala: birinchi {IMPORT_MAX_FIELDS} tasi olinadi.")
         fields = fields[:IMPORT_MAX_FIELDS]
+    # Потолок полей на чат импорт обходил стороной: мастер на
+    # MAX_FIELDS_PER_CHAT останавливался, а файлом в ту же базу
+    # заезжало столько полей, сколько их в KML, — предохранитель против
+    # случайного зоопарка работал ровно на одном входе из двух.
+    # Считаем здесь, ДО четырёх вопросов: спрашивать культуру и почву
+    # ради отказа в конце — издевательство над тем, кто прислал файл.
+    chat = update.effective_chat.id
+    free = MAX_FIELDS_PER_CHAT - len(_owner_fields(chat))
+    if free <= 0:
+        await update.message.reply_text(
+            f"Sizda allaqachon {MAX_FIELDS_PER_CHAT} ta dala bor — bu "
+            "chegara.\nYana qo'shish kerak bo'lsa — Amirga yozing.")
+        return
+    if len(fields) > free:
+        problems.append(f"Bitta chatda {MAX_FIELDS_PER_CHAT} tagacha dala: "
+                        f"fayldan birinchi {free} tasi olinadi.")
+        fields = fields[:free]
 
     ctx.user_data["pending_import"] = {"fields": fields,
                                        "at": time.monotonic()}
@@ -1040,10 +1244,12 @@ async def import_flow_callback(update: Update,
             month, day = crop.typical_sowing
             pend["planting"] = date(today.year - years, month, day)
         else:
-            month = int(value)
-            year = today.year if month <= today.month else today.year - 1
-            day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
-            pend["planting"] = date(year, month, day)
+            # Та же формула, что стояла в мастере, была скопирована сюда
+            # дословно — и дефект вместе с ней: «Sentabr» 12.09.2026 давал
+            # сев на три дня вперёд, «Oktabr» — прошлогодний убранный
+            # сезон, и всё это сразу на КАЖДОЕ поле файла. Общий перевод
+            # месяца в дату теперь один, в suv.crop.
+            pend["planting"] = sowing_from_month(crop, int(value), today)
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton(SOIL_FAST, callback_data="imps:sand")],
             [InlineKeyboardButton(SOIL_MID, callback_data="imps:loam")],
@@ -1503,13 +1709,26 @@ def _fs_data(row, ctx):
                  .get(row["field_id"], 0.0)) or 0.0
     if hit and time.monotonic() - hit[0] < FS_CACHE_TTL_S and hit[0] >= dirty:
         return hit[1]
-    rec, pump, anchored, degraded = _compute_rec(row, today_tashkent())
-    try:
-        forecast = fetch_forecast(row["lat"], row["lon"], days=3)
-    except Exception as exc:  # noqa: BLE001 — погода не роняет карточку
-        log.warning("dala: прогноз для %s не пришёл: %s",
-                    row["field_id"], exc)
-        forecast = []
+    # warm-start внутри _compute_rec уже привёз 14 дней живого прогноза
+    # с того же Open-Meteo и с той же точки. Отдельный запрос на 3 дня
+    # был вторым походом за теми же числами: на экране с двумя полями —
+    # два лишних вызова подряд под «typing…», после импорта на полсотни
+    # полей — полсотни. Берём готовый ряд; если его нет (расчёт ушёл на
+    # нормы) или в нём меньше трёх дней (Open-Meteo обрезает ряд на дыре
+    # в архиве), спрашиваем отдельно, как раньше, — секция погоды от
+    # экономии запроса поредеть не должна.
+    warm: dict = {}
+    rec, pump, anchored, degraded = _compute_rec(row, today_tashkent(), warm)
+    forecast = warm.get("forecast") or []
+    if len(forecast) >= 3:
+        forecast = forecast[:3]
+    else:
+        try:
+            forecast = fetch_forecast(row["lat"], row["lon"], days=3)
+        except Exception as exc:  # noqa: BLE001 — погода не роняет карточку
+            log.warning("dala: прогноз для %s не пришёл: %s",
+                        row["field_id"], exc)
+            forecast = []
     # Почасовой ряд — для секции «Опрыскивание». None (а не []) при
     # сбое: build_section по None просто не выводит секцию — заглушка
     # хуже молчания.
@@ -1530,6 +1749,39 @@ def _fs_data(row, ctx):
 UNIFORMITY_TTL_DAYS = 90
 
 
+# Насколько ось замера вправе разойтись с нынешней отметкой фермера,
+# чтобы «дальний край» оставался тем же концом поля. 15° — половина
+# сектора между соседними сторонами восьмирумбовой розы: внутри него
+# сторона входа читается той же самой.
+UNIFORMITY_AXIS_TOL_DEG = 15.0
+
+
+def _uniformity_axis_stale(row, payload) -> bool:
+    """Разошлась ли ось замера с нынешней стороной входа воды.
+
+    Перечерчивание контура уносит замер вместе с собой (save_polygon),
+    но сторону входа фермер вправе переназначить И БЕЗ перечерчивания, а
+    замеры, собранные до первой отметки, шли по догадке «длинная ось».
+    Сверять приходится здесь: геометрия поля есть только на этом слое,
+    секция карточки видит лишь название стороны.
+    """
+    ring = _field_polygon(row)
+    raw = row["inlet_vertices"] if "inlet_vertices" in row.keys() else None
+    was = payload.get("flow_bearing_deg")
+    if not ring or not raw or was is None:
+        return False
+    import json
+
+    from suv.trial import flow_bearing_from_inlet
+    try:
+        i, j = (int(v) for v in json.loads(raw))
+        now = flow_bearing_from_inlet(ring, i, j)
+        diff = abs((float(was) - now + 180.0) % 360.0 - 180.0)
+    except Exception:  # noqa: BLE001 — колонку мог испортить кто угодно
+        return False
+    return diff > UNIFORMITY_AXIS_TOL_DEG
+
+
 def _uniformity_payload(row) -> dict | None:
     if "uniformity_json" not in row.keys() or not row["uniformity_json"]:
         return None
@@ -1541,6 +1793,10 @@ def _uniformity_payload(row) -> dict | None:
         return None
     if (today_tashkent() - built).days > UNIFORMITY_TTL_DAYS:
         return None
+    # Замер мог пережить смену стороны входа: тогда его «дальний край»
+    # про другой конец поля, и секция обязана промолчать, а не спорить
+    # со стрелкой, которую фермер поставил сам.
+    payload["stale_axis"] = _uniformity_axis_stale(row, payload)
     return payload
 
 
@@ -2627,8 +2883,19 @@ async def push_catchup(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     выпадало, и в логах об этом не было ни строки.
     """
     from suv.clock import now as now_tashkent
-    if now_tashkent().hour < PUSH_HOUR_TASHKENT:
+    hour = now_tashkent().hour
+    if hour < PUSH_HOUR_TASHKENT:
         return  # до утреннего часа пуш ещё впереди, догонять нечего
+    if hour >= PUSH_CATCHUP_UNTIL_HOUR:
+        # Утро прошло. Догонять было задумано пропущенный рестартом
+        # ПУШ, а не рассылать «доброе утро» в обед: любой деплой среди
+        # дня — а деплой это каждый push в main — будил всех владельцев
+        # через пятнадцать секунд после старта, по сообщению на поле.
+        # Совет к этому часу устарел не настолько, чтобы врать, но
+        # разослан он был бы не потому, что фермеру пора поливать, а
+        # потому, что мы выложили код.
+        log.info("push: догонять не буду, уже %d:00 — утро прошло", hour)
+        return
     log.info("push: проверяю, не пропущен ли утренний обход")
     await daily_push(ctx, only_if_silent_today=True)
 
@@ -2661,10 +2928,19 @@ async def kabinet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     странице подпись Telegram (initData) на всех клиентах — Desktop
     для кнопок нижней клавиатуры её не шлёт вовсе."""
     chat = update.effective_chat.id
-    if chat not in _CABINET or not CABINET_URL:
+    if not CABINET_URL or (_CABINET and chat not in _CABINET):
         # Кнопка могла залипнуть в старой клавиатуре — отвечаем внятно.
         await update.message.reply_text(
             "Kabinet hozircha yopiq sinovda.", reply_markup=_menu(chat))
+        return
+    if not _cabinet_open(chat):
+        # Кабинет открыт, но показывать в нём нечего: кабинет — это
+        # разбор ПОЛЯ, а за этим чатом полей не записано. Отказ называет
+        # причину, иначе человек уходит на пустой экран и решает, что
+        # сломались мы.
+        await update.message.reply_text(
+            "Kabinetda ko'rsatadigan dala yo'q. Avval /start.",
+            reply_markup=_menu(chat))
         return
     from telegram import WebAppInfo
     await update.message.reply_text(
@@ -2820,8 +3096,7 @@ def main() -> None:
     # Обводка контура. Все три текстовые кнопки живут только в режиме
     # рисования: их хендлеры молча выходят, если режим не включён, —
     # поэтому в MENU_FILTER они не добавляются и мастер не задевают.
-    draw_only = (filters.ALL if not _FIELD_STATUS
-                 else filters.Chat(_FIELD_STATUS))
+    draw_only = DRAW_FILTER
     app.add_handler(MessageHandler(
         filters.Regex(f"^{re.escape(BTN_DRAW_DONE)}$") & draw_only, draw_done))
     app.add_handler(MessageHandler(
@@ -2838,7 +3113,12 @@ def main() -> None:
     # доходит до Фарруха, пока её не обкатали (правило закрытого демо).
     app.add_handler(MessageHandler(filters.PHOTO & draw_only, photo_note))
     # Файл границ = пакетный посев полей (KML/KMZ/GeoJSON/shapefile-zip).
-    app.add_handler(MessageHandler(filters.Document.ALL, import_doc))
+    # Гейт тот же, что у фотозаметки строкой выше: импорт заводит поля
+    # в живой журнал, и без гейта при снятом allowlist это мог сделать
+    # любой чат — соседняя строка с filters.PHOTO гейт имела, эта его
+    # не получила.
+    app.add_handler(MessageHandler(filters.Document.ALL & draw_only,
+                                   import_doc))
     app.add_handler(CallbackQueryHandler(why_callback, pattern=r"^why:"))
     app.add_handler(CallbackQueryHandler(feedback_callback, pattern=r"^fb:"))
     app.add_handler(CallbackQueryHandler(rename_pick_callback, pattern=r"^rnm:"))

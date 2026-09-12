@@ -165,3 +165,71 @@ def test_russian_seasons_agree_with_the_number(n, expect):
     sec = uniformity_section("furrow", 9.4, lang="ru", inlet_side="север",
                              reach=_reach(None, refused="few_seasons", n=n))
     assert expect in sec.hint
+
+
+
+
+def test_section_names_where_the_flow_axis_came_from():
+    """Замер по отметке фермера и замер по догадке «длинная ось» до сих
+    пор выглядели в карточке одинаково. Разница не косметическая: во
+    втором случае дальний край выбрали мы, а не вода."""
+    mark = uniformity_section("furrow", 9.4, lang="ru", inlet_side="север",
+                              reach=dict(_reach(-18.0), flow_source="inlet"))
+    guess = uniformity_section("furrow", 9.4, lang="ru", inlet_side="север",
+                               reach=dict(_reach(-18.0),
+                                          flow_source="long_axis"))
+    assert "по вашей отметке" in mark.hint
+    assert "догадка по длинной оси" in guess.hint
+    assert mark.hint != guess.hint
+
+    uz = uniformity_section("furrow", 9.4, inlet_side="shimol",
+                            reach=dict(_reach(-18.0),
+                                       flow_source="long_axis"))
+    assert "taxmin" in uz.hint
+
+    # Замер старого формата: источник оси не записан — и не выдумывается.
+    old = uniformity_section("furrow", 9.4, lang="ru", inlet_side="север",
+                             reach=_reach(-18.0))
+    assert "ход воды" not in old.hint
+
+
+def test_measurement_along_another_axis_gives_no_verdict():
+    """Сторону входа можно переназначить, не трогая контур. Тогда
+    «дальний край» замера — про другой конец поля, и знак tail_pct
+    зависит от того, какой конец считать ближним. Молчим."""
+    stale = uniformity_section("furrow", 9.4, lang="ru", inlet_side="север",
+                               reach=dict(_reach(-22.0), flow_source="inlet",
+                                          stale_axis=True))
+    assert stale.status is Status.NO_DATA, "вердикт по чужой оси"
+    assert "%" not in stale.line
+    assert "по другой оси" in stale.hint
+
+    uz = uniformity_section("furrow", 9.4, inlet_side="shimol",
+                            reach=dict(_reach(-22.0), flow_source="inlet",
+                                       stale_axis=True))
+    assert uz.status is Status.NO_DATA and "yo'nalishi" in uz.hint
+
+
+def test_payload_marks_a_measurement_built_along_another_axis():
+    """Сверка оси живёт в боте: геометрия поля есть только там."""
+    import json
+
+    import bot.main as B
+    from suv.clock import today as today_tashkent
+    from suv.trial import flow_bearing_from_inlet
+
+    now = flow_bearing_from_inlet(RING, 0, 1)
+
+    def _row(bearing):
+        return {"field_id": "F-1", "polygon_geojson": json.dumps(RING),
+                "inlet_vertices": json.dumps([0, 1]),
+                "uniformity_json": json.dumps(
+                    {"built": today_tashkent().isoformat(),
+                     "flow_bearing_deg": bearing, "flow_source": "inlet",
+                     "seasons_used": 5, "stable_share": 0.61,
+                     "refused": None, "tail_pct": -22.0})}
+
+    assert B._uniformity_payload(_row(now))["stale_axis"] is False
+    assert B._uniformity_payload(_row((now + 90) % 360))["stale_axis"] is True
+    # Ровно на пороге ось ещё та же: 15° — половина сектора розы.
+    assert B._uniformity_payload(_row((now + 10) % 360))["stale_axis"] is False

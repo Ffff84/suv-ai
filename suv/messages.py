@@ -27,6 +27,7 @@ REASON_UZ = {
     "after_rain": "Yomg'irdan keyin namlik yana kamayadi.",
     "rain_expected": "Yaqin kunlarda yomg'ir kutilmoqda.",
     "soil_still_wet": "Tuproq hali yetarlicha nam.",
+    "season_over": "Ang'iz bo'yicha suv hisoblanmaydi.",
 }
 REASON_RU = {
     "harvest_hold": "Идёт съём: налитый водой плод хуже лежит в хранении.",
@@ -35,6 +36,7 @@ REASON_RU = {
     "after_rain": "После дождя влага снова снизится.",
     "rain_expected": "В ближайшие дни ожидается дождь.",
     "soil_still_wet": "Почва ещё достаточно влажная.",
+    "season_over": "По убранному полю воду не считаем.",
 }
 
 
@@ -91,6 +93,24 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     """
     f = rec.field
     snap = snapshot_line(rec, lang)
+    if rec.reason_key == "season_over":
+        # Не «полив не требуется»: требоваться нечему. Раньше поле с
+        # кончившимся сезоном получало ровно ту же успокаивающую строку,
+        # что и живое влажное поле, — с Kc на хвосте кривой и нулём
+        # кубометров, будто расчёт состоялся.
+        sown = f.planting_date
+        when = f"{sown.day:02d}.{sown.month:02d}.{sown.year}"
+        if lang == "uz":
+            return (f"{f.name}\n\n"
+                    f"{f.crop.name_uz} mavsumi tugadi (ekilgan {when}).\n"
+                    f"{REASON_UZ['season_over']}\n\n"
+                    f"Qayta ekkan bo'lsangiz — yozing, dalani yangi "
+                    f"mavsumga sozlaymiz.")
+        return (f"{f.name}\n\n"
+                f"Сезон культуры «{f.crop.name_ru}» закончился "
+                f"(сев {when}).\n"
+                f"{REASON_RU['season_over']}\n\n"
+                f"Посеяли заново — напишите, переведём поле на новый сезон.")
     if rec.reason_key == "harvest_hold":
         # Не «не требуется» — влага может быть у порога. Полив
         # ОСТАНОВЛЕН сознательно, и фермер должен видеть разницу.
@@ -230,6 +250,15 @@ def why_text(rec, last_irr, lang: str = "uz", degraded: bool = False) -> str:
         lines.append("Xulosa: terim davri — sug'orish ataylab to'xtatilgan."
                      if uz else
                      "Вывод: идёт съём урожая — полив остановлен сознательно.")
+    elif rec.action_day is None and last_irr is None:
+        # Тот же отказ, что и в самом совете: «почва ещё влажная» —
+        # это вывод из дефицита, отсчёт которого начат сегодня, потому
+        # что другой точки отсчёта нет. Числа выше остаются — они
+        # посчитаны честно; вывода из них не делаем.
+        lines.append("Xulosa: javob yo'q — hisobni qaysi kundan "
+                     "yuritishni bilmayman." if uz else
+                     "Вывод: ответа нет — неизвестно, с какого дня "
+                     "вести счёт.")
     elif rec.action_day is None:
         lines.append(("Xulosa: " if uz else "Вывод: ") +
                      (REASON_UZ if uz else REASON_RU).get(rec.reason_key, ""))
@@ -254,8 +283,14 @@ def savings_text(summary, lang: str = "uz") -> str:
         if lang == "uz":
             return ("Tejamkorlikni hisoblash uchun avvalgi sarf kerak.\n"
                     "Bir sug'orishda qancha suv ketishini ayting.")
+        # Русскую ветку на показе читает наблюдатель, а не разработчик:
+        # «впишите baseline_m3_per_ha в конфиг поля» отправляло его в
+        # файл, которого у него нет, и выдавало имя переменной за ответ.
+        # Не хватает ровно одного — объёма одного полива, и знает его
+        # фермер; узбекская ветка так и спрашивает, русская теперь
+        # спрашивает о том же. Числа как не было, так и нет.
         return ("Экономию посчитать не с чем: прежний расход не задан.\n"
-                "Впишите baseline_m3_per_ha в конфиг поля.")
+                "Спросите у фермера, сколько воды уходит за один полив.")
     # Дни, когда журнал молчал дольше двух прежних интервалов, в счёт не
     # вошли — и фермер должен это видеть, иначе цифра читается как «за
     # весь сезон», а она за отмеченные отрезки.

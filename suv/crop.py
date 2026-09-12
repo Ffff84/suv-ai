@@ -172,6 +172,51 @@ def days_after_planting(planting: date, today: date) -> int:
     return (today - planting).days
 
 
+def sowing_from_month(crop: Crop, month: int, today: date) -> date:
+    """
+    Названный фермером месяц -> дата сева.
+
+    Мастер спрашивает «в каком месяце ПОСЕЯЛИ», прошедшим временем, —
+    значит дата сева не может оказаться в будущем. Прежнее правило
+    `year = today.year if month <= today.month else today.year - 1`
+    ломалось на озимых с обеих сторон. 12.09.2026, ячмень (сев 1
+    октября): ответ «Oktabr» давал 01.10.2025 — dap 346 при сумме стадий
+    225, то есть ПРОШЛЫЙ, уже убранный сезон; ответ «Sentabr» давал
+    15.09.2026, на три дня вперёд, и карточка показывала начальную
+    стадию непосеянного поля.
+
+    Правило одно для озимых и яровых: берём ПОСЛЕДНЕЕ прошедшее
+    наступление названного месяца. Если день по умолчанию ещё не настал,
+    а месяц — текущий, значит фермер посеял в этом месяце раньше этого
+    числа: берём сегодня. Ошибка тогда не больше уже прошедшей части
+    месяца — меньше тех ±10 дней, которые мастер и так допускает.
+
+    Кончившийся сезон этим НЕ чинится и не должен: «Oktabr» в сентябре —
+    честно прошлогодний сев, и сказать об этом обязан recommend()
+    отказом, а не молчаливый kc_end (см. season_is_over).
+    """
+    day = crop.typical_sowing[1] if month == crop.typical_sowing[0] else 15
+    this_year = date(today.year, month, day)
+    if this_year <= today:
+        return this_year
+    if month == today.month:
+        return today
+    return date(today.year - 1, month, day)
+
+
+def season_is_over(crop: Crop, dap: int) -> bool:
+    """Сезон однолетней культуры кончился: дней от сева больше суммы
+    стадий.
+
+    За этой границей stage_and_kc уходит в else и молча отдаёт kc_end —
+    кривая держится вечно, и движок считает воду по стерне. Многолетники
+    сюда не попадают по определению: season_start перезапускает им
+    отсчёт каждой весной, зима у сада — межсезонье, а не конец сезона, и
+    послеуборочный полив под будущие почки остаётся законным.
+    """
+    return not crop.perennial and dap >= sum(crop.stages)
+
+
 def stage_and_kc(crop: Crop, dap: int) -> StageInfo:
     """
     Kc for a given day after planting. FAO-56 fig. 25: flat during

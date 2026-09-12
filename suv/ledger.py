@@ -345,13 +345,28 @@ class Ledger:
             # вершин старой границы на новой указывают куда попало, и
             # «вода заходит с севера» стало бы тихой неправдой.
             # Фото собрано по старой границе — вместе с контуром слетает
-            # и оно, иначе фермер увидит заливку не по своему полю.
+            # и оно, иначе фермер увидит заливку не по своему полю; даты
+            # кадра и каталога уходят следом, чтобы в строке не осталось
+            # примет снимка, которого больше нет.
             # Половины опыта тоже слетают: они резались по старой границе.
+            # Замер равномерности — туда же. Он посчитан ПО СТАРОМУ
+            # КОНТУРУ и по старой оси хода воды, а живёт 90 дней: без
+            # сброса он всплывал заново, едва фермер снова отметит
+            # сторону входа, и «дальний край сухой из года в год»
+            # показывалось рядом с новой границей, по которой никто
+            # ничего не мерил. Пересобрать — scripts/build_uniformity.py.
+            # Остальные колонки к геометрии не привязаны и остаются:
+            # hectares (см. выше), lat/lon/elevation_m — точка поля, её
+            # контур не двигает; baseline_* — норма на гектар; crop_key,
+            # soil_key, planting_date, harvest_*, wetted_fraction —
+            # агрономия; pump_* — насос; last_irrigation_date — событие.
             c.execute("UPDATE fields SET polygon_geojson=?, area_ha=?, "
                       "polygon_source=?, inlet_vertices=NULL, "
                       "trial_half_a=NULL, trial_half_b=NULL, "
-                      "trial_started=NULL, "
-                      "photo_file_id=NULL, photo_key=NULL, photo_caption=NULL "
+                      "trial_started=NULL, uniformity_json=NULL, "
+                      "photo_file_id=NULL, photo_key=NULL, "
+                      "photo_caption=NULL, photo_scene_date=NULL, "
+                      "photo_latest_seen=NULL, photo_built_at=NULL "
                       "WHERE field_id=?",
                       (json.dumps(ring), round(area_ha, 2), source, field_id))
             c.commit()

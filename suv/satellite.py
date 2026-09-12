@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -72,17 +73,38 @@ class NdviReading:
     msavi: float | None = None
 
 
+# Токен CDSE живёт около 600 с, а спрашивался заново на КАЖДОЕ поле:
+# экран «Dala holati» на двух полях ходил в identity дважды, утренний
+# обход и импорт на полсотни полей — полсотни раз подряд, хотя выданный
+# минуту назад токен ещё годен. Кэш ровно такой же, как у запасного
+# источника (suv/landsat.py::_sas_token), и по той же причине. Держим
+# 300 с при живых 600: даже если запрос с уже полученным токеном
+# упрётся в свой 60-секундный таймаут, до протухания остаётся больше
+# четырёх минут.
+_TOKEN_TTL_S = 300.0
+_token_cache: dict[tuple[str, str], tuple[str, float]] = {}
+
+
 def get_token(client_id: str | None = None,
               client_secret: str | None = None) -> str:
     client_id = client_id or os.environ["CDSE_CLIENT_ID"]
     client_secret = client_secret or os.environ["CDSE_CLIENT_SECRET"]
+    # Ключ — пара учёток, а не один глобальный слот: get_token зовут и с
+    # явными аргументами (scripts/check_live.py), и подсунуть туда токен
+    # от других ключей нельзя.
+    hit = _token_cache.get((client_id, client_secret))
+    if hit is not None and time.monotonic() < hit[1]:
+        return hit[0]
     r = requests.post(TOKEN_URL, data={
         "grant_type": "client_credentials",
         "client_id": client_id,
         "client_secret": client_secret,
     }, timeout=30)
     r.raise_for_status()
-    return r.json()["access_token"]
+    token = r.json()["access_token"]
+    _token_cache[(client_id, client_secret)] = (
+        token, time.monotonic() + _TOKEN_TTL_S)
+    return token
 
 
 def fetch_ndvi(polygon: list[list[float]], token: str,

@@ -105,3 +105,48 @@ def test_enrich_survives_a_failing_satellite(monkeypatch):
     status = enrich.attach_ndvi(f)
     assert f.ndvi is None
     assert "авторизации" in status
+
+
+
+
+def test_cdse_token_is_not_fetched_for_every_field(monkeypatch):
+    """Токен спрашивается один раз на пачку полей, а не на каждое.
+
+    До 12.09.2026 экран «Dala holati» на двух полях ходил в identity
+    дважды, а обход полусотни импортированных полей — полсотни раз, хотя
+    выданный токен живёт около десяти минут.
+    """
+    import suv.satellite as sat
+
+    calls = []
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"access_token": f"tok{len(calls) - 1}"}
+
+    def _post(url, data=None, timeout=None, **kw):
+        calls.append(url)
+        return _Resp()
+
+    monkeypatch.setattr(sat, "_token_cache", {})
+    monkeypatch.setattr(sat.requests, "post", _post)
+    monkeypatch.setenv("CDSE_CLIENT_ID", "x")
+    monkeypatch.setenv("CDSE_CLIENT_SECRET", "y")
+
+    assert sat.get_token() == "tok0"
+    assert sat.get_token() == "tok0"
+    assert len(calls) == 1, "токен спрошен повторно"
+
+    # Другая пара ключей — свой токен: чужой из кэша подсовывать нельзя.
+    assert sat.get_token("other", "secret") == "tok1"
+    assert len(calls) == 2
+
+    # Срок вышел — идём за новым, кэш не вечен.
+    monkeypatch.setattr(sat, "_TOKEN_TTL_S", -1.0)
+    monkeypatch.setattr(sat, "_token_cache", {})
+    assert sat.get_token() == "tok2"
+    assert sat.get_token() == "tok3"
+    assert len(calls) == 4

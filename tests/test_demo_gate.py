@@ -116,12 +116,53 @@ def test_menu_keyboard_grows_only_for_demo_chats(monkeypatch, tmp_path):
     assert len(m.MAIN_MENU.keyboard) == 2
 
 
+def _give_field(m, chat: int) -> None:
+    """Завести чату поле: кабинет — разбор ПОЛЯ, и без поля кнопки нет."""
+    m.LEDGER.upsert_field(
+        field_id=f"TG-{chat}", name="Dala", owner_chat_id=chat, hectares=1.0,
+        lat=39.5, lon=67.0, elevation_m=700.0, crop_key="cotton",
+        soil_key="loam", planting_date="2026-04-10",
+        irrigation_method="furrow", water_table_depth_m=0.0)
+
+
 def test_cabinet_button_only_for_its_own_gate(monkeypatch, tmp_path):
     """Кабинет за своим гейтом: демо «Dala holati» его не открывает."""
     m = _reload_bot(monkeypatch, tmp_path, str(DEMO))
     monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
     monkeypatch.setattr(m, "_CABINET", {DEMO})
+    _give_field(m, DEMO)
+    _give_field(m, FARMER)
     assert m.BTN_KABINET in _labels(m._menu(DEMO))[-1]
+    assert m.BTN_KABINET not in sum(_labels(m._menu(FARMER)), [])
+
+
+def test_empty_cabinet_list_opens_it_to_everyone_with_a_field(monkeypatch,
+                                                              tmp_path):
+    """Третий гейт выровнен по двум соседним: пусто = открыто всем.
+
+    До 12.09.2026 здесь было обратное правило, и пустая переменная
+    закрывала кабинет ВСЕМ, включая Амира: единственным признаком была
+    отсутствующая кнопка.
+    """
+    m = _reload_bot(monkeypatch, tmp_path, "")
+    monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
+    monkeypatch.setattr(m, "_CABINET", set())
+    _give_field(m, FARMER)
+    assert m.BTN_KABINET in sum(_labels(m._menu(FARMER)), [])
+
+
+def test_cabinet_button_is_not_a_door_to_an_empty_room(monkeypatch, tmp_path):
+    """Открытый список не означает кнопку у каждого встречного.
+
+    Бот открыт жюри, а web/app.py про список кабинета не знает вовсе:
+    пускает по подписи Telegram и отдаёт поля через _fields_for_view,
+    то есть постороннему — ни одного. Кнопка у того, за кем не записано
+    ни одного поля, вела бы на пустой экран.
+    """
+    m = _reload_bot(monkeypatch, tmp_path, "")
+    monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
+    monkeypatch.setattr(m, "_CABINET", set())
+    assert m._cabinet_open(FARMER) is False
     assert m.BTN_KABINET not in sum(_labels(m._menu(FARMER)), [])
 
 
@@ -131,3 +172,107 @@ def test_cabinet_button_hidden_without_url(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "CABINET_URL", "")
     monkeypatch.setattr(m, "_CABINET", {DEMO})
     assert m.BTN_KABINET not in sum(_labels(m._menu(DEMO)), [])
+
+
+
+
+# ------------------------------------------------- третий гейт: кабинет
+#
+# _CABINET жил по ОБРАТНОЙ конвенции: проверка писалась по месту,
+# `chat_id in _CABINET`, без оговорки про пустоту. Пустая переменная
+# закрывала кабинет всем, включая Амира, — при том что та же пустота у
+# _authorized и _field_status_open значит «открыто всем». Два смысла
+# пустоты в трёх списках одного файла — ошибка не «если», а «когда».
+
+
+def test_all_three_gates_read_an_empty_list_the_same_way(monkeypatch, tmp_path):
+    """Пусто = открыто всем. Одинаково у всех трёх списков."""
+    m = _reload_bot(monkeypatch, tmp_path, "")
+    monkeypatch.setattr(m, "_ALLOWED", set())
+    monkeypatch.setattr(m, "_CABINET", set())
+    assert m._authorized(_text_update(FARMER, m.BTN_SUV))
+    assert m._field_status_open(FARMER)
+    # У кабинета к общей конвенции добавлено второе условие: показывать
+    # его тому, за кем записано поле. Пустой список сам по себе больше
+    # не закрывает — закрывает отсутствие поля.
+    _give_field(m, FARMER)
+    assert m._cabinet_open(FARMER)
+
+
+def test_empty_cabinet_list_shows_the_button_to_everyone(monkeypatch, tmp_path):
+    """Кнопка кабинета при пустом списке видна всем — но только с URL.
+
+    Обратное правило раньше означало: переменную забыли заполнить —
+    кабинета нет ни у кого, и понять это можно было лишь по
+    отсутствующей кнопке, без единой строки в логе.
+    """
+    m = _reload_bot(monkeypatch, tmp_path, "")
+    monkeypatch.setattr(m, "_CABINET", set())
+    monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
+    _give_field(m, FARMER)
+    assert m.BTN_KABINET in _labels(m._menu(FARMER))[-1]
+    monkeypatch.setattr(m, "CABINET_URL", "")
+    assert m.BTN_KABINET not in sum(_labels(m._menu(FARMER)), [])
+
+
+# ------------------------------------------ файл границ за тем же гейтом
+
+
+def _doc_update(chat_id: int, name: str = "granitsalar.kml") -> Update:
+    from telegram import Document
+    user = User(id=chat_id, is_bot=False, first_name="Fermer")
+    doc = Document(file_id="f1", file_unique_id="u1", file_name=name)
+    msg = Message(message_id=2, date=datetime.now(timezone.utc),
+                  chat=Chat(id=chat_id, type=Chat.PRIVATE),
+                  from_user=user, document=doc)
+    return Update(update_id=2, message=msg)
+
+
+def _registered_app(monkeypatch, m):
+    """Поднять НАСТОЯЩУЮ регистрацию хендлеров, не доходя до сети."""
+    from telegram.ext import Application
+    box = {}
+
+    def _stop(self, *a, **kw):
+        box["app"] = self
+
+    monkeypatch.setattr(Application, "run_polling", _stop)
+    m.main()
+    return box["app"]
+
+
+def test_file_import_is_gated_like_the_photo_note(monkeypatch, tmp_path):
+    """Файл границ закрыт тем же гейтом, что фотозаметка.
+
+    Регистрация filters.Document.ALL стояла БЕЗ гейта — в отличие от
+    соседней строки с filters.PHOTO. При снятом allowlist (а он снят с
+    11.08.2026, бот открыт жюри) это значило: любой чат присылает KML и
+    сеет поля в живой журнал, из которого считается акт экономии.
+
+    Проверяем не строку в исходнике, а саму регистрацию: глазами эту
+    строку уже пропустили один раз.
+    """
+    m = _reload_bot(monkeypatch, tmp_path, str(DEMO))
+    app = _registered_app(monkeypatch, m)
+
+    def _takes(chat_id: int) -> bool:
+        return any(getattr(h, "callback", None) is m.import_doc
+                   and bool(h.check_update(_doc_update(chat_id)))
+                   for h in app.handlers[0])
+
+    assert _takes(DEMO), "импорт не дошёл даже до демо-чата"
+    assert not _takes(FARMER), "чат вне демо сеет поля файлом"
+
+
+def test_open_gate_leaves_file_import_open_to_everyone(monkeypatch, tmp_path):
+    """Пустой список — импорт работает у всех, как и всё остальное.
+
+    Гейт добавлен ради закрытия, а не ради того, чтобы выключить
+    пакетный посев: на сервере список пуст, и поведение импорта этой
+    правкой не меняется ни на шаг.
+    """
+    m = _reload_bot(monkeypatch, tmp_path, "")
+    app = _registered_app(monkeypatch, m)
+    assert any(getattr(h, "callback", None) is m.import_doc
+               and bool(h.check_update(_doc_update(FARMER)))
+               for h in app.handlers[0])

@@ -126,3 +126,25 @@ def test_why_text_no_action_uses_reason_dictionary():
     r = _rec(reason="soil_still_wet", act=None, du=-1)
     t = why_text(r, last_irr=date(2026, 9, 7), lang="ru")
     assert "Почва ещё достаточно влажная" in t
+
+
+
+
+def test_why_text_without_anchor_draws_no_conclusion():
+    """«Почему» не делает вывод там, где совет отказался отвечать.
+
+    Без даты полива баланс стартует с нуля, и «Почва ещё достаточно
+    влажная» — вывод из дефицита, который начали считать сегодня. Числа
+    остаются (они посчитаны), вывод — нет: три экрана бота обязаны
+    говорить одно и то же.
+    """
+    r = _rec(reason="soil_still_wet", act=None, du=-1)
+    ru = why_text(r, last_irr=None, lang="ru")
+    assert "Почва ещё достаточно влажная" not in ru
+    assert "ответа нет" in ru and "приблизительный" in ru
+
+    uz = why_text(r, last_irr=None, lang="uz")
+    assert "javob yo'q" in uz
+    # А с якорем вывод по-прежнему на месте.
+    assert "Почва ещё достаточно влажная" in why_text(
+        r, last_irr=date(2026, 9, 7), lang="ru")

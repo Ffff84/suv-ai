@@ -84,3 +84,33 @@ def test_markup_adds_vote_row_only_with_rid(monkeypatch):
     assert len(with_fb.inline_keyboard) == 2
     cbs = [b.callback_data for b in with_fb.inline_keyboard[1]]
     assert cbs == ["fb:up:42", "fb:down:42"]
+
+
+
+
+def test_vote_row_survives_the_closed_field_screen_gate(monkeypatch):
+    """Оценка совета не привязана к экрану поля.
+
+    При закрытом гейте «Dala holati» _why_markup возвращал reply-меню
+    целиком — и вместе с кнопкой «почему» исчезали 👍/👎. Оценка к
+    экрану поля отношения не имеет: это единственный канал обратной
+    связи по совету, и закрыт он был ровно у тех, кому сырую фичу не
+    дают, то есть у обычного фермера.
+    """
+    monkeypatch.setattr(B, "_FIELD_STATUS", {777})      # демо только у 777
+    closed = B._why_markup(555, "T-1", rid=42)
+    cbs = [b.callback_data for row in closed.inline_keyboard for b in row]
+    assert cbs == ["fb:up:42", "fb:down:42"], "оценка ушла вместе с «почему»"
+    # У демо-чата обе кнопки на месте — гейт всё ещё работает.
+    assert len(B._why_markup(777, "T-1", rid=42).inline_keyboard) == 2
+
+
+def test_advice_without_a_journal_id_keeps_the_plain_menu(monkeypatch):
+    """Оценивать нечего — под советом обычное меню, как было.
+
+    Пустую инлайн-клавиатуру Telegram не примет, а id рекомендации
+    появляется только после записи в журнал: в утреннем пуше первое
+    сообщение уходит без него.
+    """
+    monkeypatch.setattr(B, "_FIELD_STATUS", {777})
+    assert B._why_markup(555, "T-1").keyboard                # reply-меню

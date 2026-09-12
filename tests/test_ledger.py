@@ -223,3 +223,40 @@ def test_area_from_the_contour_never_overwrites_the_declared_one(tmp_path):
     led.save_polygon("F-1", RING, 8.4, "pins")
     row = _field(led)
     assert row["hectares"] == 10.0 and row["area_ha"] == 8.4
+
+
+
+
+def test_redrawing_the_contour_forgets_the_uniformity_measurement(tmp_path):
+    """Замер равномерности считан ПО СТАРОМУ контуру и старой оси хода
+    воды, а живёт 90 дней. Без сброса он всплывал заново, едва фермер
+    отметит сторону входа на новой границе, и «дальний край сухой из
+    года в год» вставало рядом с контуром, по которому никто не мерил.
+    Вместе с ним уходят все приметы снимка старой границы.
+    """
+    import json
+
+    led = _seeded(tmp_path)
+    led.save_polygon("F-1", RING, 8.4, "pins")
+    led.save_inlet("F-1", 0, 1)
+    led.save_photo("F-1", "AgAC-file", "2026-09-01", "key", "подпись")
+    led.set_trial("F-1", json.dumps(RING), json.dumps(RING))
+    led.save_uniformity("F-1", json.dumps(
+        {"built": "2026-09-01", "flow_bearing_deg": 91.0,
+         "flow_source": "inlet", "seasons_used": 5, "stable_share": 0.61,
+         "refused": None, "tail_pct": -18.4}))
+
+    led.save_polygon("F-1", RING, 9.1, "miniapp")
+
+    row = _field(led)
+    for column in ("uniformity_json", "inlet_vertices",
+                   "trial_half_a", "trial_half_b", "trial_started",
+                   "photo_file_id", "photo_key", "photo_caption",
+                   "photo_scene_date", "photo_latest_seen",
+                   "photo_built_at"):
+        assert row[column] is None, f"{column} пережил перечерчивание"
+    # А что к геометрии не привязано — перечерчивание не трогает.
+    assert row["hectares"] == 10.0
+    assert row["baseline_m3_per_ha"] == 1100.0
+    assert row["crop_key"] == "cotton"
+    assert row["lat"] == 39.6

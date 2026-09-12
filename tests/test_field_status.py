@@ -354,3 +354,128 @@ def test_photo_section_never_colors_the_field():
     s = photo_section(1.5, "drip", photo=_photo(ok=True))
     assert s.status is Status.NO_DATA and s.informational
     assert overall_status([_section(Status.OK), s]) is Status.OK
+
+
+
+
+def test_water_without_anchor_is_not_green():
+    """Карточка не красит поле зелёным там, где нечем ответить.
+
+    «Bu hafta shart emas» без даты последнего полива держалось бы на
+    неизмеренной влаге: баланс стартует с нуля. Предупреждение во второй
+    строке при этом оставалось — но 🟢 yaxshi в первой читается раньше и
+    громче. NO_DATA: ответа нет, и на общий статус поля это не влияет.
+    """
+    s = water_section(_Rec(), None, TODAY)
+    assert s.status is Status.NO_DATA
+    assert "shart emas" not in s.line and "ayta olmayman" in s.line
+    assert "taxminiy" in s.hint
+    assert overall_status([_section(Status.OK), s]) is Status.OK
+
+    ru = water_section(_Rec(), None, TODAY, lang="ru")
+    assert "не требуется" not in ru.line
+
+
+
+
+# ------------------------------------------- сколько раз экран ходит в сеть
+#
+# Карточка собирается в bot/main.py, поэтому бот тащится внутрь теста
+# локально — как и всё остальное в этом файле. Сети в пакете нет, вместо
+# неё счётчик вызовов: он и есть предмет проверки.
+
+def _forecast_days(n: int) -> list:
+    return [DailyWeather(doy=200 + i, t_max=32.0, t_min=18.0, rh_mean=40.0,
+                         wind_2m=2.0, solar_rad=25.0, rainfall=0.0)
+            for i in range(n)]
+
+
+def test_card_asks_open_meteo_once_per_field(tmp_path, monkeypatch):
+    """Один поход за погодой на поле, а не два.
+
+    warm-start внутри _compute_rec уже привозит 14 дней живого прогноза;
+    до 12.09.2026 секция погоды спрашивала те же самые дни ВТОРЫМ
+    запросом к тому же Open-Meteo. На экране с двумя полями это два
+    лишних вызова подряд под «typing…», после импорта на полсотни полей
+    — полсотни, и всё последовательно.
+    """
+    from types import SimpleNamespace
+
+    import bot.main as B
+    from suv.ledger import Ledger
+
+    # Спутник и почасовой ряд гасим: тест про количество запросов погоды.
+    monkeypatch.delenv("CDSE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("CDSE_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("LANDSAT_FALLBACK", raising=False)
+    monkeypatch.setattr(B, "fetch_hourly",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            ValueError("сети нет")))
+
+    calls = []
+
+    def _forecast(lat, lon, days=16, past_days=0, timeout=20):
+        calls.append((days, past_days))
+        return _forecast_days(past_days + days)
+
+    monkeypatch.setattr(B, "fetch_forecast", _forecast)
+
+    led = Ledger(tmp_path / "t.db")
+    monkeypatch.setattr(B, "LEDGER", led)
+    led.upsert_field(field_id="TG-1", name="Dala", owner_chat_id=777,
+                     hectares=1.0, lat=39.5, lon=67.0, elevation_m=700.0,
+                     crop_key="cotton", soil_key="loam",
+                     planting_date="2026-04-10", irrigation_method="furrow",
+                     water_table_depth_m=0.0)
+
+    ctx = SimpleNamespace(user_data={})
+    _rec, _pump, _anch, degraded, forecast, _hourly = B._fs_data(
+        B._field_row("TG-1"), ctx)
+
+    assert degraded is False, "погода отдана, расчёт не должен быть по нормам"
+    assert calls == [(14, 0)], f"лишний поход за погодой: {calls}"
+    # Секция погоды получает ровно те же три дня, что и раньше.
+    assert len(forecast) == 3
+
+
+def test_card_still_asks_for_the_forecast_when_warm_start_fell_back(
+        tmp_path, monkeypatch):
+    """Обратная сторона того же замка: когда расчёт ушёл на климатические
+    нормы, нормали в секцию погоды не подсовываются — за прогнозом идёт
+    отдельный запрос, как и раньше. Норма — не прогноз."""
+    from types import SimpleNamespace
+
+    import bot.main as B
+    from suv.ledger import Ledger
+
+    monkeypatch.delenv("CDSE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("CDSE_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("LANDSAT_FALLBACK", raising=False)
+    monkeypatch.setattr(B, "fetch_hourly",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            ValueError("сети нет")))
+
+    calls = []
+
+    def _forecast(lat, lon, days=16, past_days=0, timeout=20):
+        calls.append((days, past_days))
+        if days == 14:          # warm-start — упал
+            raise ValueError("Open-Meteo молчит")
+        return _forecast_days(days)
+
+    monkeypatch.setattr(B, "fetch_forecast", _forecast)
+
+    led = Ledger(tmp_path / "t.db")
+    monkeypatch.setattr(B, "LEDGER", led)
+    led.upsert_field(field_id="TG-1", name="Dala", owner_chat_id=777,
+                     hectares=1.0, lat=39.5, lon=67.0, elevation_m=700.0,
+                     crop_key="cotton", soil_key="loam",
+                     planting_date="2026-04-10", irrigation_method="furrow",
+                     water_table_depth_m=0.0)
+
+    ctx = SimpleNamespace(user_data={})
+    *_, degraded, forecast, _hourly = B._fs_data(B._field_row("TG-1"), ctx)
+
+    assert degraded is True
+    assert calls == [(14, 0), (3, 0)], f"прогноз не переспросили: {calls}"
+    assert len(forecast) == 3

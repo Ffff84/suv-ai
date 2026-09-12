@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from .crop import (Crop, blended_kc, kc_from_ndvi, root_depth, season_start,
-                   stage_and_kc)
+from .crop import (Crop, blended_kc, kc_from_ndvi, root_depth, season_is_over,
+                   season_start, stage_and_kc)
 from .et0 import DailyWeather, et0
 from .soil import (
     MAX_APPLICATION_MM,
@@ -237,6 +237,19 @@ def recommend(
     baseline_m3 и saved_m3 остаются None, и напечатать их нечем.
     """
     plan = simulate(fld, forecast, start_state, today)
+
+    # Сезон однолетней культуры кончился — и об этом надо СКАЗАТЬ. За
+    # суммой стадий stage_and_kc молча держит kc_end: ячмень, посеянный
+    # 01.10.2025, на 12.09.2026 имел dap 346 при сумме стадий 225 и
+    # получал уверенное «полив не требуется» — расчёт воды по стерне,
+    # выданный за совет. Многолетников проверка не трогает: season_start
+    # перезапускает им отсчёт каждой весной (см. season_is_over).
+    if season_is_over(fld.crop, (today - fld.planting_date).days):
+        return Recommendation(
+            field=fld, generated_on=today, action_day=None,
+            gross_mm=0.0, gross_m3=0.0, reason_key="season_over",
+            days_until=-1, plan=plan, baseline_m3=None, saved_m3=None,
+        )
 
     action = next((p for p in plan if p.irrigate), None)
     scheduled_m3 = sum(p.gross_m3 for p in plan)

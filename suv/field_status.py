@@ -125,10 +125,25 @@ def water_section(rec, last_irr: date | None, today: date,
     if pump is not None and getattr(pump, "m3_per_hour", 0):
         hours = rec.gross_m3 / pump.m3_per_hour
 
-    if getattr(rec, "reason_key", "") == "harvest_hold":
+    if getattr(rec, "reason_key", "") == "season_over":
+        # Карточка обязана говорить то же, что /suv, а там теперь отказ.
+        # «На этой неделе не требуется» на убранном поле — это тот же
+        # расчёт по стерне, только другим экраном.
+        status = Status.OK
+        line = ("Mavsum tugadi — hisob yuritilmaydi."
+                if uz else "Сезон закончился — расчёт не ведётся.")
+    elif getattr(rec, "reason_key", "") == "harvest_hold":
         status = Status.OK
         line = ("Terim davri — sug'orish to'xtatilgan."
                 if uz else "Съём урожая — полив приостановлен.")
+    elif rec.action_day is None and last_irr is None:
+        # Карточка — третий экран того же расчёта, и «не требуется» здесь
+        # держалось бы на той же неизмеренной влаге, что и в /suv: без
+        # якоря баланс стартует с нуля. Зелёное «yaxshi» под таким
+        # выводом — самая дорогая часть ошибки, поэтому NO_DATA: ответа
+        # нет, и на общий статус поля это не влияет.
+        status = Status.NO_DATA
+        line = "Hozircha ayta olmayman." if uz else "Пока не отвечаю."
     elif rec.action_day is None:
         status = Status.OK
         line = "Bu hafta shart emas." if uz else "На этой неделе не требуется."
@@ -450,6 +465,23 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
             key="uniformity", order=20, title=title, status=Status.NO_DATA,
             line=f"{drawn} · {entered}", hint=hint, action=redraw)
 
+    if reach.get("stale_axis"):
+        # Замер жив, но собран по другой оси хода воды: сторону входа
+        # можно переназначить, не трогая контур, а до первой отметки ось
+        # и вовсе бралась догадкой по длинной оси. «Дальний край» тогда
+        # отсчитан от другого конца поля, а знак tail_pct зависит ровно
+        # от того, какой конец считать ближним, — показать такой вердикт
+        # рядом с нынешней стороной входа значит соврать, не ошибившись
+        # в арифметике. Сезоны и стабильность от оси не зависят, но без
+        # вердикта фермеру не говорят ничего, поэтому молчим и про них.
+        return Section(
+            key="uniformity", order=20, title=title, status=Status.NO_DATA,
+            line=f"{drawn} · {entered}",
+            hint=("O'lchov boshqa suv yo'nalishi bo'yicha yig'ilgan — "
+                  "qaytadan yig'iladi" if uz else
+                  "Замер собран по другой оси хода воды — пересоберём"),
+            action=redraw)
+
     tail = reach.get("tail_pct") or 0.0
     three = (f"{n} mavsum · barqaror {share}% · chekka {tail:+.0f}%"
              if uz else
@@ -463,9 +495,27 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
     else:
         status, verdict = Status.ALERT, ("Dala oxiri yildan-yilga quruq" if uz
                                          else "Дальний край сухой из года в год")
+    # Откуда взялась ось хода воды — рядом с выводом, а не в логе
+    # сборки. Замер по отметке фермера и замер по догадке «длинная ось»
+    # выглядели в карточке одинаково, хотя во втором случае дальний край
+    # выбрали МЫ. Фермер вправе видеть, на чём стоит вывод, — и то, что
+    # отметка стороны входа этот вывод уточнит.
+    source = reach.get("flow_source")
+    if source == "inlet":
+        axis = ("suv yo'nalishi — belgingiz bo'yicha" if uz
+                else "ход воды — по вашей отметке")
+    elif source == "long_axis":
+        axis = ("suv yo'nalishi — uzun o'q bo'yicha taxmin" if uz
+                else "ход воды — догадка по длинной оси")
+    else:
+        # Замер старого формата: чем брали ось, не записано. Молчим —
+        # придумать источник хуже, чем не назвать его.
+        axis = None
+    hint = f"{drawn} · {entered}"
     return Section(
         key="uniformity", order=20, title=title, status=status,
-        line=f"{verdict} · {three}", hint=f"{drawn} · {entered}",
+        line=f"{verdict} · {three}",
+        hint=f"{hint} · {axis}" if axis else hint,
         action=redraw)
 
 
