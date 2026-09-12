@@ -376,3 +376,126 @@ def test_tejaldi_without_any_savings_speaks_instead_of_sending_nothing(
     asyncio.run(B.tejaldi(upd, _ctx()))
     assert len(upd.message.sent) == 1
     assert upd.message.sent[0].strip() != ""
+
+
+# ------------------------------ импорт границ: файл -> поля в базе
+#
+# У бот-потока импорта не было ни одного теста: все двенадцать проверок
+# лежали на парсере и на seed(). Из-за этого никто не прослеживал, что
+# именно доезжает до строки в fields — а доезжала, например, площадь
+# вместе с вырезом внутри контура.
+
+class _Doc:
+    def __init__(self, data: bytes, name: str):
+        self.file_name, self.file_size, self._data = name, len(data), data
+
+    async def get_file(self):
+        doc = self
+
+        class _F:
+            async def download_as_bytearray(self):
+                return bytearray(doc._data)
+
+        return _F()
+
+
+class _DocMsg:
+    def __init__(self, doc):
+        self.document, self.sent = doc, []
+
+    async def reply_text(self, text, **kw):
+        self.sent.append(text)
+
+
+class _DocUpd:
+    def __init__(self, doc, chat=777):
+        self.message = _DocMsg(doc)
+        self.effective_chat = SimpleNamespace(id=chat)
+
+
+class _Query:
+    def __init__(self, data):
+        self.data, self.shown = data, []
+
+    async def answer(self):
+        pass
+
+    async def edit_message_text(self, text, **kw):
+        self.shown.append(text)
+
+
+class _CbUpd:
+    def __init__(self, data, chat=777):
+        self.callback_query = _Query(data)
+        self.effective_chat = SimpleNamespace(id=chat)
+
+
+def _kesikli_geojson() -> bytes:
+    """Поле-бублик под Самаркандом: 976x977 м с вырезом 586x586 м.
+
+    Внешнее кольцо 95,35 га, вырез 34,34 га, поле 61,01 га.
+    """
+    import json as _json
+
+    from suv.field_shape import meters_per_degree
+    lat0, lon0 = 39.558, 66.996
+    m_lat, m_lon = meters_per_degree(lat0)
+
+    def pt(east_m, north_m):
+        return [round(lon0 + east_m / m_lon, 9),
+                round(lat0 + north_m / m_lat, 9)]
+
+    outer = [pt(0, 0), pt(976, 0), pt(976, 977), pt(0, 977), pt(0, 0)]
+    hole = [pt(195, 195), pt(781, 195), pt(781, 781), pt(195, 781),
+            pt(195, 195)]
+    return _json.dumps({
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "properties": {"Name": "Kesikli"},
+                      "geometry": {"type": "Polygon",
+                                   "coordinates": [outer, hole]}}]}).encode()
+
+
+def _ring_holds(ring, lon, lat):
+    ins = False
+    for i in range(len(ring) - 1):
+        x1, y1 = ring[i]
+        x2, y2 = ring[i + 1]
+        if (y1 > lat) != (y2 > lat):
+            if lon < x1 + (lat - y1) * (x2 - x1) / (y2 - y1):
+                ins = not ins
+    return ins
+
+
+def test_imported_file_lands_in_db_without_the_hole(led, monkeypatch):
+    """Весь путь импорта: документ в чат -> четыре кнопки -> строка в базе.
+
+    Проверяется то, что до базы доезжает, а не то, что вернул парсер:
+    вырез внутри контура не должен стать поливной землёй. Норма — мм x
+    10 x га, поэтому лишние 34 га это лишние 56% воды в каждом совете, и
+    в карточке их не видно: обе цифры площади пришли из одного файла.
+    """
+    import json as _json
+
+    monkeypatch.setattr(B, "fetch_elevation", lambda lat, lon: 655.0)
+    ctx = SimpleNamespace(user_data={}, bot=None)
+
+    upd = _DocUpd(_Doc(_kesikli_geojson(), "chegara.geojson"))
+    asyncio.run(B.import_doc(upd, ctx))
+    said = upd.message.sent[0]
+    assert "61.0 ga" in said, said                  # не 95.3
+    assert "o'zingiz tekshiring" in said           # сверки не было — сказано
+
+    for step in ("impc:cotton", "impm:4", "imps:loam", "impw:furrow"):
+        asyncio.run(B.import_flow_callback(_CbUpd(step), ctx))
+
+    rows = B._owner_fields(777)
+    assert [r["name"] for r in rows] == ["Kesikli"]
+    row = B._field_row(rows[0]["field_id"])
+    assert row["hectares"] == pytest.approx(61.01, abs=0.1)
+    assert row["area_ha"] == pytest.approx(61.01, abs=0.1)
+    assert row["polygon_source"] == "import"
+    assert row["elevation_m"] == pytest.approx(655.0)
+    assert row["crop_key"] == "cotton" and row["irrigation_method"] == "furrow"
+    # Точка поля — по ней берётся погода — обязана лежать В поле.
+    ring = _json.loads(row["polygon_geojson"])
+    assert _ring_holds(ring, row["lon"], row["lat"])
