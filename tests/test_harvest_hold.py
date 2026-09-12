@@ -81,10 +81,33 @@ def test_advice_returns_after_harvest_end():
     assert rec.reason_key != "harvest_hold"
 
 
-def test_open_ended_harvest_uses_start_as_end():
+def test_open_ended_harvest_does_not_release_on_the_first_day():
+    """Конец не назван — пауза не кончается в первый день съёма.
+
+    Прежнее правило приравнивало конец к началу, и бот отпускал полив
+    ровно тогда, когда фермер выходил снимать: у сада Фарруха окно
+    закрывалось 14.09, а 15-го приходило «полейте сегодня, насос 12 ч».
+    Съём яблони идёт две-три недели.
+    """
+    from suv.schedule import OPEN_HARVEST_MAX_DAYS
+
     f = _orchard(harvest_start=date(2026, 9, 1))
     lo, hi = harvest_hold_window(f)
-    assert lo == date(2026, 8, 18) and hi == date(2026, 9, 1)
+    assert lo == date(2026, 8, 18)
+    assert hi == date(2026, 9, 1) + timedelta(days=OPEN_HARVEST_MAX_DAYS)
+    # Но не бессрочно: дата из прошлого сезона не смеет остановить полив
+    # навсегда — её просто некому обновить.
+    old = _orchard(harvest_start=date(2025, 9, 1))
+    assert harvest_hold_window(old)[1] < date(2026, 1, 1)
+
+
+def test_open_ended_harvest_still_expires():
+    """Обратная сторона: через разумный срок пауза отпускает."""
+    from suv.schedule import OPEN_HARVEST_MAX_DAYS
+
+    f = _orchard(harvest_start=date(2026, 9, 1))
+    _lo, hi = harvest_hold_window(f)
+    assert (hi - date(2026, 9, 1)).days == OPEN_HARVEST_MAX_DAYS
 
 
 def test_last_years_dates_do_not_fire():
@@ -95,25 +118,64 @@ def test_last_years_dates_do_not_fire():
 
 def test_message_says_stopped_not_unneeded():
     """«Полив приостановлен» — не «не требуется»: влага у порога, и
-    фермер должен видеть, что это сознательная пауза на съём."""
+    фермер должен видеть, что это сознательная пауза на съём.
+
+    Две разные фразы по обе стороны даты съёма. До неё бот не имеет
+    права говорить «идёт съём»: дата лежит в том же объекте и
+    опровергает фразу — у сада Фарруха 12.09.2026 съём был назначен на
+    14.09, то есть шла сухая пауза, а не терим.
+    """
+    # ДО начала съёма: сухая пауза, и дата названа вслух.
     f = _orchard(harvest_start=date(2026, 9, 5), harvest_end=date(2026, 9, 20))
     rec = recommend(f, _wx(), NEAR_THRESHOLD, TODAY)
     assert rec.reason_key == "harvest_hold"
+    assert TODAY < f.harvest_start
     uz, ru = recommendation_text(rec, "uz"), recommendation_text(rec, "ru")
-    assert "to'xtatilgan" in uz and "Terim" in uz
-    assert "приостановлен" in ru and "хуже лежит" in ru
+    assert "to'xtatildi" in uz and "05.09" in uz
+    assert "остановлен перед съёмом" in ru and "05.09" in ru
+    assert "Идёт съём" not in ru, "съём ещё не начался"
+    # Конец съёма назван — за него не просим.
+    assert "хуже лежит" in ru or "лучше лежит" in ru
+
+    # ВО ВРЕМЯ съёма: та самая фраза про терим.
+    started = _orchard(harvest_start=TODAY - timedelta(days=1),
+                       harvest_end=TODAY + timedelta(days=10))
+    rec2 = recommend(started, _wx(), NEAR_THRESHOLD, TODAY)
+    assert rec2.reason_key == "harvest_hold"
+    uz2, ru2 = recommendation_text(rec2, "uz"), recommendation_text(rec2, "ru")
+    assert "Terim davri" in uz2 and "to'xtatilgan" in uz2
+    assert "Съём урожая — полив приостановлен" in ru2
+    assert "хуже лежит" in ru2
     assert "не требуется" not in ru and "shart emas" not in uz
     # После съёма советы вернутся — обещание про послеуборочный полив.
     assert "qaytadi" in uz and "вернутся" in ru
 
 
 def test_field_status_line_matches():
+    """Карточка говорит ровно то же, что совет, — по обе стороны даты.
+
+    Три экрана про одно поле обязаны сходиться: 12.09.2026 совет по саду
+    Фарруха говорил «остановлен перед съёмом (съём с 14.09)», а карточка
+    в ту же секунду — «идёт съём».
+    """
     from suv.field_status import Status, water_section
+
+    # ДО съёма — сухая пауза и дата.
     f = _orchard(harvest_start=date(2026, 9, 5), harvest_end=date(2026, 9, 20))
     rec = recommend(f, _wx(), NEAR_THRESHOLD, TODAY)
     s = water_section(rec, TODAY - timedelta(days=4), TODAY, None, "ru")
     assert s.status == Status.OK
-    assert "приостановлен" in s.line
+    assert "перед съёмом" in s.line and "05.09" in s.line
+    assert "Съём урожая" not in s.line
+    assert "перед съёмом" in recommendation_text(rec, "ru")
+
+    # ВО ВРЕМЯ съёма — обе строки про терим.
+    g = _orchard(harvest_start=TODAY - timedelta(days=1),
+                 harvest_end=TODAY + timedelta(days=10))
+    rec2 = recommend(g, _wx(), NEAR_THRESHOLD, TODAY)
+    s2 = water_section(rec2, TODAY - timedelta(days=4), TODAY, None, "ru")
+    assert "приостановлен" in s2.line
+    assert "приостановлен" in recommendation_text(rec2, "ru")
 
 
 def test_config_and_db_round_trip(tmp_path):

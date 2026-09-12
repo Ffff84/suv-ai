@@ -22,6 +22,7 @@ WEEKDAY_RU = ("понедельник", "вторник", "среду", "чет�
 
 REASON_UZ = {
     "harvest_hold": "Terim davri: suvga to'lgan meva omborda yomon saqlanadi.",
+    "preharvest_hold": "Terim oldidan quruq tanaffus: meva omborda yaxshi turadi.",
     "threshold_reached": "Tuproqdagi namlik chegaraga yetdi.",
     "threshold_approaching": "Namlik tez kamaymoqda.",
     "after_rain": "Yomg'irdan keyin namlik yana kamayadi.",
@@ -31,6 +32,7 @@ REASON_UZ = {
 }
 REASON_RU = {
     "harvest_hold": "Идёт съём: налитый водой плод хуже лежит в хранении.",
+    "preharvest_hold": "Сухая пауза перед съёмом: плод лучше лежит в хранении.",
     "threshold_reached": "Влагозапас достиг порога.",
     "threshold_approaching": "Влага убывает быстро.",
     "after_rain": "После дождя влага снова снизится.",
@@ -112,19 +114,28 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
                 f"{REASON_RU['season_over']}\n\n"
                 f"Посеяли заново — напишите, переведём поле на новый сезон.")
     if rec.reason_key == "harvest_hold":
+        # До начала съёма говорить «идёт съём» нельзя: дата лежит в том
+        # же объекте и опровергает фразу. У сада Фарруха 12.09 съём
+        # назначен на 14.09 — идёт сухая пауза, а не терим.
+        hs = f.harvest_start
+        before = hs is not None and rec.generated_on < hs
         # Не «не требуется» — влага может быть у порога. Полив
         # ОСТАНОВЛЕН сознательно, и фермер должен видеть разницу.
+        key = "preharvest_hold" if before else "harvest_hold"
+        when = f"{hs.day:02d}.{hs.month:02d}" if hs else ""
+        # Конец съёма фермер не называл, а без него пауза держится
+        # ограниченный срок: просим сказать, а не обещаем за него.
         if lang == "uz":
-            return (f"{f.name}\n\n"
-                    f"Terim davri — sug'orish to'xtatilgan.\n"
-                    f"{REASON_UZ['harvest_hold']}\n\n"
-                    f"Terim tugagach maslahatlar qaytadi: bog' keyingi "
-                    f"mavsum uchun suv ichishi kerak.")
-        return (f"{f.name}\n\n"
-                f"Съём урожая — полив приостановлен.\n"
-                f"{REASON_RU['harvest_hold']}\n\n"
-                f"После съёма советы вернутся: саду нужен "
-                f"послеуборочный полив под будущие почки.")
+            head = (f"Terim oldidan sug'orish to'xtatildi (terim — {when} dan)."
+                    if before else "Terim davri — sug'orish to'xtatilgan.")
+            return (f"{f.name}\n\n{head}\n{REASON_UZ[key]}\n\n"
+                    "Terimni tugatgach yozing — maslahatlar qaytadi: bog' "
+                    "keyingi mavsum uchun suv ichishi kerak.")
+        head = (f"Полив остановлен перед съёмом (съём с {when})."
+                if before else "Съём урожая — полив приостановлен.")
+        return (f"{f.name}\n\n{head}\n{REASON_RU[key]}\n\n"
+                "Напишите, когда закончите съём, — советы вернутся: саду "
+                "нужен послеуборочный полив под будущие почки.")
     if rec.action_day is None:
         if lang == "uz":
             return (f"{f.name}\n\n"
@@ -303,17 +314,27 @@ def savings_text(summary, lang: str = "uz") -> str:
     # вошли — и фермер должен это видеть, иначе цифра читается как «за
     # весь сезон», а она за отмеченные отрезки.
     silent = getattr(summary, "silent_days", 0) or 0
+    # «Сэкономлено −124 м³» — не экономия и не по-русски. Минус значит,
+    # что по совету ушло БОЛЬШЕ прежней привычки: исход законный
+    # (растянутые интервалы дают больший разовый объём), прятать его
+    # нельзя — но и называть экономией тоже.
+    overrun = summary.saved_m3 < 0
     if lang == "uz":
         v = "Tasdiqlangan" if summary.verified else "Fermer ma'lumoti"
-        text = (f"Mavsum boshidan: {_num(summary.saved_m3)} m³ suv tejaldi.\n"
-                f"Manba: {v}.")
+        text = ((f"Maslahat bo'yicha avvalgi odatdan "
+                 f"{_num(abs(summary.saved_m3))} m³ ko'proq ketdi.\n"
+                 f"Manba: {v}.") if overrun else
+                (f"Mavsum boshidan: {_num(summary.saved_m3)} m³ suv tejaldi.\n"
+                 f"Manba: {v}."))
         if silent:
             text += (f"\n{silent} kun belgisiz qoldi — hisobga kirmadi. "
                      "Har sug'orishdan keyin «✅ Suv berdim» bosing.")
         return text
     v = "Подтверждено счётчиком" if summary.verified else "Со слов фермера"
-    text = (f"С начала сезона сэкономлено {_num(summary.saved_m3)} м³.\n"
-            f"Источник: {v}.")
+    text = ((f"По совету ушло на {_num(abs(summary.saved_m3))} м³ больше "
+             f"прежней привычки.\nИсточник: {v}.") if overrun else
+            (f"С начала сезона сэкономлено {_num(summary.saved_m3)} м³.\n"
+             f"Источник: {v}."))
     if silent:
         text += f"\n{silent} дн. без отметок в счёт не вошли."
     return text

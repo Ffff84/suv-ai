@@ -148,8 +148,17 @@ def water_section(rec, last_irr: date | None, today: date,
                 if uz else "Сезон закончился — расчёт не ведётся.")
     elif getattr(rec, "reason_key", "") == "harvest_hold":
         status = Status.OK
-        line = ("Terim davri — sug'orish to'xtatilgan."
-                if uz else "Съём урожая — полив приостановлен.")
+        # Карточка обязана говорить то же, что совет: до начала съёма
+        # это сухая пауза, а не терим. Дата у поля есть, и печатать её
+        # дешевле, чем объяснять расхождение между двумя экранами.
+        hs = getattr(rec.field, "harvest_start", None)
+        if hs is not None and rec.generated_on < hs:
+            when = f"{hs.day:02d}.{hs.month:02d}"
+            line = (f"Terim oldidan quruq tanaffus (terim — {when} dan)."
+                    if uz else f"Сухая пауза перед съёмом (съём с {when}).")
+        else:
+            line = ("Terim davri — sug'orish to'xtatilgan."
+                    if uz else "Съём урожая — полив приостановлен.")
     elif rec.action_day is None and last_irr is None:
         # Карточка — третий экран того же расчёта, и «не требуется» здесь
         # держалось бы на той же неизмеренной влаге, что и в /suv: без

@@ -208,6 +208,12 @@ def fixed_interval_baseline(
     return application_m3_per_ha * n * fld.hectares
 
 
+# Сколько держится пауза, если фермер назвал начало съёма, но не конец.
+# Съём яблони идёт две-три недели; сорок пять дней покрывают затяжной
+# сезон и при этом не дают прошлогодней дате остановить полив навсегда.
+OPEN_HARVEST_MAX_DAYS = 45
+
+
 def harvest_hold_window(fld: Field) -> tuple[date, date] | None:
     """Окно «полив остановлен на съём»: (начало сухой паузы, конец съёма).
 
@@ -217,7 +223,18 @@ def harvest_hold_window(fld: Field) -> tuple[date, date] | None:
     if fld.harvest_start is None:
         return None
     start = fld.harvest_start - timedelta(days=fld.crop.preharvest_hold_days)
-    return start, (fld.harvest_end or fld.harvest_start)
+    if fld.harvest_end is not None:
+        return start, fld.harvest_end
+    # Конец съёма не назван. Приравнять его к НАЧАЛУ, как было раньше,
+    # значит отпустить полив в первый же день терима: у сада Фарруха
+    # окно закрывалось 14.09, и 15-го бот кричал «полейте сегодня, 12
+    # часов насоса» посреди сбора. Съём яблони идёт не день.
+    #
+    # Бессрочно держать тоже нельзя: прошлогодняя дата съёма, которую
+    # никто не обновил, остановила бы полив навсегда. Открытый конец
+    # ограничиваем разумной длиной терима — этого хватает настоящему
+    # съёму и мало для даты из прошлого сезона.
+    return start, fld.harvest_start + timedelta(days=OPEN_HARVEST_MAX_DAYS)
 
 
 def recommend(
@@ -283,11 +300,15 @@ def recommend(
     # первый послеуборочный полив, он дереву нужен.
     hold = harvest_hold_window(fld)
     if hold and hold[0] <= action.day <= hold[1]:
+        # baseline/saved здесь None по той же причине, что и при конце
+        # сезона: план внутри окна поливает (simulate про терим не
+        # знает), поэтому «сэкономлено» считалось бы по поливам, которых
+        # мы сами не назначили. Прогон сада давал «Разница: -496 м³»
+        # рядом со строкой «полив остановлен».
         return Recommendation(
             field=fld, generated_on=today, action_day=None,
             gross_mm=0.0, gross_m3=0.0, reason_key="harvest_hold",
-            days_until=-1, plan=plan,
-            baseline_m3=baseline_m3, saved_m3=saved_m3,
+            days_until=-1, plan=plan, baseline_m3=None, saved_m3=None,
         )
 
     days_until = (action.day - today).days
