@@ -32,6 +32,7 @@ from xml.etree import ElementTree
 from .field_shape import area_ha as ring_area_ha
 from .field_shape import from_geojson_ring
 from .field_shape import is_simple
+from .field_shape import to_local_m
 
 AREA_MIN_HA = 0.05
 AREA_MAX_HA = 2000.0
@@ -42,6 +43,14 @@ NAME_KEYS = ("name", "nom", "nomi", "title", "field", "field_name", "id", "fid")
 # стоит четверть секунды на поле, а полей в файле бывает две сотни.
 # Такой контур на самопересечение не проверяем — и говорим об этом.
 SIMPLE_CHECK_MAX_VERTICES = 500
+# Перебор пар рёбер квадратичен, и потолок на ОДИН контур ничего не
+# обещает про файл: 200 полей по 400 вершин — это 32 млн пар и 11
+# секунд под «typing…». Считаем бюджет на весь разбор; кончился —
+# оставшиеся контуры проверку пропускают и говорят об этом.
+SIMPLE_CHECK_BUDGET_PAIRS = 2_000_000
+# Ближе этого вершины считаем одной точкой: миллиметр — тот же порог,
+# которым has_duplicate_points ловит дубль при обводе ногами.
+SAME_POINT_M = 0.001
 
 # У поля из мастера две НЕЗАВИСИМЫЕ цифры площади: hectares со слов
 # фермера и area_ha по обводке; их спор ловит AREA_MISMATCH_FRAC на 10%.
@@ -91,8 +100,11 @@ def parse_file(data: bytes, filename: str
 
     fields: list[ImportedField] = []
     problems: list[str] = []
+    # Бюджет проверки на самопересечение — общий на файл, список из
+    # одного числа вместо nonlocal: _finish его уменьшает по месту.
+    budget = [SIMPLE_CHECK_BUDGET_PAIRS]
     for name, ring, holes in raw[:MAX_FIELDS_PER_FILE]:
-        got = _finish(name, ring, holes, problems)
+        got = _finish(name, ring, holes, problems, budget)
         if isinstance(got, str):
             problems.append(got)
         else:
@@ -367,10 +379,37 @@ def _field_point(rings: list[list[list[float]]]) -> tuple[float, float]:
     return lat_c, best_lon
 
 
+def _collapse_repeats(ring: list) -> list:
+    """Схлопнуть подряд идущие вершины, отстоящие меньше чем на миллиметр.
+
+    Вершина, записанная подряд дважды, — не самопересечение, а мусор
+    экспорта: в кадастровом shapefile точка часто лежит дважды, а кольцо
+    бывает замкнуто двумя одинаковыми вершинами. Сравнение на ТОЧНОЕ
+    равенство этого не ловило: сдвиг в девятом знаке после запятой — это
+    десятые доли микрона на местности, но для float это разные числа, а
+    has_duplicate_points округляет до миллиметра и считает их дублем.
+    Итог — отказ «контур пересекает сам себя» честному файлу из GIS.
+    """
+    if len(ring) < 2:
+        return list(ring)
+    xy = to_local_m([(p[1], p[0]) for p in ring])
+    out = [list(ring[0])]
+    keep = [xy[0]]
+    for i in range(1, len(ring)):
+        x, y = xy[i]
+        px, py = keep[-1]
+        if abs(x - px) <= SAME_POINT_M and abs(y - py) <= SAME_POINT_M:
+            continue
+        out.append(list(ring[i]))
+        keep.append((x, y))
+    return out
+
+
 def _finish(name: str, ring: list, holes: list | None = None,
-            notes: list[str] | None = None) -> ImportedField | str:
+            notes: list[str] | None = None,
+            budget_left: list[int] | None = None) -> ImportedField | str:
     if not ring or len(ring) < 3:
-        return f"«{name}»: меньше трёх вершин — это не контур."
+        return f"«{name}»: uchtadan kam nuqta — bu chegara emas."
     ring = [[float(p[0]), float(p[1])] for p in ring]
     if ring[0] != ring[-1]:
         ring.append(list(ring[0]))
@@ -380,18 +419,18 @@ def _finish(name: str, ring: list, holes: list | None = None,
     # их ДО проверки на простоту: has_duplicate_points писался под
     # обвод ногами («этот угол уже есть»), и без этого честный файл
     # из GIS получал отказ «контур пересекает сам себя» на ровном месте.
-    ring = [p for i, p in enumerate(ring) if i == 0 or p != ring[i - 1]]
+    ring = _collapse_repeats(ring)
     if len(ring) < 4:              # разных вершин осталось меньше трёх
-        return f"«{name}»: меньше трёх разных вершин — это не контур."
+        return f"«{name}»: uchtadan kam turli nuqta — bu chegara emas."
 
     lats = [p[1] for p in ring]
     lons = [p[0] for p in ring]
     if max(abs(v) for v in lats) > 90 or max(abs(v) for v in lons) > 180:
-        return f"«{name}»: координаты вне диапазона широт/долгот."
+        return f"«{name}»: koordinatalar chegaradan tashqarida."
     # Перепутанные оси: «широта» в диапазоне долгот Узбекистана и наоборот.
     if all(55 <= la <= 74 for la in lats) and all(37 <= lo <= 46 for lo in lons):
-        return (f"«{name}»: похоже, оси перепутаны (файл писан lat,lon). "
-                "Поменяйте порядок координат и загрузите снова.")
+        return (f"«{name}»: o'qlar almashib ketganga o'xshaydi (fayl "
+                "lat,lon tartibida). Tartibni almashtirib, qayta yuboring.")
 
     pts = from_geojson_ring(ring)
     # Самопересечение из GIS приходит чаще, чем кажется: «бабочка» после
@@ -399,29 +438,43 @@ def _finish(name: str, ring: list, holes: list | None = None,
     # формуле шнурков на ней — разность двух петель, а не площадь поля.
     # Проверка уже написана в field_shape и стоит там за обводом — здесь
     # она нужна ровно за тем же.
-    if len(pts) <= SIMPLE_CHECK_MAX_VERTICES:
+    n = len(pts)
+    budget = n * n if budget_left is None else budget_left[0]
+    if n <= SIMPLE_CHECK_MAX_VERTICES and n * n <= budget:
+        if budget_left is not None:
+            budget_left[0] -= n * n
         if not is_simple(pts):
             return (f"«{name}»: chegara o'zini kesib o'tadi — bunday "
                     "kontur bo'yicha maydon noto'g'ri chiqadi. Chegarani "
                     "GIS'da to'g'rilang (QGIS: Vector → Geometry Tools "
                     "→ Check Validity).")
     elif notes is not None:
-        notes.append(f"«{name}»: {len(pts)} ta nuqta — o'zini kesishiga "
+        notes.append(f"«{name}»: {n} ta nuqta — o'zini kesishiga "
                      "tekshirilmadi, tekshiruv juda og'ir.")
 
     area = ring_area_ha(pts)
     rings = [ring]
     for h in (holes or []):
         hp = [[float(p[0]), float(p[1])] for p in h]
-        if len(from_geojson_ring(hp)) < 3:
+        hpts = from_geojson_ring(hp)
+        if len(hpts) < 3:
             continue
-        area -= ring_area_ha(from_geojson_ring(hp))
+        # Вырез вычитается, только если он ВНУТРИ своего поля. Кольцо,
+        # лежащее рядом или накрывающее внешнее, — мусор экспорта либо
+        # чужая геометрия, а вычесть его значит отнять у поля гектары,
+        # которые никто не вырезал: в прогоне поле худело с 95 до 80 га,
+        # а вырез больше кольца уводил площадь в минус (-2286 га).
+        if not _point_inside([_closed(ring)], hp[0][0], hp[0][1]):
+            if notes is not None:
+                notes.append(f"«{name}»: ichki kontur dala ichida emas — "
+                             "hisobga olinmadi.")
+            continue
+        area -= ring_area_ha(hpts)
         rings.append(_closed(hp))
     if not AREA_MIN_HA <= area <= AREA_MAX_HA:
-        cut = (f" (внешний контур за вычетом вырезов: {len(rings) - 1})"
-               if len(rings) > 1 else "")
-        return (f"«{name}»: площадь {area:.2f} га вне диапазона "
-                f"{AREA_MIN_HA}–{AREA_MAX_HA} га{cut}.")
+        cut = (f" (ichki kontur: {len(rings) - 1})" if len(rings) > 1 else "")
+        return (f"«{name}»: maydon {area:.2f} ga — "
+                f"{AREA_MIN_HA}–{AREA_MAX_HA} ga oralig'idan tashqarida{cut}.")
     lat_c, lon_c = _field_point(rings)
     return ImportedField(name=name, ring=ring, area_ha=round(area, 2),
                          lat=round(lat_c, 6), lon=round(lon_c, 6))

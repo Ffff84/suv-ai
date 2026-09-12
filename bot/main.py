@@ -241,15 +241,21 @@ def _cabinet_open(chat_id: int) -> bool:
     в двух местах сразу (меню и сам обработчик), и поправить одно из
     двух означало показать кнопку, отвечающую отказом.
 
-    Теперь конвенция общая: пусто = открыто всем. Но одной инверсии
-    мало. Бот открыт жюри, и «открыто всем» без второго условия
-    означало бы кнопку у каждого постороннего — а за ней пустой экран:
-    web/app.py про этот список не знает вовсе, пускает по подписи
-    Telegram и отдаёт поля через _fields_for_view, то есть чужому — ни
-    одного. Дверь в пустую комнату хуже, чем отсутствие двери, поэтому
-    кнопку видит только тот, кому есть что в ней показать.
+    Общую конвенцию «пусто = открыто всем» этот список НЕ получает, и
+    это сознательное исключение из выравнивания: кабинет — сырая
+    поверхность, а правило проекта держит сырое в закрытом демо, пока
+    его не обкатали. Выровнять здесь означало бы выкатить Mini App
+    Фарруху и любому постороннему с полем одной пустой строкой в .env.
+    Поэтому список остаётся явным; выровнялось другое — проверка стала
+    одна на два места, и она называет себя в логе при старте, а не
+    молчит отсутствующей кнопкой.
+
+    Второе условие — своё: кнопку видит только тот, кому есть что в ней
+    показать. web/app.py про этот список не знает вовсе, пускает по
+    подписи Telegram и отдаёт поля через _fields_for_view, то есть
+    чужому — ни одного; дверь в пустую комнату хуже отсутствия двери.
     """
-    if _CABINET and chat_id not in _CABINET:
+    if chat_id not in _CABINET:
         return False
     try:
         rows, _observer = _fields_for_view(chat_id)
@@ -774,8 +780,13 @@ def _rec_message(rec, pump, lang: str, anchored: bool = True,
     # незнании остаётся советом: он ошибается в сторону «позже, чем
     # надо», и об этом предупреждает NO_ANCHOR. Съём урожая — тоже
     # совет: он стоит на датах терима, а не на водном балансе.
+    # Конец сезона и режим терима — выводы из ДАТ, а не из водного
+    # баланса: им якорь не нужен. Без этой оговорки отказ «не знаю,
+    # когда поливали» перехватывал season_over у каждого поля из
+    # мастера — тот ставит дату полива пустой всегда, — и фермера звали
+    # отметить полив на убранном поле.
     unmeasured = (not anchored and rec.action_day is None
-                  and rec.reason_key != "harvest_hold")
+                  and rec.reason_key not in ("harvest_hold", "season_over"))
     msg = (_no_anchor_text(rec, lang) if unmeasured
            else recommendation_text(rec, lang, pump=pump))
     warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
@@ -783,9 +794,12 @@ def _rec_message(rec, pump, lang: str, anchored: bool = True,
         msg += "\n\n" + warn
     if degraded:
         msg += "\n\n" + (WEATHER_DOWN_UZ if lang == "uz" else WEATHER_DOWN_RU)
-    if not anchored and not unmeasured:
+    if (not anchored and not unmeasured
+            and rec.reason_key != "season_over"):
         # В тексте отказа предупреждение уже сказано целиком — второй
-        # раз тем же абзацем оно только удлиняет сообщение.
+        # раз тем же абзацем оно только удлиняет сообщение. На убранном
+        # поле оно к тому же спорит с самим советом: «расчёт
+        # приблизительный» там, где расчёта нет вовсе.
         msg += "\n\n" + (NO_ANCHOR_UZ if lang == "uz" else NO_ANCHOR_RU)
     return msg
 
@@ -895,9 +909,18 @@ async def feedback_callback(update: Update,
 
     Голос пишется в журнал (advice_feedback), не в метрику точности:
     эталона по-прежнему нет, и 👍 не делает совет верным. Это сырьё для
-    разговора с фермером и для разборов."""
+    разговора с фермером и для разборов.
+
+    Голос принимается только от ХОЗЯИНА поля. Раньше не проверялось
+    ничего: callback_data с чужим id рекомендации писал голос в журнал
+    любого поля из любого чата. Пока голоса никто не читает, цена этому
+    ноль, но журнал — то, из чего вырастет акт экономии, и пускать в
+    него посторонних нельзя даже в мелочи."""
     query = update.callback_query
     chat = update.effective_chat.id
+    if not _authorized(update):
+        await query.answer("Bu bot yopiq sinovda.")
+        return
     try:
         _, verdict, raw = query.data.split(":", 2)
         rid = int(raw)
@@ -907,6 +930,11 @@ async def feedback_callback(update: Update,
     fid = LEDGER.recommendation_field(rid)
     if fid is None:
         await query.answer("Eskirgan maslahat.")
+        return
+    row = _field_row(fid)
+    if row is None or row["owner_chat_id"] != chat:
+        # Оценка чужого совета — не мнение, а строка в чужом журнале.
+        await query.answer("Bu maslahat sizniki emas.")
         return
     LEDGER.add_feedback(rid, fid, chat, verdict)
     await query.answer("Rahmat! Yozib olindi.")

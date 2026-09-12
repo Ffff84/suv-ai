@@ -370,7 +370,10 @@ def test_water_without_anchor_is_not_green():
     assert s.status is Status.NO_DATA
     assert "shart emas" not in s.line and "ayta olmayman" in s.line
     assert "taxminiy" in s.hint
-    assert overall_status([_section(Status.OK), s]) is Status.OK
+    # И шапка карточки обязана молчать вместе с секцией. «NO_DATA не
+    # влияет на общий статус» верно для пустого слота, но вода в
+    # NO_DATA — это отказ по главному вопросу, а не пустой слот.
+    assert overall_status([_section(Status.OK), s]) is Status.NO_DATA
 
     ru = water_section(_Rec(), None, TODAY, lang="ru")
     assert "не требуется" not in ru.line

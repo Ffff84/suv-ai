@@ -244,7 +244,14 @@ def recommend(
     # получал уверенное «полив не требуется» — расчёт воды по стерне,
     # выданный за совет. Многолетников проверка не трогает: season_start
     # перезапускает им отсчёт каждой весной (см. season_is_over).
-    if season_is_over(fld.crop, (today - fld.planting_date).days):
+    # Дата съёма, названная фермером, важнее табличной суммы стадий:
+    # у поля, которое сейчас убирают, сезон кончается по факту терима, а
+    # не по строке FAO-56. Без этой оговорки таблица перебивала человека.
+    harvest_now = (fld.harvest_start is not None
+                   and fld.harvest_start <= today
+                   and (fld.harvest_end is None or today <= fld.harvest_end))
+    if not harvest_now and season_is_over(
+            fld.crop, (today - fld.planting_date).days):
         return Recommendation(
             field=fld, generated_on=today, action_day=None,
             gross_mm=0.0, gross_m3=0.0, reason_key="season_over",

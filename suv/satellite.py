@@ -87,8 +87,17 @@ _token_cache: dict[tuple[str, str], tuple[str, float]] = {}
 
 def get_token(client_id: str | None = None,
               client_secret: str | None = None) -> str:
-    client_id = client_id or os.environ["CDSE_CLIENT_ID"]
-    client_secret = client_secret or os.environ["CDSE_CLIENT_SECRET"]
+    try:
+        client_id = client_id or os.environ["CDSE_CLIENT_ID"]
+        client_secret = client_secret or os.environ["CDSE_CLIENT_SECRET"]
+    except KeyError as exc:
+        # Голый KeyError('CDSE_CLIENT_ID') роняет скрипты замера, и по
+        # нему не видно, что делать. Бот этой ветки не касается: у него
+        # отсутствие снимка — штатная деградация до календаря.
+        raise RuntimeError(
+            f"нет переменной окружения {exc.args[0]} — спутниковый слой "
+            "не настроен. Ключи Copernicus кладутся в .env рядом с "
+            "TELEGRAM_TOKEN (см. ДЕПЛОЙ.md)") from None
     # Ключ — пара учёток, а не один глобальный слот: get_token зовут и с
     # явными аргументами (scripts/check_live.py), и подсунуть туда токен
     # от других ключей нельзя.

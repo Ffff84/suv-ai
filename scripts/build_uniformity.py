@@ -48,7 +48,12 @@ def main() -> int:
             rows = c.execute("SELECT * FROM fields WHERE field_id=?",
                              (args.field_id,)).fetchall()
     if not rows:
-        raise SystemExit("Нет полей с контуром — замер строится по контуру.")
+        raise SystemExit(
+            "Нет полей с контуром — замер строится по контуру."
+            if args.all else
+            f"Поля {args.field_id} в базе нет. Список: "
+            "python -c \"import sqlite3;print([r[0] for r in "
+            "sqlite3.connect('suv.db').execute('select field_id from fields')])\"")
     # --all уже отфильтровал контур в SQL, а одно поле по id — нет:
     # json.loads(None) падал TypeError вместо внятного отказа.
     named = [r for r in rows if r["polygon_geojson"]]

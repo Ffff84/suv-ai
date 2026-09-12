@@ -206,7 +206,13 @@ def main() -> int:
     print()
     print(f"За {len(rec.plan)} дней по расчёту: {total:.0f} м³ "
           f"({total / f.hectares:.0f} м³/га)")
-    if cfg.get("baseline_m3_per_ha"):
+    if cfg.get("baseline_m3_per_ha") and rec.baseline_m3 is None:
+        # Ранние ветки recommend() (кончившийся сезон) отдают базу None
+        # даже при заданном прежнем расходе: сравнивать нечего, потому
+        # что и расчёта нет. Раньше это был TypeError на форматировании.
+        print("Прежний расход задан, но сравнивать не с чем: "
+              "расчёта по этому полю нет.")
+    elif cfg.get("baseline_m3_per_ha"):
         print(f"По старому графику за тот же срок: {rec.baseline_m3:.0f} м³")
         if rec.baseline_m3 > 0:
             diff = rec.baseline_m3 - total

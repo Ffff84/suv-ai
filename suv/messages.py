@@ -246,7 +246,15 @@ def why_text(rec, last_irr, lang: str = "uz", degraded: bool = False) -> str:
                      "Дата последнего полива неизвестна — расчёт приблизительный.")
 
     lines.append("")
-    if rec.reason_key == "harvest_hold":
+    if rec.reason_key == "season_over":
+        # Числа выше посчитаны по хвосту кривой Kc, то есть по стерне:
+        # выводить из них что-либо нельзя, и «почему» обязан сказать
+        # то же, что сказали совет и карточка, а не водный баланс.
+        lines.append("Xulosa: mavsum tugadi — bu dala bo'yicha suv "
+                     "hisoblanmaydi." if uz else
+                     "Вывод: сезон культуры закончился — воду по этому "
+                     "полю не считаем.")
+    elif rec.reason_key == "harvest_hold":
         lines.append("Xulosa: terim davri — sug'orish ataylab to'xtatilgan."
                      if uz else
                      "Вывод: идёт съём урожая — полив остановлен сознательно.")

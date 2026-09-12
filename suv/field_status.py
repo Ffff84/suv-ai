@@ -89,7 +89,19 @@ def _ha(hectares: float) -> str:
 
 def overall_status(sections: Iterable[Section]) -> Status:
     """Общий статус поля = максимум по секциям. NO_DATA в расчёт не
-    идёт: незаполненный слот не делает поле красным."""
+    идёт: незаполненный слот не делает поле красным.
+
+    Кроме воды. Незаполненный слот и отказ по главному вопросу карточки
+    — разные вещи, а статус у них был один. 12.09.2026 это вылезло в
+    полный рост: секция воды научилась отвечать «Hozircha ayta olmayman»
+    там, где дата полива неизвестна, и шапка над этой строкой писала
+    «🟢 Hammasi yaxshi», а кружок поля в списке горел зелёным. Карточка
+    существует, чтобы ответить «когда и сколько»; если ответа нет,
+    «всё хорошо» — это не сводка, это неправда в самом видном месте.
+    """
+    water = next((s for s in sections if s.key == "water"), None)
+    if water is not None and water.status is Status.NO_DATA:
+        return Status.NO_DATA
     known = [s.status for s in sections if s.status != Status.NO_DATA]
     return max(known) if known else Status.NO_DATA
 
@@ -128,8 +140,10 @@ def water_section(rec, last_irr: date | None, today: date,
     if getattr(rec, "reason_key", "") == "season_over":
         # Карточка обязана говорить то же, что /suv, а там теперь отказ.
         # «На этой неделе не требуется» на убранном поле — это тот же
-        # расчёт по стерне, только другим экраном.
-        status = Status.OK
+        # расчёт по стерне, только другим экраном. Статус NO_DATA, а не
+        # OK: зелёное «всё хорошо» над строкой «расчёт не ведётся»
+        # читается как вывод, которого мы не делали.
+        status = Status.NO_DATA
         line = ("Mavsum tugadi — hisob yuritilmaydi."
                 if uz else "Сезон закончился — расчёт не ведётся.")
     elif getattr(rec, "reason_key", "") == "harvest_hold":
@@ -183,6 +197,12 @@ def water_section(rec, last_irr: date | None, today: date,
         hint = ("Ob-havo xizmati javob bermadi — hisob me'yorlar bo'yicha."
                 if uz else
                 "Прогноз недоступен — расчёт по климатическим нормам.")
+    elif getattr(rec, "reason_key", "") == "season_over":
+        # «Расчёт приблизительный» под строкой «расчёт не ведётся» — две
+        # строки одной секции, спорящие друг с другом: на убранном поле
+        # приблизительного расчёта нет, его нет вовсе.
+        hint = ("Qayta ekilgan bo'lsa — yozing." if uz
+                else "Посеяли заново — напишите боту.")
     elif last_irr is None:
         # Тот же честный компромисс, что и в рекомендации: без якоря
         # расчёт приблизительный, и молчать об этом нельзя.
@@ -477,9 +497,13 @@ def uniformity_section(irrigation_method: str, area_ha: float | None,
         return Section(
             key="uniformity", order=20, title=title, status=Status.NO_DATA,
             line=f"{drawn} · {entered}",
+            # «Пересоберём» обещало действие, которого код не делает:
+            # замер собирается руками из терминала, cron'а нет. Говорим,
+            # что есть: замер не годится к нынешней стрелке.
             hint=("O'lchov boshqa suv yo'nalishi bo'yicha yig'ilgan — "
-                  "qaytadan yig'iladi" if uz else
-                  "Замер собран по другой оси хода воды — пересоберём"),
+                  "bu belgiga to'g'ri kelmaydi" if uz else
+                  "Замер собран по другой оси хода воды — к этой отметке "
+                  "он не подходит"),
             action=redraw)
 
     tail = reach.get("tail_pct") or 0.0

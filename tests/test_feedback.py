@@ -114,3 +114,52 @@ def test_advice_without_a_journal_id_keeps_the_plain_menu(monkeypatch):
     """
     monkeypatch.setattr(B, "_FIELD_STATUS", {777})
     assert B._why_markup(555, "T-1").keyboard                # reply-меню
+
+
+def test_vote_on_someone_elses_advice_is_refused(tmp_path, monkeypatch):
+    """Голос 👍/👎 — строка в журнале ПОЛЯ, а не мнение прохожего.
+
+    Проверялось только, что рекомендация с таким id вообще существует:
+    callback_data «fb:up:1», отправленный из любого чата, писал голос в
+    журнал чужого поля. Пока голоса никто не читает, цена нулевая — но
+    журнал это то, из чего вырастет акт экономии.
+    """
+    import asyncio
+    from types import SimpleNamespace
+
+    import bot.main as B
+    from suv.ledger import Ledger
+
+    led = Ledger(tmp_path / "fb.db")
+    monkeypatch.setattr(B, "LEDGER", led)
+    led.upsert_field(
+        field_id="TG-1", name="Dala", owner_chat_id=1, hectares=1.0,
+        lat=39.5, lon=67.0, elevation_m=700.0, crop_key="cotton",
+        soil_key="loam", planting_date="2026-04-10",
+        irrigation_method="furrow", water_table_depth_m=0.0)
+
+    answers, edits = [], []
+
+    class _Q:
+        data = "fb:up:1"
+
+        async def answer(self, text=None, **kw):
+            answers.append(text)
+
+        async def edit_message_reply_markup(self, **kw):
+            edits.append(kw)
+
+    def _upd(chat):
+        return SimpleNamespace(callback_query=_Q(),
+                               effective_chat=SimpleNamespace(id=chat))
+
+    monkeypatch.setattr(B.LEDGER, "recommendation_field", lambda rid: "TG-1")
+    ctx = SimpleNamespace(user_data={}, bot=None)
+
+    asyncio.run(B.feedback_callback(_upd(999), ctx))          # чужой чат
+    assert answers and "sizniki emas" in answers[-1]
+    assert not edits, "чужому чату перерисовали клавиатуру"
+
+    import sqlite3
+    with sqlite3.connect(led.path) as c:
+        assert c.execute("SELECT count(*) FROM advice_feedback").fetchone()[0] == 0

@@ -78,14 +78,15 @@ def test_swapped_axes_are_called_out_not_planted_in_the_sea():
     data = _gj([_feature(swapped, "Adashgan")])
     fields, problems = parse_file(data, "x.geojson")
     assert fields == []
-    assert any("оси перепутаны" in p for p in problems)
+    # Отказ читает фермер в узбекском чате, а не разработчик в логе.
+    assert any("o'qlar almashib" in p for p in problems)
 
 
 def test_tiny_polygon_is_rejected_with_its_area():
     tiny = [[66.996, 39.558], [66.99601, 39.558], [66.99601, 39.55801],
             [66.996, 39.558]]
     _, problems = parse_file(_gj([_feature(tiny, "Nuqta")]), "x.geojson")
-    assert any("вне диапазона" in p for p in problems)
+    assert any("oralig'idan tashqarida" in p for p in problems)
     assert AREA_MIN_HA == 0.05
 
 
@@ -334,3 +335,88 @@ def test_repeated_vertex_is_noise_not_a_self_crossing():
         fields, problems = parse_file(_gj([_feature(ring, "X")]), "x.geojson")
         assert len(fields) == 1, f"{why}: поле отклонено — {problems}"
         assert fields[0].area_ha == plain[0].area_ha
+
+
+# ---------------------------- регрессии проверки на самопересечение
+#
+# Правка 12.09.2026 подключила is_simple к импорту — и в первом виде
+# отказала честным файлам и стоила секунд. Оба замка ниже про это.
+
+def test_cadastral_duplicate_vertex_is_collapsed_not_refused():
+    """Вершина, записанная дважды со сдвигом в девятом знаке.
+
+    Для float это разные числа, а has_duplicate_points округляет до
+    миллиметра и считает их дублем: кадастровый экспорт получал отказ
+    «контур пересекает сам себя» на ровном месте. Схлопываем по
+    РАССТОЯНИЮ, а не по точному равенству.
+    """
+    ring = [[67.0, 39.5], [67.008, 39.5], [67.008, 39.500000001],
+            [67.008, 39.506], [67.0, 39.506], [67.0, 39.5]]
+    fields, problems = parse_file(_gj([_feature(ring, "Kadastr")]), "k.geojson")
+    assert len(fields) == 1, problems
+    assert fields[0].area_ha > 0
+
+
+def test_a_real_butterfly_is_still_refused():
+    """Обратная сторона того же замка: настоящее самопересечение."""
+    bow = [[67.0, 39.5], [67.004, 39.504], [67.0, 39.504],
+           [67.006, 39.5], [67.0, 39.5]]
+    fields, problems = parse_file(_gj([_feature(bow, "Kapalak")]), "b.geojson")
+    assert fields == []
+    assert any("o'zini kesib o'tadi" in p for p in problems)
+
+
+def test_simplicity_budget_is_counted_per_file_not_per_ring():
+    """Потолок на ОДИН контур ничего не обещает про файл.
+
+    200 полей по 400 вершин — это 32 млн пар рёбер и одиннадцать секунд
+    под «typing…». Бюджет общий на разбор; кончился — оставшиеся контуры
+    проверку пропускают и говорят об этом, а не молчат.
+    """
+    import json
+    import math
+
+    from suv.boundary_import import SIMPLE_CHECK_BUDGET_PAIRS, parse_file
+
+    def circle(cx, n=400, rad=0.002):
+        pts = [(cx + rad * math.cos(2 * math.pi * i / n),
+                39.5 + rad * math.sin(2 * math.pi * i / n)) for i in range(n)]
+        return pts + [pts[0]]
+
+    feats = [{"type": "Feature", "properties": {"name": f"P{i}"},
+              "geometry": {"type": "Polygon",
+                           "coordinates": [[list(p) for p in circle(67.0 + 0.01 * i)]]}}
+             for i in range(30)]
+    data = json.dumps({"type": "FeatureCollection", "features": feats}).encode()
+    fields, notes = parse_file(data, "big.geojson")
+
+    assert len(fields) == 30, "поля потерялись из-за бюджета проверки"
+    skipped = [n for n in notes if "tekshirilmadi" in n]
+    assert skipped, "бюджет не кончился — проверка не защищена от больших файлов"
+    assert SIMPLE_CHECK_BUDGET_PAIRS // (400 * 400) < 30
+
+
+def test_a_hole_outside_the_field_is_not_subtracted():
+    """Вычитать можно только вырез, лежащий ВНУТРИ своего поля.
+
+    Кольцо рядом или поверх внешнего — мусор экспорта либо чужая
+    геометрия; вычесть его значит отнять у поля гектары, которых никто
+    не вырезал. В прогоне поле худело с 95 до 80 га, а вырез больше
+    кольца уводил площадь в минус.
+    """
+    import json
+
+    from suv.boundary_import import parse_file
+
+    outer = [[67.0, 39.5], [67.011, 39.5], [67.011, 39.508],
+             [67.0, 39.508], [67.0, 39.5]]
+    far = [[67.05, 39.5], [67.055, 39.5], [67.055, 39.504],
+           [67.05, 39.504], [67.05, 39.5]]
+    gj = {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "properties": {"name": "Chetdagi teshik"},
+         "geometry": {"type": "Polygon", "coordinates": [outer, far]}}]}
+    fields, notes = parse_file(json.dumps(gj).encode(), "x.geojson")
+
+    assert len(fields) == 1
+    assert fields[0].area_ha == pytest.approx(84.03, abs=0.05)
+    assert any("dala ichida emas" in n for n in notes)

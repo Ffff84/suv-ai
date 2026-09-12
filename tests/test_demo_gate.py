@@ -136,18 +136,19 @@ def test_cabinet_button_only_for_its_own_gate(monkeypatch, tmp_path):
     assert m.BTN_KABINET not in sum(_labels(m._menu(FARMER)), [])
 
 
-def test_empty_cabinet_list_opens_it_to_everyone_with_a_field(monkeypatch,
-                                                              tmp_path):
-    """Третий гейт выровнен по двум соседним: пусто = открыто всем.
+def test_cabinet_needs_both_the_list_and_a_field(monkeypatch, tmp_path):
+    """Оба условия обязательны, и проверка на них одна.
 
-    До 12.09.2026 здесь было обратное правило, и пустая переменная
-    закрывала кабинет ВСЕМ, включая Амира: единственным признаком была
-    отсутствующая кнопка.
+    Раньше она была написана прямо по месту, ДВАЖДЫ — в меню и в самом
+    обработчике, — и поправить одно из двух означало показать кнопку,
+    отвечающую отказом.
     """
     m = _reload_bot(monkeypatch, tmp_path, "")
     monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
-    monkeypatch.setattr(m, "_CABINET", set())
+    monkeypatch.setattr(m, "_CABINET", {FARMER})
+    assert m._cabinet_open(FARMER) is False   # в списке, но полей нет
     _give_field(m, FARMER)
+    assert m._cabinet_open(FARMER) is True
     assert m.BTN_KABINET in sum(_labels(m._menu(FARMER)), [])
 
 
@@ -192,26 +193,27 @@ def test_all_three_gates_read_an_empty_list_the_same_way(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "_CABINET", set())
     assert m._authorized(_text_update(FARMER, m.BTN_SUV))
     assert m._field_status_open(FARMER)
-    # У кабинета к общей конвенции добавлено второе условие: показывать
-    # его тому, за кем записано поле. Пустой список сам по себе больше
-    # не закрывает — закрывает отсутствие поля.
+    # Кабинет из этого правила выпадает СОЗНАТЕЛЬНО: сырая поверхность
+    # живёт в закрытом демо, и выравнивать её по «пусто = открыто всем»
+    # значило бы выкатить Mini App всем одной пустой строкой в .env.
     _give_field(m, FARMER)
-    assert m._cabinet_open(FARMER)
+    assert m._cabinet_open(FARMER) is False
 
 
-def test_empty_cabinet_list_shows_the_button_to_everyone(monkeypatch, tmp_path):
-    """Кнопка кабинета при пустом списке видна всем — но только с URL.
+def test_empty_cabinet_list_keeps_the_raw_screen_closed(monkeypatch, tmp_path):
+    """Пустой список кабинета закрывает его, а не открывает.
 
-    Обратное правило раньше означало: переменную забыли заполнить —
-    кабинета нет ни у кого, и понять это можно было лишь по
-    отсутствующей кнопке, без единой строки в логе.
+    Единственное исключение из общей конвенции, и оно намеренное:
+    правило проекта держит новую поверхность в закрытом демо, пока её
+    не обкатали. 12.09.2026 этот список чуть не выровняли по соседним —
+    одна пустая строка в .env выкатила бы Mini App и Фарруху, и любому
+    постороннему с полем.
     """
     m = _reload_bot(monkeypatch, tmp_path, "")
     monkeypatch.setattr(m, "_CABINET", set())
     monkeypatch.setattr(m, "CABINET_URL", "https://suv-ai.online/dala/")
     _give_field(m, FARMER)
-    assert m.BTN_KABINET in _labels(m._menu(FARMER))[-1]
-    monkeypatch.setattr(m, "CABINET_URL", "")
+    assert m._cabinet_open(FARMER) is False
     assert m.BTN_KABINET not in sum(_labels(m._menu(FARMER)), [])
 
 
