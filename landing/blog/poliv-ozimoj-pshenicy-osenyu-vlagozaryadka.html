@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Полив озимой пшеницы осенью: влагозарядка и первый полив</title>
+<meta name="description" content="Полив озимой пшеницы осенью: сколько воды на влагозарядку, когда первый полив после сева, какие Kc даёт FAO-56 и почему бот ждёт дату полива.">
+<link rel="canonical" href="https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SUV AI">
+<meta property="og:title" content="Полив озимой пшеницы осенью: влагозарядка и первый полив">
+<meta property="og:description" content="Полив озимой пшеницы осенью: сколько воды на влагозарядку, когда первый полив после сева, какие Kc даёт FAO-56 и почему бот ждёт дату полива.">
+<meta property="og:url" content="https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html">
+<meta property="og:image" content="https://suv-ai.online/blog/img/sentinel2-fields.webp">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "Article", "headline": "Полив озимой пшеницы осенью: влагозарядка и первый полив", "description": "Полив озимой пшеницы осенью: сколько воды на влагозарядку, когда первый полив после сева, какие Kc даёт FAO-56 и почему бот ждёт дату полива.", "datePublished": "2026-09-13", "dateModified": "2026-09-13", "inLanguage": "ru", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html", "image": "https://suv-ai.online/blog/img/sentinel2-fields.webp"}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Главная", "item": "https://suv-ai.online/"}, {"@type": "ListItem", "position": 2, "name": "Блог", "item": "https://suv-ai.online/blog/"}, {"@type": "ListItem", "position": 3, "name": "Полив озимой пшеницы осенью: влагозарядка и первый полив", "item": "https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html"}]}, {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Нужен ли влагозарядковый полив перед севом озимой пшеницы?", "acceptedAnswer": {"@type": "Answer", "text": "В сухую осень обычно да: без запаса влаги всходы выходят неровно. Если почва после предшественника или дождей влажная на глубину пахотного слоя, полив можно сократить или не делать."}}, {"@type": "Question", "name": "Сколько поливов нужно озимой пшенице за сезон?", "acceptedAnswer": {"@type": "Answer", "text": "В опыте ТИИИМСХ на сероземах Ташкентской области лучший режим — один полив после сева и три весной. На вашем поле число зависит от почвы, глубины грунтовых вод и весенних дождей."}}, {"@type": "Question", "name": "Сколько воды нужно пшенице на гектар?", "acceptedAnswer": {"@type": "Answer", "text": "В том же опыте за сезон ушло 3 700 м³/га, из них 1 100 м³/га осенью. Это данные 1994–1997 годов для полива по бороздам; для своего поля считайте по погоде и почве."}}, {"@type": "Question", "name": "Почему бот не даёт совет по новому полю?", "acceptedAnswer": {"@type": "Answer", "text": "Без даты последнего полива запас влаги в почве неизвестен, и мы лучше скажем «не знаю», чем уверенно ошибёмся. Отметьте полив, и расчёт начнётся."}}]}]</script>
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);font:17px/1.7 "Golos Text",system-ui,sans-serif}
+a{color:var(--cyan)}
+.shell{max-width:660px;margin:0 auto;padding:0 24px}
+header.top{padding:22px 0;border-bottom:1px solid var(--line)}
+header.top .shell{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none}
+.logo b{color:var(--cyan)}
+.back{font-size:.85rem;text-decoration:none}
+main{padding:56px 0 90px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.5rem,4.4vw,2.2rem);line-height:1.2;text-wrap:balance;margin-bottom:14px}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:40px}
+article h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.25rem;margin:44px 0 14px;line-height:1.25}
+article h3{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem;margin:30px 0 10px}
+article p{margin:0 0 16px}
+article .lede{font-size:1.08rem;color:var(--mut);margin-bottom:28px}
+article .lede b{color:var(--ink);font-weight:500}
+article ul,article ol{margin:0 0 16px;padding-left:22px}
+article li{margin-bottom:8px}
+article b,article strong{font-weight:600}
+figure{margin:0 0 34px}
+figure img{width:100%;height:auto;display:block;border-radius:14px;
+  box-shadow:0 30px 60px rgba(0,0,0,.45)}
+figcaption{font-size:.78rem;color:var(--mut);margin-top:12px;line-height:1.5}
+figcaption .src{display:block;font-family:"JetBrains Mono",monospace;font-size:.7rem;margin-top:5px}
+.tbl{overflow-x:auto;margin:22px 0}
+article table{border-collapse:collapse;width:100%;font-size:.92rem}
+article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+article th{font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+article td b,article .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.cta{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.cta p{color:var(--mut);font-size:.92rem;margin:0 0 14px}
+.btn{display:inline-block;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 22px;
+  border-radius:100px;background:var(--cyan);color:var(--deep);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible{outline-offset:2px;border-radius:100px}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-size:.82rem}
+/* индекс */
+.post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
+.post:hover{transform:translateY(-2px)}
+.post .thumb{width:calc(100% + 56px);margin:-26px -28px 18px;aspect-ratio:1200/630;
+  object-fit:cover;border-radius:13px 13px 0 0;display:block}
+.post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
+.post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
+.post .meta{margin:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>
+(function(){var t=localStorage.getItem("suvai-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
+</script>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="logo" href="/">SUV<b>·AI</b></a>
+  <a class="back" href="/blog/">← Все статьи</a>
+</div></header>
+<main><div class="shell">
+<div class="eyebrow">Блог · SUV AI</div>
+<h1>Полив озимой пшеницы осенью: влагозарядка и первый полив</h1>
+<p class="meta">13 сентября 2026 · 7 мин чтения</p>
+<figure><img src="/blog/img/sentinel2-fields.webp" alt="Орошаемые поля на снимке Sentinel-2 в ложных цветах: по такой съёмке видно состояние посевов, но не запас воды в почве под ними" width="1200" height="630"><figcaption>Снимок Sentinel-2 в ложных цветах: круги — поля под дождевальными машинами, яркость говорит о состоянии растительности. Регион другой, но спутник тот же, по которому бот смотрит на зерновые поля.<span class="src">Фото: European Space Agency · CC BY-SA 3.0 IGO · <a href="https://commons.wikimedia.org/wiki/File:Agriculture_in_Saudi_Arabia_ESA344584.jpg" rel="noopener">Wikimedia Commons</a></span></figcaption></figure>
+<article>
+<p class="lede">В движке SUV AI у озимой пшеницы стоит <b>типичная дата сева — 5 октября</b>. Если к этой дате поле не получило воды, семя ляжет в сухую почву и будет ждать дождя, а наш расчёт на сезон начнётся неизвестно с какого запаса. Пшеницы на пилотных полях у нас нет. Эта статья собрана из FAO-56, одного ташкентского опыта девяностых и нашего собственного кода, в котором мы, пока писали, нашли спорную цифру.</p>
+
+<h2>Пшеница в 2026 году: зачем считать осеннюю воду</h2>
+<p>По прогнозу ФАО, Узбекистан в 2026 году соберёт около 14,7&nbsp;млн тонн пшеницы, в 2024-м было 13,4&nbsp;млн. В майском обзоре USDA импорт на 2026/27 сокращается с 5,5 до 4&nbsp;млн тонн (<a href="https://ukragroconsult.com/en/news/uzbekistan-to-maintain-wheat-harvest-at-14-7-mln-tons-in-2026-fao/" rel="noopener">UkrAgroConsult со ссылкой на ФАО и USDA, 19.06.2026</a>). Если импорт и правда упадёт на полтора миллиона тонн, это зерно придётся вырастить дома. По нашему мнению, заметная часть такого урожая решается в октябре: с каким запасом воды поле ушло в зиму, с таким оно и встретит апрель.</p>
+<p>Наши пилотные поля — яблоневый сад Olmazor и виноградник Uzumzor. Всё, что ниже сказано про пшеницу, — расчёт и литература, а не опыт сезона.</p>
+
+<h2>Сколько воды нужно озимой пшенице по фазам</h2>
+<p>Движок водного баланса работает по методике FAO-56: берёт эталонное испарение ET0 из погоды и умножает на коэффициент культуры Kc, который меняется по фазам. Прогноз ET0 приходит из Open-Meteo; при сверке на поле нашего фермера ошибка вышла 2% на сутки вперёд и 7% на неделю. Так что погода — не главный источник ошибки. Главный — коэффициенты.</p>
+<div class="tbl">
+<table>
+<thead>
+<tr><th>Параметр</th><th>FAO-56</th><th>У нас в движке</th></tr>
+</thead>
+<tbody>
+<tr><td>Kc начальной фазы</td><td>0,4 при промерзающей почве, 0,7 при непромерзающей</td><td>0,40</td></tr>
+<tr><td>Kc средней фазы</td><td>1,15</td><td>1,15</td></tr>
+<tr><td>Kc завершающей фазы</td><td>0,25–0,40</td><td>0,35</td></tr>
+<tr><td>Глубина корней</td><td>1,5–1,8&nbsp;м</td><td>1,5&nbsp;м</td></tr>
+<tr><td>Допустимое истощение p</td><td>0,55</td><td>0,55</td></tr>
+<tr><td>Длина фаз, дней</td><td>—</td><td>30 / 140 / 40 / 30</td></tr>
+</tbody>
+</table>
+</div>
+<p>Коэффициенты взяты из <a href="https://www.fao.org/4/x0490e/x0490e0b.htm" rel="noopener">таблицы 12 FAO-56</a>, корни и p — из <a href="https://www.fao.org/4/x0490e/x0490e0e.htm" rel="noopener">таблицы 22</a> (1998). При севе 5 октября календарь движка такой: начальная фаза до 4 ноября, потом 140 дней медленного развития через всю зиму до 24 марта, пик потребления с Kc 1,15 — с конца марта до начала мая, созревание до начала июня.</p>
+<p>В апреле поле с Kc 1,15 тратит на 15% больше воды, чем эталонный газон при той же погоде. Часть этой воды корни берут с глубины до полутора метров, из запаса, который лёг туда осенью и зимой. Осенний полив, выходит, работает и на апрель, а не только на всходы.</p>
+
+<h2>Влагозарядковый полив перед севом: норма и сроки</h2>
+<p>У влагозарядки две работы. Ближняя — промочить пахотный слой, чтобы всходы вышли дружно, и её результат виден недели через две. Дальняя — наполнить метровую толщу и глубже, откуда корни начнут брать воду весной. Её проверяет только апрель, поэтому про неё и забывают.</p>
+<p>Одной нормы для всех мы не нашли. Справочный раздел на cawater-info.net даёт для влагозарядковых поливов 1&nbsp;000–2&nbsp;000&nbsp;м³/га (<a href="https://www.cawater-info.net/bk/4-2-1-1-3-3.htm" rel="noopener">«Оросительные и поливные нормы и их расчёт»</a>, дата на странице не указана). Это общая вилка, без привязки к пшенице и к почве. Двукратный разброс сам говорит, от чего зависит цифра: от механического состава, глубины грунтовых вод и того, насколько пересохшим поле пришло после предшественника.</p>
+<p>Ближе к нашим условиям опыт ТИИИМСХ 1994–1997 годов в Янгиюльском районе, на типичных сероземах с грунтовыми водами на 5–10&nbsp;м (<a href="http://www.cawater-info.net/bk/water_land_resources_use/pp/pp00085.htm" rel="noopener">карточка проекта на cawater-info.net</a>). Лучше всего пшеница росла, когда влажность перед поливом держали на уровне 70–70–60% НВ. Это означало полив после сева нормой 1&nbsp;100&nbsp;м³/га и три весенних полива по 660–980&nbsp;м³/га, а за сезон — 3&nbsp;700&nbsp;м³/га. Опыту тридцать лет, поливали по бороздам, и переносить его на ваше поле один в один не стоит. Но пропорция показательная: почти треть сезонной воды ушла в почву осенью.</p>
+<p>Наше мнение, с которым можно спорить: в сухую осень лучше перелить на влагозарядке, чем недолить. Недоданную осенью воду придётся добирать весной, когда канал нужен всем сразу.</p>
+
+<h2>Первый полив озимой пшеницы после сева</h2>
+<p>В ташкентском опыте осеннюю воду дали уже по посеянному полю. Так делают, когда влагозарядку до сева провести не успели, и тогда именно этот полив становится стартовой точкой всего расчёта. Если же почву промочили до сева, по нашему расчёту осенью поле тратит немного: Kc 0,40, короткий день, низкое ET0.</p>
+<p>Зимой бот не делает вид, что знает больше, чем знает. Осадки он учитывает, но сколько талой воды ушло в почву, а сколько стекло по мёрзлой корке, мы не видим. К весне ошибка баланса копится, и первое мартовское сообщение бота стоит проверить лопатой на глубину 30–40&nbsp;см.</p>
+
+<h2>Запишите дату полива: без неё бот отказывается советовать</h2>
+<p>До 12 сентября в нашем боте жила ошибка, которую мы поймали сами, готовясь к показу. Поле, заведённое без даты последнего полива, считалось «только что политым». Порог полива набирался за 30–35 дней, и фермер получал «полив не требуется». Выглядело как измерение, хотя никто ничего не мерил.</p>
+<p>Теперь по такому полю бот пишет: «Пока не отвечаю: дата последнего полива неизвестна». Чтобы это снять, достаточно в день полива нажать «Suv berdim». С этой даты пойдёт отсчёт.</p>
+<p>Для пшеницы это важнее, чем для сада. Сад на капле поливают раз в несколько дней, и ошибка стартовой точки сгорает за неделю. У пшеницы между осенним поливом и первым весенним проходят месяцы. Не записали дату в октябре — весной ни вы, ни мы не знаем, с какого запаса начинается сезон.</p>
+
+<h2>Наша самопроверка: начальный Kc для непромерзающей почвы</h2>
+<p>Готовя статью, мы открыли свои же параметры и нашли вопрос к себе. В движке kc_ini = 0,40, а это значение FAO-56 для почв, которые зимой промерзают. Для непромерзающих таблица даёт 0,7.</p>
+<p>В долинах Узбекистана почва промерзает не каждую зиму и ненадолго. Если для вашего поля верно 0,7, расход в начальной фазе по нашему расчёту занижен в 1,75 раза. И это тянется дальше октября: Kc в движке плавно растёт от начального значения к 1,15 до конца марта, так что заниженный старт тащит за собой всю зиму. Бот будет думать, что влаги в почве больше, чем есть.</p>
+<p>Цифру мы пока не поменяли. Заменить одну константу без проверки на поле — та же ошибка, только в другую сторону. Да и FAO-56 связывает начальный Kc с тем, как часто намокает поверхность, а осенью это решают дожди и поливы не меньше, чем мороз.</p>
+
+<h3>Что мы не знаем</h3>
+<p>У нас нет замеренного расхода озимой пшеницы ни на одном поле: ни датчика влажности, ни счётчика воды. Мы не знаем, какая норма влагозарядки правильна на ваших сероземах и какая доля зимних осадков у вас реально уходит в почву. Экономию воды на пшенице мы не обещаем.</p>
+<p>Проверить kc_ini можно опытом «по совету против привычки», который уже есть в боте: поле делится на две половины вдоль хода воды, одну поливают по совету, другую как привыкли, а Sentinel-2 сравнивает половины только по снимкам одного дня. На пшенице мы его ещё не запускали, для этого нужен хозяин озимого поля, готовый поделить его этой осенью. Если окажется, что 0,40 занижает осенний расход, мы поменяем коэффициент и напишем об этом здесь.</p>
+
+<h2>Частые вопросы</h2>
+<h3>Нужен ли влагозарядковый полив перед севом озимой пшеницы?</h3>
+<p>В сухую осень обычно да: без запаса влаги всходы выходят неровно. Если почва после предшественника или дождей влажная на глубину пахотного слоя, полив можно сократить или не делать.</p>
+<h3>Сколько поливов нужно озимой пшенице за сезон?</h3>
+<p>В опыте ТИИИМСХ на сероземах Ташкентской области лучший режим — один полив после сева и три весной. На вашем поле число зависит от почвы, глубины грунтовых вод и весенних дождей.</p>
+<h3>Сколько воды нужно пшенице на гектар?</h3>
+<p>В том же опыте за сезон ушло 3 700 м³/га, из них 1 100 м³/га осенью. Это данные 1994–1997 годов для полива по бороздам; для своего поля считайте по погоде и почве.</p>
+<h3>Почему бот не даёт совет по новому полю?</h3>
+<p>Без даты последнего полива запас влаги в почве неизвестен, и мы лучше скажем «не знаю», чем уверенно ошибёмся. Отметьте полив, и расчёт начнётся.</p>
+</article>
+<p>Читайте также: <a href="/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">как водный баланс FAO-56 решает, когда поливать сад</a> и <a href="/blog/skolko-stoit-chas-nasosa.html">сколько стоит час работы насоса на капельном поливе</a>.</p>
+<div class="cta">
+  <p>Бот считает водный баланс вашего поля каждое утро и отвечает одним
+  сообщением: когда поливать и сколько воды давать. Отметьте дату
+  влагозарядки в день полива — с неё начнётся расчёт на весь сезон.</p>
+  <a class="btn" href="https://t.me/suv_ai_bot?start=blog">Открыть @suv_ai_bot</a>
+</div>
+</div></main>
+<footer><div class="shell">SUV AI · умный полив для каждого поля · <a href="https://t.me/suv_ai_bot">@suv_ai_bot</a></div></footer>
+</body>
+</html>
