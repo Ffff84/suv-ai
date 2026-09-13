@@ -1,14 +1,104 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url><loc>https://suv-ai.online/</loc><lastmod>2026-08-18</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/</loc><lastmod>2026-09-13</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html</loc><lastmod>2026-08-18</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html</loc><lastmod>2026-08-18</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html</loc><lastmod>2026-08-18</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/nalog-na-vodu-2026-107-sum-za-kubometr.html</loc><lastmod>2026-09-13</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/malovode-2026-kak-polivat-pri-limite-vody.html</loc><lastmod>2026-09-13</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/subsidiya-na-kapelnoe-oroshenie-2026.html</loc><lastmod>2026-09-13</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/promyvka-zasolennyh-zemel-osenyu.html</loc><lastmod>2026-09-13</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/poliv-vinogradnika-samotekom-po-borozdam.html</loc><lastmod>2026-09-13</lastmod></url>
-  <url><loc>https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html</loc><lastmod>2026-09-13</lastmod></url>
+  <url><loc>https://suv-ai.online/blog/</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/ndmi-bogdagi-suv-stressi-2025-iyul-tahlili.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/nasos-soati-qancha-turadi.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/nalog-na-vodu-2026-107-sum-za-kubometr.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/nalog-na-vodu-2026-107-sum-za-kubometr.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/suv-soligi-2026-kubometriga-107-som.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/nalog-na-vodu-2026-107-sum-za-kubometr.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/malovode-2026-kak-polivat-pri-limite-vody.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/malovode-2026-kak-polivat-pri-limite-vody.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/suv-tanqisligi-2026-limit-kam-bolganda-sugorish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/malovode-2026-kak-polivat-pri-limite-vody.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/subsidiya-na-kapelnoe-oroshenie-2026.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/subsidiya-na-kapelnoe-oroshenie-2026.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/tomchilatib-sugorish-subsidiyasi-2026.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/subsidiya-na-kapelnoe-oroshenie-2026.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/promyvka-zasolennyh-zemel-osenyu.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/promyvka-zasolennyh-zemel-osenyu.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/shorlangan-yerlarni-kuzda-yuvish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/promyvka-zasolennyh-zemel-osenyu.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/poliv-vinogradnika-samotekom-po-borozdam.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/poliv-vinogradnika-samotekom-po-borozdam.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/uzumzorni-egat-orqali-sugorish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/poliv-vinogradnika-samotekom-po-borozdam.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/kuzgi-bugdoyni-kuzda-sugorish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/suv-tanqisligi-2026-limit-kam-bolganda-sugorish.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/malovode-2026-kak-polivat-pri-limite-vody.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/suv-tanqisligi-2026-limit-kam-bolganda-sugorish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/malovode-2026-kak-polivat-pri-limite-vody.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/suv-soligi-2026-kubometriga-107-som.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/nalog-na-vodu-2026-107-sum-za-kubometr.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/suv-soligi-2026-kubometriga-107-som.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/nalog-na-vodu-2026-107-sum-za-kubometr.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/tomchilatib-sugorish-subsidiyasi-2026.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/subsidiya-na-kapelnoe-oroshenie-2026.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/tomchilatib-sugorish-subsidiyasi-2026.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/subsidiya-na-kapelnoe-oroshenie-2026.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/kuzgi-bugdoyni-kuzda-sugorish.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/kuzgi-bugdoyni-kuzda-sugorish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/poliv-ozimoj-pshenicy-osenyu-vlagozaryadka.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/shorlangan-yerlarni-kuzda-yuvish.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/promyvka-zasolennyh-zemel-osenyu.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/shorlangan-yerlarni-kuzda-yuvish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/promyvka-zasolennyh-zemel-osenyu.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/uzumzorni-egat-orqali-sugorish.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/poliv-vinogradnika-samotekom-po-borozdam.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/uzumzorni-egat-orqali-sugorish.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/poliv-vinogradnika-samotekom-po-borozdam.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/ndmi-bogdagi-suv-stressi-2025-iyul-tahlili.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/ndmi-bogdagi-suv-stressi-2025-iyul-tahlili.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/ndmi-vodnyj-stress-sada-razbor-iyulya-2025.html"/>
+  </url>
+  <url><loc>https://suv-ai.online/blog/uz/nasos-soati-qancha-turadi.html</loc><lastmod>2026-09-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html"/>
+    <xhtml:link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/nasos-soati-qancha-turadi.html"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/skolko-stoit-chas-nasosa.html"/>
+  </url>
 </urlset>

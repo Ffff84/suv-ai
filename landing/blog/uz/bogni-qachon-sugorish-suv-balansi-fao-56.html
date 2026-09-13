@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Olmani qachon sug'orish kerak: ko'z bilan emas, suv balansi bilan</title>
+<meta name="description" content="Olma bog'ini qachon sug'orish kerak: FAO-56 suv balansi ob-havo va Sentinel-2 suratlaridan sug'orish kuni va nasos soatini hisoblaydi. Samarqand bog'i misolida.">
+<link rel="canonical" href="https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html">
+<link rel="alternate" hreflang="ru" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
+<link rel="alternate" hreflang="uz" href="https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html">
+<link rel="alternate" hreflang="x-default" href="https://suv-ai.online/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta name="theme-color" content="#0A1A17">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SUV AI">
+<meta property="og:locale" content="uz_UZ">
+<meta property="og:locale:alternate" content="ru_RU">
+<meta property="og:title" content="Olmani qachon sug'orish kerak: ko'z bilan emas, suv balansi bilan">
+<meta property="og:description" content="Olma bog'ini qachon sug'orish kerak: FAO-56 suv balansi ob-havo va Sentinel-2 suratlaridan sug'orish kuni va nasos soatini hisoblaydi. Samarqand bog'i misolida.">
+<meta property="og:url" content="https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html">
+<meta property="og:image" content="https://suv-ai.online/blog/img/kogda-polivat-sad-vodnyj-balans-fao-56.webp">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "Article", "headline": "Olmani qachon sug'orish kerak: ko'z bilan emas, suv balansi bilan", "description": "Olma bog'ini qachon sug'orish kerak: FAO-56 suv balansi ob-havo va Sentinel-2 suratlaridan sug'orish kuni va nasos soatini hisoblaydi. Samarqand bog'i misolida.", "datePublished": "2026-09-13", "dateModified": "2026-09-13", "inLanguage": "uz", "author": {"@type": "Organization", "name": "SUV AI", "url": "https://suv-ai.online/"}, "publisher": {"@type": "Organization", "name": "SUV AI", "logo": {"@type": "ImageObject", "url": "https://suv-ai.online/favicon.svg"}}, "mainEntityOfPage": "https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html", "image": "https://suv-ai.online/blog/img/kogda-polivat-sad-vodnyj-balans-fao-56.webp"}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Bosh sahifa", "item": "https://suv-ai.online/"}, {"@type": "ListItem", "position": 2, "name": "Blog", "item": "https://suv-ai.online/blog/uz/"}, {"@type": "ListItem", "position": 3, "name": "Olmani qachon sug'orish kerak: ko'z bilan emas, suv balansi bilan", "item": "https://suv-ai.online/blog/uz/bogni-qachon-sugorish-suv-balansi-fao-56.html"}]}]</script>
+<style>
+:root{
+  --deep:#0A1A17;--deep2:#0E211D;--panel:#102420;--ink:#E9F2EE;--mut:#7E938C;
+  --line:#1D3630;--cyan:#4FC8D4;--dry:#D96C3D;--mid:#E8C558;--wet:#63C06B;
+}
+:root[data-theme="light"]{
+  --deep:#F2F5F1;--deep2:#E9EFE9;--panel:#E0E9E1;--ink:#16221E;--mut:#55665F;
+  --line:#C6D3C8;--cyan:#0E7A8A;--dry:#C2551F;--mid:#A87F14;--wet:#2E8B47;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--deep);color:var(--ink);font:17px/1.7 "Golos Text",system-ui,sans-serif}
+a{color:var(--cyan)}
+.shell{max-width:660px;margin:0 auto;padding:0 24px}
+header.top{padding:22px 0;border-bottom:1px solid var(--line)}
+header.top .shell{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.logo{font-family:"Unbounded",sans-serif;font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none}
+.logo b{color:var(--cyan)}
+.back{font-size:.85rem;text-decoration:none}
+.hl{display:flex;gap:18px;align-items:center}.lang{font-size:.85rem;text-decoration:none;color:var(--mut)}
+main{padding:56px 0 90px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--cyan)}
+h1{font-family:"Unbounded",sans-serif;font-weight:500;font-size:clamp(1.5rem,4.4vw,2.2rem);line-height:1.2;text-wrap:balance;margin-bottom:14px}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.75rem;color:var(--mut);margin-bottom:40px}
+article h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.25rem;margin:44px 0 14px;line-height:1.25}
+article h3{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.02rem;margin:30px 0 10px}
+article p{margin:0 0 16px}
+article .lede{font-size:1.08rem;color:var(--mut);margin-bottom:28px}
+article .lede b{color:var(--ink);font-weight:500}
+article ul,article ol{margin:0 0 16px;padding-left:22px}
+article li{margin-bottom:8px}
+article b,article strong{font-weight:600}
+figure{margin:0 0 34px}
+figure img{width:100%;height:auto;display:block;border-radius:14px;
+  box-shadow:0 30px 60px rgba(0,0,0,.45)}
+figcaption{font-size:.78rem;color:var(--mut);margin-top:12px;line-height:1.5}
+figcaption .src{display:block;font-family:"JetBrains Mono",monospace;font-size:.7rem;margin-top:5px}
+.tbl{overflow-x:auto;margin:22px 0}
+article table{border-collapse:collapse;width:100%;font-size:.92rem}
+article th,article td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+article th{font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+article td b,article .mono{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.cta{margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.cta p{color:var(--mut);font-size:.92rem;margin:0 0 14px}
+.btn{display:inline-block;text-decoration:none;font-weight:600;font-size:.9rem;padding:12px 22px;
+  border-radius:100px;background:var(--cyan);color:var(--deep);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+.btn:focus-visible{outline-offset:2px;border-radius:100px}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mut);font-size:.82rem}
+/* index */
+.post{display:block;text-decoration:none;color:var(--ink);background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:18px;transition:transform .2s}
+.post:hover{transform:translateY(-2px)}
+.post .thumb{width:calc(100% + 56px);margin:-26px -28px 18px;aspect-ratio:1200/630;
+  object-fit:cover;border-radius:13px 13px 0 0;display:block}
+.post h2{font-family:"Unbounded",sans-serif;font-weight:500;font-size:1.1rem;margin:0 0 8px;line-height:1.3}
+.post p{color:var(--mut);font-size:.92rem;margin:0 0 10px}
+.post .meta{margin:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script>
+(function(){var t=localStorage.getItem("suvai-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+if(t==="light")document.documentElement.setAttribute("data-theme","light");})();
+</script>
+</head>
+<body>
+<header class="top"><div class="shell">
+  <a class="logo" href="/">SUV<b>·AI</b></a>
+  <span class="hl"><a class="lang" href="/blog/kogda-polivat-sad-vodnyj-balans-fao-56.html" hreflang="ru" lang="ru">Русский</a><a class="back" href="/blog/uz/">← Barcha maqolalar</a></span>
+</div></header>
+<main><div class="shell">
+<div class="eyebrow">Blog · SUV AI</div>
+<h1>Olmani qachon sug'orish kerak: ko'z bilan emas, suv balansi bilan</h1>
+<p class="meta">2026-yil 13-sentabr · o'qishga 5 daqiqa</p>
+<figure><img src="/blog/img/kogda-polivat-sad-vodnyj-balans-fao-56.webp" alt="Yozgi olma bog&#x27;i: o&#x27;t bosgan qator oralig&#x27;i va ikki yonida yashil mevali olma daraxtlari." width="1200" height="630"><figcaption>O&#x27;zbekistondagi yozgi olma bog&#x27;i: hosilga kirgan daraxtlar qatorlari va o&#x27;t bosgan qator oralig&#x27;i. Surat misol uchun berilgan: bu pilot bog&#x27;i emas.<span class="src">Surat: Shuhrataxmedov · <a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="noopener">CC BY-SA 3.0</a> · kesib olingan · <a href="https://commons.wikimedia.org/wiki/File:%D0%AF%D0%B1%D0%BB%D0%BE%D0%BD%D0%B5%D0%B2%D1%8B%D0%B9_%D1%81%D0%B0%D0%B4_01.jpg" rel="noopener">Wikimedia Commons</a></span></figcaption></figure>
+<article>
+<p class="lede">Olma daraxti chiday olguncha sir boy bermaydi. Barglar osilib, ko'z nihoyat muammoni payqagan kunga kelib namlik taqchilligi soatlab emas, kunlab yig'ilgan bo'ladi — mavsumning bir qismi esa allaqachon qo'ldan ketgan. Quyida shularni ko'rib chiqamiz: taqchillik kundan kunga qanday to'planadi, ko'zga ko'ringan so'lish nega kech belgi, FAO-56 suv balansi oddiy tilda nima va u qanday qilib aniq sug'orish kuni hamda nasos soatiga aylanadi.</p>
+
+<h2>Suv qayerga ketadi: har kuni bir necha millimetr</h2>
+<p>Har bir issiq kunda bog' suvni ikki yo'l bilan sarflaydi. Birinchisi — tuproq yuzasidan bug'lanish. Ikkinchisi — transpiratsiya: daraxt o'zini salqinlatish va mevasi to'lishishi uchun suvni barglari orqali o'tkazib turadi. Ikkalasi birga evapotranspiratsiya deyiladi va yoz avjida u to'xtamaydi: quyosh chiqdi — sarf boshlandi.</p>
+<p>Yomg'ir yog'masa, bog' butun suvni bitta manbadan — ildiz zonasidagi namlik zaxirasidan oladi. Samarqand viloyatidagi pilotimizda olma bog'ining iyuldagi suv talabi kuniga 7,7 mm gacha yetdi. Yetti millimetr arzimasdek tuyuladi, lekin u har kuni, tanaffussiz hisobdan yechiladi: bir hafta sug'ormasangiz, ildiz zonasidan 50 mm dan ortiq suv ketadi. 2025-yilning iyulidan sentabrigacha esa o'sha bog'da yog'in roppa-rosa 0 mm bo'lgan.</p>
+<p>Namlik taqchilligi bir kunlik hodisa emas, u yig'ilib boradi. Qaysidir bir kuni birdaniga paydo bo'lmaydi — ustiga foiz qo'shilib boradigan qarzdek millimetrlab to'planadi.</p>
+
+<h2>Ko'z nega kechikadi</h2>
+<p>Daraxt suv yetishmasligiga bosqichma-bosqich javob beradi. Ko'zga ko'rinadigan belgilar esa birinchi emas, oxirgi bosqich.</p>
+<div class="tbl"><table>
+<thead><tr><th>Bosqich</th><th>Daraxtda nima bo'ladi</th><th>Ko'zga ko'rinadimi</th></tr></thead>
+<tbody>
+<tr><td>Zaxira kamaymoqda</td><td>Daraxt odatdagidek suv ichadi, ildizlar suvni bemalol oladi</td><td>Yo'q</td></tr>
+<tr><td>Suv qiyinroq olinadi</td><td>Barg og'izchalari yopila boshlaydi, fotosintez va o'sish sekinlashadi</td><td>Yo'q</td></tr>
+<tr><td>Zaxira chegarada</td><td>Barg tarangligini yo'qotib osilib qoladi — daraxt omon qolish uchun o'sishdan voz kechadi</td><td>Ha — lekin kech</td></tr>
+</tbody>
+</table></div>
+<p>So'lish dala chetidan ko'rinadigan bo'lganida daraxt tejash rejimiga o'tganiga bir kundan ko'p bo'lgan bo'ladi. O'sha kuni sug'orsangiz, daraxtni qutqarasiz, lekin boy berilgan o'sish qaytmaydi.</p>
+<p>Pilotimizda buni raqamlarda ko'rsa bo'ladi. 2025-yil 19-iyuldan 29-iyulgacha Olmazor bog'ida barg namligi indeksi NDMI 0,337 dan 0,144 gacha tushib ketdi — o'n kunda bargdagi suv 57% ga kamaydi va mavsum oxirigacha tiklanmadi. Holbuki 19-iyulgacha bog' o'zining uch yillik normasidan +0,15 yuqorida borayotgan edi: 2022–2024-yillardagi 99 ta Sentinel-2 suratiga ko'ra, NDMI butun iyul–avgust davomida 0,19–0,24 oralig'ida turgan. Yaxshi bog', yaxshi mavsum — va hammasini yo'qqa chiqargan o'n kun. Fermer buni bizdan mustaqil ravishda tasdiqladi: suvni kam bergan, buni esa kech bilgan.</p>
+<p>Eng alamlisi: keskin pasayish dalaga ikki marta qarash oralig'ida bo'lib o'tdi. Ko'z bog'ni uzluksiz kuzatmaydi, bug'lanish esa to'xtovsiz davom etadi.</p>
+
+<h2>FAO-56 suv balansi — oddiy tilda</h2>
+<p>FAO-56 — BMTning Oziq-ovqat va qishloq xo'jaligi tashkiloti (FAO) ishlab chiqqan, ekinlarning suvga bo'lgan ehtiyojini hisoblash usuli. Nomi og'ir eshitiladi, lekin mohiyatan bu oddiy buxgalteriya, xuddi bankdagi hisob raqamidek:</p>
+<ul>
+<li><strong>Kirim</strong> — yomg'ir va sug'orish.</li>
+<li><strong>Chiqim</strong> — tuproqdan bug'lanish va barglar transpiratsiyasi.</li>
+<li><strong>Qoldiq</strong> — ildiz zonasidagi namlik zaxirasi.</li>
+</ul>
+<p>Chiqim ikki qadamda hisoblanadi. Avval ob-havo ma'lumotlari — harorat, quyosh, havo namligi va shamol — bo'yicha etalon bug'lanish ET0 topiladi (usul sutkalik o'rtacha shamolni olishni talab qiladi, biz ham aynan shunday hisoblaymiz). Keyin ET0 ekin koeffitsiyenti bilan tuzatiladi: mavsum avjidagi hosilga kirgan bog' bahordagidek suv ichmaydi.</p>
+<p>Model har kuni hisobdan taxminiy sarfni yechib, yomg'ir va sug'orishni qo'shib boradi. Qoldiq chegaraga yaqinlashsa (undan pastda ildizlar suvni qiyinchilik bilan oladi) — sug'orish vaqti keldi. «Barglar osilganda» emas, «hisob nolga yaqinlashganda».</p>
+<p>Botimiz aynan shuni qiladi: dalangiz bo'yicha balansni har kuni yuritadi, har 3–5 kunda bir marta (bulutli havoda kamroq) modelni Sentinel-2 suratlari bilan solishtiradi — namlik xaritasi 20×20 m kataklar bo'yicha tuziladi.</p>
+
+<h2>Millimetrdan — sug'orish kuni va nasos soatiga</h2>
+<p>Millimetrdagi taqchillik — agronom tili. Fermerga boshqa o'lchovdagi javob kerak: nasosni qachon va necha soatga yoqish. Hisob oddiy: taqchillik millimetrini dala maydoniga ko'paytirasiz — kub metr suv chiqadi; kub metrni nasos unumdorligiga bo'lasiz — soat chiqadi.</p>
+<p>Olmazor bog'ida (2,52 ga, tomchilatib sug'orish) soatiga 60 m³ suv beradigan nasos turibdi; uning bir soat ishlashi 45 000 so'mga tushadi. Bizning sharoitda tomchilatib sug'orishning mavsumiy me'yori FAO-56 hisobiga ko'ra gektariga 6 500 m³ atrofida, ya'ni mavsumda gektariga taxminan 108 soat nasos ishlashi kerak. Tavsiya har kuni ertalab soat 06:00 da Telegram'ga tayyor holda keladi: «bugun nasosni shuncha soat ishlating». Hisob-kitoblarimizga ko'ra, tavsiyalar mavsumda sug'orish soatlarining 15–25% ini tejaydi — bu hisobni sug'orish jurnali bo'yicha o'zingiz qayta tekshirib ko'rishingiz mumkin.</p>
+<p>Bu usul 2025-yilgi mavsumni saqlab qola olarmidi, buni ham tekshirdik: o'sha yilning ob-havo arxivi bo'yicha hisobni qaytadan yurgizdik. Hisob 17, 19, 23, 26 va 30-iyulda sug'orishni belgilagan bo'lardi — zarar qaytarib bo'lmaydigan holga kelmasdan oldin uchta ogohlantirish yetib borardi.</p>
+
+<h2>Nimani aniq bilamiz, nimani bilmaymiz</h2>
+<p>Imkoniyatlarimiz chegarasini o'zimiz aytamiz:</p>
+<ul>
+<li>Sug'orish kunining aniqligi qancha kun oldinga hisoblanganiga bog'liq. «Bugun» yoki «ertaga» degan tavsiya barqaror: model farazlarini oqilona chegarada o'zgartirsak, u ±1–2 kunga suriladi. Bir hafta oldinga berilgan tavsiya esa ±3–4 kun farq qilishi mumkin bo'lgan mo'ljal, bot uni kun yaqinlashgan sari har kuni ertalab o'zi aniqlashtirib boradi (2026-yil 23-avgustda ikki pilot dalasining haqiqiy ob-havo ma'lumotlarida o'tkazilgan sezgirlik tekshiruvi).</li>
+<li>Muayyan dalaga moslab sozlanmagan hisobda suv hajmi ±30% gacha farq qilishi mumkin. Shuning uchun «qancha» degan javob — mavsum davomida aniqlashtirib boriladigan mo'ljal.</li>
+<li>Ortiqcha sug'orishni sun'iy yo'ldosh ko'rmaydi. Keragidan ko'p suv quysangiz, surat buni ko'rsatmaydi — buni ochiq aytamiz.</li>
+</ul>
+<p>2025-yilgi mavsum tahlilini e'lon qilishdan oldin xulosalarimizni uch bosqichda qayta tekshirdik va o'zimiz ilgari surgan 109 ta da'vodan 38 tasini rad etdik. Bu yerda faqat tekshiruvdan o'tgani qoldi.</p>
+
+<h2>Nimadan boshlash kerak</h2>
+<p>@suv_ai_bot botining Mini App'ida dalangiz chegarasini chizing — bunga taxminan 30 soniya ketadi. Bot o'zbek, rus va ingliz tillarida gaplashadi; har kuni ertalab soat 06:00 da dalangiz bo'yicha tavsiya keladi.</p>
+<p>Pilotimizdagi Uzumzor kabi kanaldan o'zi oqar suv bilan sug'oriladigan, suv sutkalab quyiladigan dalalar 2026–2027-yillardagi butun pilot davomida bepul qatnashadi.</p>
+<p>Batafsil ma'lumot — suv-ai.online saytida.</p>
+</article>
+<p>Shuningdek o'qing: <a href="/blog/uz/suv-tanqisligi-2026-limit-kam-bolganda-sugorish.html">limit qisqarganda suvni qanday taqsimlash kerak</a> va <a href="/blog/uz/tomchilatib-sugorish-subsidiyasi-2026.html">tomchilatib sug'orish subsidiyasi nima beradi</a>.</p>
+<div class="cta">
+  <p>Bot har kuni ertalab dalangizning suv balansini hisoblaydi va bitta
+  xabar bilan javob beradi: qachon sug'orish va nasosni necha soatga yoqish kerak.
+  O'zi oqar suv bilan sug'oriladigan dalalar uchun butun pilot davomida bepul.</p>
+  <a class="btn" href="https://t.me/suv_ai_bot?start=blog">@suv_ai_bot'ni ochish</a>
+</div>
+</div></main>
+<footer><div class="shell">SUV AI · har bir dala uchun aqlli sug'orish · <a href="https://t.me/suv_ai_bot">@suv_ai_bot</a></div></footer>
+</body>
+</html>

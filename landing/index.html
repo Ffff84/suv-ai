@@ -746,7 +746,7 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:foc
   <div class="shell">
     <div class="gal reveal">
       <figure><img src="img/aer-uzum.webp" alt="Виноградник Uzumzor сверху" loading="lazy">
-        <figcaption data-i18n="flds.c1"><b>Uzumzor</b> — виноградник, залив из канала. Белым — настоящий контур из Mini App: 1,41 га по обмеру.</figcaption></figure>
+        <figcaption data-i18n="flds.c1"><b>Uzumzor</b> — виноградник, самотёком из канала по бороздам. Белым — настоящий контур из Mini App: 1,41 га по обмеру.</figcaption></figure>
       <figure><img src="img/aer-olma.webp" alt="Яблоневый сад Olmazor сверху" loading="lazy">
         <figcaption data-i18n="flds.c2"><b>Olmazor</b> — Г-образный сад на капле, 8 вершин контура. Обмер: 2,52 га.</figcaption></figure>
       <figure><img src="img/aer-wide.webp" alt="Долина пилота: лоскут полей и кишлак" loading="lazy">
@@ -840,7 +840,7 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:foc
       </div>
       <div class="pcard reveal">
         <img class="pph" src="img/crop-uzum.webp" alt="Виноградник — иллюстративное фото" loading="lazy">
-        <h3>🍇 Uzumzor</h3><div class="sub" data-i18n="pil.sub2">виноградник · залив из канала</div>
+        <h3>🍇 Uzumzor</h3><div class="sub" data-i18n="pil.sub2">виноградник · канал, борозды</div>
         <dl>
           <dt>Площадь</dt><dd class="mono" data-i18n="pil.dd2">1,5 га — обмерено контуром</dd>
           <dt data-i18n="pil.dtI">Полив</dt><dd class="mono" data-i18n="pil.ddI">самотёк · сутки</dd>
@@ -1066,7 +1066,7 @@ uz: {
 "flds.eyebrow":"Pilot dalalari",
 "flds.h2":"Mahsulot ishiga qaraydigan ko'rinish",
 "flds.lede":"Bular stok suratlar emas — <b>pilotning haqiqiy dalalari</b>, fermer chegara chizadigan va bot o'lchov quradigan o'sha sun'iy yo'ldosh xaritalarida.",
-"flds.c1":"<b>Uzumzor</b> — kanaldan bostirib sug'oriladigan uzumzor. Oq chiziq — Mini App'dan haqiqiy chegara: o'lchov bo'yicha 1,41 ga.",
+"flds.c1":"<b>Uzumzor</b> — kanaldan o'zi oqar suv bilan egat orqali sug'oriladigan uzumzor. Oq chiziq — Mini App'dan haqiqiy chegara: o'lchov bo'yicha 1,41 ga.",
 "flds.c2":"<b>Olmazor</b> — tomchilatib sug'oriladigan G-shaklidagi bog', chegarada 8 nuqta. O'lchov: 2,52 ga.",
 "flds.c3":"<b>Pilot vodiysi</b> — qishloq atrofidagi xo'jaliklar korami. Bu yerda har bir dalaga suv haqida o'z javobi kerak.",
 "flds.credit":"Video — SUV AI animatsion taqdimoti; sun'iy yo'ldosh xaritalari — Esri, Maxar, Earthstar Geographics.",
@@ -1098,7 +1098,7 @@ uz: {
 "pil.dtP":"Nasos","pil.ddP":"60 m³/soat · 30 kVt·soat",
 "pil.dtC":"Soat narxi","pil.ddC":"45 000 so'm",
 "pil.note1":"Har bir tejalgan kub darhol fermer puliga aylanadi.",
-"pil.sub2":"uzumzor · kanaldan bostirish",
+"pil.sub2":"uzumzor · kanal suvi, egat orqali",
 "pil.dt2":"Maydon","pil.dd2":"1,5 ga — chegara bilan o'lchangan",
 "pil.dtI":"Sug'orish","pil.ddI":"o'z oqimi · bir sutka",
 "pil.dtE":"Elektr","pil.ddE":"sarflanmaydi",
@@ -1203,7 +1203,7 @@ en: {
 "flds.eyebrow":"Pilot fields",
 "flds.h2":"The view the product works from",
 "flds.lede":"These are not stock photos — they are the <b>pilot's real fields</b> on the same satellite maps the farmer traces on and the bot measures from.",
-"flds.c1":"<b>Uzumzor</b> — a vineyard flood-irrigated from the canal. In white — the real boundary from the Mini App: 1.41 ha measured.",
+"flds.c1":"<b>Uzumzor</b> — a vineyard furrow-irrigated by gravity from the canal. In white — the real boundary from the Mini App: 1.41 ha measured.",
 "flds.c2":"<b>Olmazor</b> — an L-shaped drip-irrigated orchard, 8 boundary vertices. Measured: 2.52 ha.",
 "flds.c3":"<b>The pilot valley</b> — a patchwork of farms around the kishlak. Every field here needs its own answer about water.",
 "flds.credit":"Video — an animated SUV AI presentation; satellite maps — Esri, Maxar, Earthstar Geographics.",
@@ -1235,7 +1235,7 @@ en: {
 "pil.dtP":"Pump","pil.ddP":"60 m³/h · 30 kWh",
 "pil.dtC":"Hour cost","pil.ddC":"45,000 UZS",
 "pil.note1":"Every cubic metre saved turns straight into the farmer's money.",
-"pil.sub2":"vineyard · canal flood",
+"pil.sub2":"vineyard · canal water, furrows",
 "pil.dt2":"Area","pil.dd2":"1.5 ha — measured by boundary",
 "pil.dtI":"Irrigation","pil.ddI":"gravity flow · 24 h",
 "pil.dtE":"Electricity","pil.ddE":"none used",
@@ -1580,6 +1580,10 @@ function setLang(l){
   LANG = l;
   localStorage.setItem("suvai-lang", l);
   document.documentElement.lang = l;
+  // Блог есть на русском и узбекском: узбекская версия страницы ведёт в /blog/uz/.
+  document.querySelectorAll('a.mlink[href^="/blog/"]').forEach(function(a){
+    a.setAttribute("href", l==="uz" ? "/blog/uz/" : "/blog/");
+  });
   document.querySelectorAll("[data-i18n]").forEach(function(el){
     var k = el.getAttribute("data-i18n");
     var v = l==="ru" ? RUBASE[k] : (SUVAI_I18N[l] && SUVAI_I18N[l][k]);
