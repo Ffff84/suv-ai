@@ -15,8 +15,16 @@ from __future__ import annotations
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
+
+
+def _utcnow_iso() -> str:
+    # Наивная строка без «+00:00» — нарочно: в базе уже лежат такие же
+    # от datetime.utcnow(), и строковая сортировка по created_at/sent_at
+    # должна оставаться однородной.
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS fields (
@@ -244,7 +252,7 @@ class Ledger:
         unknown = set(kw) - _FIELD_COLUMNS
         if unknown:
             raise ValueError(f"unknown field columns: {sorted(unknown)}")
-        kw.setdefault("created_at", datetime.utcnow().isoformat())
+        kw.setdefault("created_at", _utcnow_iso())
         cols = ",".join(kw)
         marks = ",".join("?" * len(kw))
         # created_at обновлять нельзя: поле заведено один раз.
@@ -279,7 +287,7 @@ class Ledger:
                  first.raw_mm if first else None,
                  rec.field.ndvi,
                  rec.field.ndvi_date.isoformat() if rec.field.ndvi_date else None,
-                 engine_version, datetime.utcnow().isoformat()))
+                 engine_version, _utcnow_iso()))
             c.commit()
             return cur.lastrowid
 
@@ -324,7 +332,7 @@ class Ledger:
                    VALUES (?,?,?,?,?,?,?)""",
                 (recommendation_id, int(followed),
                  actual_day.isoformat() if actual_day else None,
-                 actual_m3, source, note, datetime.utcnow().isoformat()))
+                 actual_m3, source, note, _utcnow_iso()))
             c.commit()
 
     def save_polygon(self, field_id: str, ring: list[list[float]],
@@ -419,7 +427,7 @@ class Ledger:
                       "photo_key=?, photo_caption=?, photo_built_at=?, "
                       "photo_latest_seen=? WHERE field_id=?",
                       (file_id, scene_day, key, caption,
-                       datetime.utcnow().isoformat(),
+                       _utcnow_iso(),
                        latest_seen or scene_day, field_id))
             c.commit()
 
@@ -436,7 +444,7 @@ class Ledger:
             c.execute(
                 "UPDATE fields SET trial_half_a=?, trial_half_b=?, "
                 "trial_started=? WHERE field_id=?",
-                (half_a_json, half_b_json, datetime.utcnow().isoformat(),
+                (half_a_json, half_b_json, _utcnow_iso(),
                  field_id))
             c.commit()
 
@@ -458,7 +466,7 @@ class Ledger:
                    (recommendation_id, field_id, chat_id, verdict, created_at)
                    VALUES (?,?,?,?,?)""",
                 (recommendation_id, field_id, chat_id, verdict,
-                 datetime.utcnow().isoformat()))
+                 _utcnow_iso()))
             c.commit()
 
     def feedback_counts(self, field_id: str) -> tuple[int, int]:
@@ -492,7 +500,7 @@ class Ledger:
             cur = c.execute(
                 "UPDATE fields SET archived_at=? "
                 "WHERE field_id=? AND archived_at IS NULL",
-                (datetime.utcnow().isoformat(), field_id))
+                (_utcnow_iso(), field_id))
             c.commit()
             return cur.rowcount > 0
 
@@ -506,7 +514,7 @@ class Ledger:
                    (field_id, chat_id, taken_on, file_id, caption, created_at)
                    VALUES (?,?,?,?,?,?)""",
                 (field_id, chat_id, taken_on.isoformat(), file_id, caption,
-                 datetime.utcnow().isoformat()))
+                 _utcnow_iso()))
             c.commit()
             return cur.lastrowid
 
@@ -537,7 +545,7 @@ class Ledger:
             c.execute(
                 "INSERT INTO field_status_views (field_id, chat_id, opened_at) "
                 "VALUES (?,?,?)",
-                (field_id, chat_id, datetime.utcnow().isoformat()))
+                (field_id, chat_id, _utcnow_iso()))
             c.commit()
 
     def savings(self, field_id: str) -> SavingsSummary:
