@@ -31,7 +31,7 @@ pitch.
 | Telegram bot | **In use by a farmer** | Farrukh, the pilot farmer, runs it on his own two fields and confirms the advice arrives and reads correctly |
 | Savings actually measured | **Not yet** | Until `/bajardim` confirmations accumulate, every saving figure is a back-test, not a measured result |
 
-482 tests, all passing: `python -m pytest tests/ -q`
+493 tests, all passing: `python -m pytest tests/ -q`
 
 **Pilot status, August 2026.** The bot runs 24/7 on a VPS and serves one
 real farm in Samarkand province: an apple orchard (2 ha, drip, pumped)
@@ -75,7 +75,7 @@ correction also produced the salinity warning the bot now sends.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q            # 482 tests, no network needed
+python -m pytest tests/ -q            # 493 tests, no network needed
 
 cp .env.example .env                  # then fill it in — .env is gitignored
 python -m bot.main
@@ -107,10 +107,11 @@ print(recommendation_text(rec, "uz"))
 ```
 Shimoliy dala
 
-Shanba kuni, 182 mm.
+Payshanba kuni (16.07) sug'oring, gektariga 1 818 m³.
 Namlik tez kamaymoqda.
 
 Taxminan 7 273 m³ suv (4.0 ga).
+Surat yo'q — hisob kalendar bo'yicha.
 ```
 
 ---
