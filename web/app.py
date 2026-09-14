@@ -149,7 +149,9 @@ def field_detail(field_id: str = Path(pattern=r"^[A-Za-z0-9_-]{1,64}$"),
     row = _row_or_404(user, field_id)
     lang = _lang(row, user)
     ctx = _ctx_for(user.id)
-    rec, pump, anchored, degraded, forecast, _hourly = B._fs_data(row, ctx)
+    # dhours (седьмой элемент) кабинету не нужен: секцию болезней он не
+    # собирает — _fs_sections без viewer её и не строит (закрытое демо).
+    rec, pump, anchored, degraded, forecast, _hourly, _dh = B._fs_data(row, ctx)
     sections = B._fs_sections(row, ctx, lang)
     last_irr = B._last_irrigation(row["field_id"], row["last_irrigation_date"])
     plan = rec.plan[0] if rec.plan else None
