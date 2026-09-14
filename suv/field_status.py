@@ -226,6 +226,24 @@ def water_section(rec, last_irr: date | None, today: date,
             when = "сегодня" if ago <= 0 else "вчера" if ago == 1 else f"{ago} дн. назад"
             hint = f"Последний: {when}"
 
+    # Живой укос беды: пила Kc идёт от него, и карточка обязана называть
+    # источник расчёта. Только пока цикл не истёк (cap) — истёкший укос
+    # в строке читался бы как действующий режим.
+    # getattr-цепочка: тесты секций кормят сюда заглушку без .field —
+    # как и сосед reason_key строками выше.
+    from .crop import ALFALFA_CYCLE_CAP_DAYS
+    fld = getattr(rec, "field", None)
+    cuts = list(getattr(fld, "cut_dates", None) or [])
+    live = [c for c in cuts
+            if 0 <= (today - c).days < ALFALFA_CYCLE_CAP_DAYS]
+    if live and getattr(getattr(fld, "crop", None), "cutting_cycle", False):
+        c = max(live)
+        ago = (today - c).days
+        hint += (f" · O'rim: {c.day:02d}.{c.month:02d} "
+                 f"({ago} kun oldin, qayta o'sish)" if uz else
+                 f" · Укос: {c.day:02d}.{c.month:02d} "
+                 f"({ago} дн. назад, отрастание)")
+
     return Section(key="water", order=10, title=title,
                    status=status, line=line, hint=hint)
 

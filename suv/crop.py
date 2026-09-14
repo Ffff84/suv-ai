@@ -44,6 +44,11 @@ class Crop:
     # практика — сухая пауза в 1-2 недели перед теримом, а не «без воды
     # с сентября». Работает только при заданной дате съёма.
     preharvest_hold_days: int = 10
+    # Многоукосная культура: Kc ходит пилой укос — отрастание — укос
+    # (cutting_cycle_kc), но ТОЛЬКО от события укоса, названного
+    # фермером. Без события считается усреднённая кривая — фаза пилы
+    # неизвестна, и усреднение честнее выдуманной точности.
+    cutting_cycle: bool = False
 
 
 # FAO-56 Table 11 (stage lengths), Table 12 (Kc), Table 22 (Zr, p).
@@ -115,13 +120,16 @@ CROPS: dict[str, Crop] = {
     ),
     "alfalfa": Crop(
         key="alfalfa", name_uz="Beda", name_ru="Люцерна",
-        # «Averaged cutting effects» из табл. 12: Kc усреднён по укосам,
-        # отдельные укосы движок не моделирует — и говорит об этом здесь.
+        # «Averaged cutting effects» из табл. 12: Kc усреднён по укосам.
+        # Отдельные укосы движок моделирует ТОЛЬКО от события укоса,
+        # названного фермером (cutting_cycle_kc): без события фаза пилы
+        # неизвестна, и это усреднение — честный ответ.
         stages=(10, 30, 160, 20),
         kc_ini=0.40, kc_mid=0.95, kc_end=0.90,
         root_depth_m=1.50, depletion_fraction=0.55,
         typical_sowing=(3, 10),  # отрастание весной
         perennial=True,          # травостой: NDVI->Kc линейная, родная Calera
+        cutting_cycle=True,
     ),
     "barley": Crop(
         key="barley", name_uz="Arpa", name_ru="Ячмень",
@@ -519,6 +527,41 @@ INTERNAL_CROPS = frozenset(t[0] for t in SECOND_CYCLE.values())
 # обязан попасть сюда же.
 PADDY_CROPS = frozenset({"rice"})
 
+# Укосный цикл люцерны — FAO-56 табл. 12 «individual cutting periods»
+# (0.40 сразу после укоса -> 1.20 при полном покрове; сноска 14) и
+# длины циклов табл. 11 (от укоса до смыкания 15-25 дн). Константы
+# люцерновые нарочно: у второй укосной культуры (клевер 0.40/1.15)
+# они переедут в поля Crop — не раньше.
+ALFALFA_KC_CUT = 0.40       # сразу после укоса (сноска 14 табл. 12)
+ALFALFA_KC_PEAK = 1.20      # полный покров; 1.15 «перед укосом» упрощён
+ALFALFA_CUT_FLAT_DAYS = 5   # шок среза: ini поздних циклов табл. 11
+ALFALFA_REGROWTH_DAYS = 20  # до смыкания: между Айдахо (25) и Калифорнией (15)
+# Потолок цикла: 40-45 дн — верх практики межукосных интервалов (циклы
+# Айдахо в табл. 11 — ровно 45), плюс несколько дней на опоздание
+# отметки. Дальше держать 1.20 значило бы переливать по устаревшему
+# докладу: цикл истекает, и Kc честно возвращается к усреднённой кривой.
+ALFALFA_CYCLE_CAP_DAYS = 50
+
+
+def cutting_cycle_kc(days_since_cut: int) -> float | None:
+    """Kc внутри укосного цикла: срез -> отрастание -> плато.
+
+    None — цикл истёк (или дней меньше нуля): звать усреднённую кривую.
+    Хвоста «перед укосом» нет сознательно: беду косят НА пике
+    (бутонизация), падение и есть поздняя стадия — сноска 14 держит
+    Kc 1.15 «непосредственно перед укосом»."""
+    d = days_since_cut
+    if d < 0 or d >= ALFALFA_CYCLE_CAP_DAYS:
+        return None
+    if d < ALFALFA_CUT_FLAT_DAYS:
+        return ALFALFA_KC_CUT
+    if d < ALFALFA_REGROWTH_DAYS:
+        frac = (d - ALFALFA_CUT_FLAT_DAYS) / (
+            ALFALFA_REGROWTH_DAYS - ALFALFA_CUT_FLAT_DAYS)
+        return round(ALFALFA_KC_CUT
+                     + frac * (ALFALFA_KC_PEAK - ALFALFA_KC_CUT), 3)
+    return ALFALFA_KC_PEAK
+
 
 def resolve_cycle(key: str, sowing_month: int) -> str:
     """Ключ культуры с учётом цикла сева.
@@ -713,7 +756,8 @@ def fraction_cover(ndvi: float, msavi: float | None = None) -> float:
     return min(max(fc, 0.0), 1.0)
 
 
-def kc_from_ndvi(ndvi: float, crop: Crop, msavi: float | None = None) -> float:
+def kc_from_ndvi(ndvi: float, crop: Crop, msavi: float | None = None,
+                 *, hi_override: float | None = None) -> float:
     """
     Kc estimated from satellite NDVI.
 
@@ -752,14 +796,20 @@ def kc_from_ndvi(ndvi: float, crop: Crop, msavi: float | None = None) -> float:
     # Clamp against the UNROUNDED envelope, then round for display.
     # Rounding the bounds themselves can push the result a hair past the
     # limit, which quietly defeats the guard.
-    lo, hi = crop.kc_ini * 0.6, crop.kc_mid * 1.05
+    # hi_override поднимает ТОЛЬКО потолок финального зажима — активный
+    # укосный цикл живёт выше усреднённого конверта (1.20·1.05 против
+    # 0.95·1.05), и без этого спутниковая поправка отрастания молча
+    # резалась бы к ~1.0. Kcb_full кроновой ветки остаётся конвертом
+    # культуры: у деревьев циклов нет.
+    lo, env_hi = crop.kc_ini * 0.6, crop.kc_mid * 1.05
     if crop.ndvi_kc_model == "cover":
         fc = fraction_cover(ndvi, msavi)
         kd = min(1.0, crop.canopy_ml * fc,
                  fc ** (1.0 / (1.0 + crop.canopy_height_m)) if fc > 0 else 0.0)
-        kcb = KC_MIN + kd * (hi - KC_MIN)
+        kcb = KC_MIN + kd * (env_hi - KC_MIN)
     else:
         kcb = 1.44 * ndvi - 0.10
+    hi = env_hi if hi_override is None else hi_override
     return round(min(max(kcb, lo), hi), 4)
 
 

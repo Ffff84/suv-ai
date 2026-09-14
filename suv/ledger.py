@@ -137,6 +137,21 @@ CREATE TABLE IF NOT EXISTS field_status_views (
     chat_id INTEGER,
     opened_at TEXT NOT NULL
 );
+
+-- Укосы многоукосных культур (beda): вход модели, а не заметка.
+-- Журнал append-only, как и весь файл: ошибочная дата не стирается,
+-- а гасится ПОЗДНЕЙ строкой source='retraction' на ту же дату —
+-- ошибка И исправление остаются в истории под чьим-то именем.
+CREATE TABLE IF NOT EXISTS cut_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    field_id TEXT NOT NULL REFERENCES fields(field_id),
+    chat_id INTEGER,       -- фермер-владелец ('farmer') или админ ('retraction')
+    cut_on TEXT NOT NULL,  -- ISO-дата самого укоса (Bugun/Kecha уже разрешены)
+    source TEXT NOT NULL,  -- 'farmer' | 'retraction'; резерв: 'satellite'
+    note TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cut_field ON cut_events(field_id, cut_on);
 """
 
 
@@ -547,6 +562,39 @@ class Ledger:
                 "VALUES (?,?,?)",
                 (field_id, chat_id, _utcnow_iso()))
             c.commit()
+
+    def log_cut(self, field_id: str, chat_id: int | None, cut_on: date,
+                source: str = "farmer", note: str | None = None) -> int:
+        """Укос (или его ретракция) — простая append-строка."""
+        with closing(self._conn()) as c:
+            cur = c.execute(
+                """INSERT INTO cut_events
+                   (field_id, chat_id, cut_on, source, note, created_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (field_id, chat_id, cut_on.isoformat(), source, note,
+                 _utcnow_iso()))
+            c.commit()
+            return cur.lastrowid
+
+    def cuts(self, field_id: str, since: date) -> list[date]:
+        """Живые укосы сезона по возрастанию.
+
+        Ретракция гасит дату только для строк, ЗАПИСАННЫХ ДО неё:
+        гашение «навсегда по дате» съедало бы будущий законный укос,
+        случайно совпавший числом с давней опечаткой.
+        """
+        with closing(self._conn()) as c:
+            rows = c.execute(
+                """SELECT DISTINCT e.cut_on FROM cut_events e
+                   WHERE e.field_id=? AND e.cut_on>=? AND e.source!='retraction'
+                     AND NOT EXISTS (
+                        SELECT 1 FROM cut_events r
+                        WHERE r.field_id=e.field_id AND r.cut_on=e.cut_on
+                          AND r.source='retraction'
+                          AND r.created_at>e.created_at)
+                   ORDER BY e.cut_on""",
+                (field_id, since.isoformat())).fetchall()
+            return [date.fromisoformat(r["cut_on"]) for r in rows]
 
     def savings(self, field_id: str) -> SavingsSummary:
         """

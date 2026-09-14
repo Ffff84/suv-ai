@@ -14,7 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from .crop import (PADDY_CROPS, Crop, blended_kc, kc_from_ndvi, root_depth,
+from .crop import (ALFALFA_KC_PEAK, PADDY_CROPS, Crop, blended_kc,
+                   cutting_cycle_kc, kc_from_ndvi, root_depth,
                    season_is_over, season_start, stage_and_kc)
 from .et0 import DailyWeather, et0
 from .soil import (
@@ -62,6 +63,11 @@ class Field:
     # возвращаются сами — дереву закладывать почки следующего года.
     harvest_start: date | None = None
     harvest_end: date | None = None
+    # Укосы СЕЗОНА по возрастанию (только фермерские отметки). Список,
+    # а не последний укос: warm-start отматывает до 92 дней истории и
+    # может пересечь два укоса — одиночная дата гнала бы усреднённый Kc
+    # сквозь прошлую пилу. Пусто = поведение как до фичи.
+    cut_dates: list[date] = field(default_factory=list)
 
 
 @dataclass
@@ -106,6 +112,19 @@ class Recommendation:
     saved_m3: float | None = None
 
 
+def _scene_across_cut(cuts: list[date], scene: date, day: date) -> bool:
+    """Снимок и моделируемый день лежат по разные стороны укоса.
+
+    Перегородка СИММЕТРИЧНА: доукосная сцена на послеукосных днях тянула
+    бы отмеченные 0.40 обратно к 0.9, а свежая послеукосная сцена на
+    ДОукосных днях истории (warm-start отматывает до 92 дней, и снимок
+    из будущего у blended_kc весит как свежий) давила бы честное плато
+    1.20 — недобор дефицита и «почва ещё влажная» сегодня. Снимок в день
+    укоса считается послеукосным: проход Sentinel ~10:30, косят с утра.
+    """
+    return any(scene < c <= day or day < c <= scene for c in cuts)
+
+
 def simulate(
     fld: Field,
     forecast: list[DailyWeather],
@@ -136,9 +155,26 @@ def simulate(
         zr = root_depth(fld.crop, dap,
                         years_since_planting=(day - fld.planting_date).days / 365.25)
 
+        # Укосный цикл: отмеченный фермером укос переключает календарный
+        # Kc с усреднённой кривой на пилу срез -> отрастание -> плато.
+        # Выбор укоса — ПО дню симуляции: warm-start может пересечь два.
+        # Истёкший цикл (cap) честно возвращает усреднение.
+        calendar_kc = stage.kc
+        cycle_on = False
+        if fld.crop.cutting_cycle and fld.cut_dates:
+            last_cut = max((c for c in fld.cut_dates if c <= day),
+                           default=None)
+            if last_cut is not None:
+                cycle_kc = cutting_cycle_kc((day - last_cut).days)
+                if cycle_kc is not None:
+                    calendar_kc = cycle_kc
+                    cycle_on = True
+
         ndvi_kc = None
         ndvi_age = 99
-        if fld.ndvi is not None and fld.ndvi_date is not None:
+        if fld.ndvi is not None and fld.ndvi_date is not None and not (
+                fld.crop.cutting_cycle
+                and _scene_across_cut(fld.cut_dates, fld.ndvi_date, day)):
             # MSAVI сюда СОЗНАТЕЛЬНО не передаётся. Живой замер 09.09.2026
             # на саду: fc по MSAVI 0,30 против 0,42 по NDVI — Kc падает на
             # 22% при нуле полевой правды о реальной доле кроны. Единственная
@@ -146,9 +182,16 @@ def simulate(
             # на стороне NDVI-шкалы, поэтому MSAVI пока данные и разбор
             # (fld.msavi, suv/indices.py), а не совет. Включать — после
             # ответа Фарруха о доле кроны и офлайн-сверки рядов за сезон.
-            ndvi_kc = kc_from_ndvi(fld.ndvi, fld.crop)
+            ndvi_kc = kc_from_ndvi(
+                fld.ndvi, fld.crop,
+                # Активный цикл живёт выше усреднённого конверта: без
+                # расширения потолка спутник резал бы отрастание к ~1.0.
+                hi_override=ALFALFA_KC_PEAK * 1.05 if cycle_on else None)
             ndvi_age = (day - fld.ndvi_date).days
-        kc, kc_source = blended_kc(stage.kc, ndvi_kc, ndvi_age)
+        kc, kc_source = blended_kc(calendar_kc, ndvi_kc, ndvi_age)
+        if cycle_on:
+            # «Почему» и журнал обязаны честно называть источник Kc.
+            kc_source = kc_source.replace("calendar", "cut-cycle", 1)
 
         ref, _method = et0(w, fld.lat, fld.elevation_m)
         etc = ref * kc
