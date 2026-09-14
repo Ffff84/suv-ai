@@ -109,7 +109,12 @@ CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅",
               # родителя: кнопки у них нет, но карточка поля есть.
               "soybean": "🫘", "cabbage": "🥬", "plum": "🟣",
               "persimmon": "🟠", "maize_second": "🌽",
-              "potato_summer": "🥔"}
+              "potato_summer": "🥔",
+              # 🍚 — третий 🌾 слил бы три зерновых в одну иконку;
+              # 🌼 — кунжут не плод, круг ему не положен, а 🌻/🥜
+              # называют чужие масличные; 🍠 — свекольного эмодзи нет,
+              # батата в CROPS нет и не предвидится.
+              "rice": "🍚", "sesame": "🌼", "sugar_beet": "🍠"}
 # Все культуры движка, включая многолетники: сад и виноградник раньше
 # заводились только агрономом, и садовод из жюри был вынужден выбирать
 # чужую культуру — совет получался неверным от Kc до корней.
@@ -117,11 +122,15 @@ CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅",
 # бобовые, овощи, бахча, люцерна как мост к многолетникам, сад
 # (косточковые подряд). Внутренних ключей (INTERNAL_CROPS) здесь нет:
 # повторный цикл выбирается месяцем сева, не кнопкой.
-CROP_ORDER = ("cotton", "winter_wheat", "barley", "maize", "soybean",
-              "beans", "mung", "onion", "tomato", "potato", "carrot",
-              "cabbage", "cucumber", "melon", "watermelon", "alfalfa",
-              "apple", "grape", "apricot", "peach", "plum", "cherry",
-              "pomegranate", "persimmon")
+CROP_ORDER = ("cotton", "winter_wheat", "barley", "rice", "maize",
+              "soybean", "beans", "mung", "sesame", "onion", "tomato",
+              "potato", "carrot", "cabbage", "cucumber", "melon",
+              "watermelon", "alfalfa", "apple", "grape", "apricot",
+              "peach", "plum", "cherry", "pomegranate", "persimmon")
+# Справочные записи движка без кнопки: живого спроса нет (сахарная
+# отрасль остановилась), но импорт файла и скрипты ключ принимают.
+# НЕ внутренние ключи циклов — те выводятся из SECOND_CYCLE.
+CATALOG_ONLY_CROPS = frozenset({"sugar_beet"})
 
 
 def _crop_label(key: str) -> str:
@@ -816,8 +825,11 @@ def _rec_message(rec, pump, lang: str, anchored: bool = True,
     # когда поливали» перехватывал season_over у каждого поля из
     # мастера — тот ставит дату полива пустой всегда, — и фермера звали
     # отметить полив на убранном поле.
+    # rice_flooded — тоже вывод не из водного баланса: отказ по методу
+    # полива главнее отказа «не знаю, когда поливали».
     unmeasured = (not anchored and rec.action_day is None
-                  and rec.reason_key not in ("harvest_hold", "season_over"))
+                  and rec.reason_key not in ("harvest_hold", "season_over",
+                                             "rice_flooded"))
     msg = (_no_anchor_text(rec, lang) if unmeasured
            else recommendation_text(rec, lang, pump=pump))
     warn = salinity_warning(rec.plan[0].salinity if rec.plan else "unknown", lang)
@@ -826,7 +838,7 @@ def _rec_message(rec, pump, lang: str, anchored: bool = True,
     if degraded:
         msg += "\n\n" + (WEATHER_DOWN_UZ if lang == "uz" else WEATHER_DOWN_RU)
     if (not anchored and not unmeasured
-            and rec.reason_key != "season_over"):
+            and rec.reason_key not in ("season_over", "rice_flooded")):
         # В тексте отказа предупреждение уже сказано целиком — второй
         # раз тем же абзацем оно только удлиняет сообщение. На убранном
         # поле оно к тому же спорит с самим советом: «расчёт

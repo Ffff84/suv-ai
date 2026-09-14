@@ -23,7 +23,7 @@ from suv.soil import SOILS, WaterBalanceState
 # ------------------------------------------------------------- справочник
 
 def test_all_crops_have_sane_envelopes():
-    assert len(CROPS) == 26
+    assert len(CROPS) == 29
     for c in CROPS.values():
         assert 0.2 <= c.kc_ini < c.kc_mid <= 1.2, c.key
         assert 0.4 <= c.root_depth_m <= 2.0, c.key
@@ -238,14 +238,91 @@ def test_plum_twins_apricot_and_persimmon_is_thrifty():
     assert pers < apple  # kc_mid 0.85 обязан быть скромнее яблони
 
 
+# --------------------- волна 4: рис (гейт затопления), кунжут, свёкла
+
+def test_wave4_crop_models_are_deliberate():
+    from suv.crop import PADDY_CROPS
+    for key in ("rice", "sesame", "sugar_beet"):
+        assert not CROPS[key].perennial, key
+        assert CROPS[key].ndvi_kc_model == "linear", key
+    assert PADDY_CROPS == {"rice"}
+    # Кунжут — повторный, но сеять позже конца июня уже поздно.
+    assert CROPS["sesame"].typical_sowing == (6, 20)
+    # Свёкла — справочник без кнопки, но НЕ внутренний ключ цикла.
+    from suv.crop import INTERNAL_CROPS
+    assert "sugar_beet" in B.CATALOG_ONLY_CROPS
+    assert "sugar_beet" not in INTERNAL_CROPS
+    # Рис не терпит стресса: p на нижней санитарной границе сознательно.
+    assert CROPS["rice"].depletion_fraction == 0.20
+
+
+def test_flooded_rice_is_refused_not_computed():
+    """Рис по чекам — честный отказ, а не расчёт: под слоем воды неверно
+    каждое число, поэтому и план пуст (в отличие от season_over)."""
+    from suv.messages import recommendation_text, why_text
+    from suv.schedule import recommend
+    today = date(2026, 7, 10)
+    st = STATIONS["samarkand"]
+    series = season(st, today, 14)
+    # ALLOW-list: обе борозды — чек, включая лазерную планировку.
+    for method in ("furrow", "furrow_improved"):
+        f = Field("T", "Sholi dala", 2.0, st.lat, st.lon, st.elevation_m,
+                  CROPS["rice"], SOILS["loam"], date(2026, 5, 10), method)
+        rec = recommend(f, series, WaterBalanceState(10.0, 0.6), today)
+        assert rec.reason_key == "rice_flooded", method
+        assert rec.action_day is None and rec.gross_m3 == 0.0
+        assert rec.plan == [] and rec.saved_m3 is None
+        for lang in ("uz", "ru"):
+            text = recommendation_text(rec, lang)
+            assert "shart emas" not in text and "не требуется" not in text
+        assert "bostirib" in why_text(rec, None, "uz")
+    # Безводный рис проходит гейт в обычный расчёт.
+    for method in ("drip", "sprinkler"):
+        f = Field("T", "Sholi dala", 2.0, st.lat, st.lon, st.elevation_m,
+                  CROPS["rice"], SOILS["loam"], date(2026, 5, 10), method)
+        rec = recommend(f, series, WaterBalanceState(10.0, 0.6), today)
+        assert rec.reason_key != "rice_flooded", method
+        assert rec.plan
+
+
+def test_flooded_rice_refusal_survives_the_missing_anchor():
+    """Свежее поле мастера (якоря нет): отказ по методу полива главнее
+    отказа «не знаю, когда поливали» — иначе рисовода звали бы отметить
+    полив на поле, которое бот считать не будет никогда."""
+    from suv.schedule import recommend
+    today = date(2026, 7, 10)
+    st = STATIONS["samarkand"]
+    f = Field("T", "Sholi dala", 2.0, st.lat, st.lon, st.elevation_m,
+              CROPS["rice"], SOILS["loam"], date(2026, 5, 10), "furrow")
+    rec = recommend(f, season(st, today, 14), WaterBalanceState(0.0, 0.6),
+                    today)
+    for lang, marker in (("uz", "bostirib"), ("ru", "затоплением")):
+        msg = B._rec_message(rec, None, lang, anchored=False)
+        assert marker in msg, msg
+        assert "ayta olmayman" not in msg and "не отвечаю" not in msg
+        assert B.BTN_BAJARDIM not in msg
+
+
+def test_upland_rice_and_minor_annuals_seasons_are_plausible():
+    # Капельный рис ~9 000 м³/га против ~16 700 затопленной нормы — в
+    # этом и есть водосберегающая история; полосы — санитария, не норма.
+    rice = _season_total("rice", "drip", date(2026, 5, 10), 135)
+    assert 5000 < rice < 14000, f"{rice:.0f} m3/ha капельного риса"
+    ses = _season_total("sesame", "furrow", date(2026, 6, 20), 110)
+    assert 2500 < ses < 9000, f"{ses:.0f} m3/ha за сезон кунжута"
+    beet = _season_total("sugar_beet", "furrow", date(2026, 4, 5), 180)
+    assert 7000 < beet < 20000, f"{beet:.0f} m3/ha за сезон свёклы"
+
+
 # ----------------------------------------------------------------- мастер
 
 def test_wizard_offers_every_engine_crop_with_unique_labels():
     """Каждая культура движка — кнопка, КРОМЕ внутренних ключей
-    повторных циклов: их выбирает месяц сева, не фермер."""
+    повторных циклов (их выбирает месяц сева, не фермер) и справочных
+    записей без живого спроса (CATALOG_ONLY_CROPS)."""
     from suv.crop import INTERNAL_CROPS
-    assert set(B.CROP_ORDER) == set(CROPS) - INTERNAL_CROPS
-    assert not INTERNAL_CROPS & set(B.CROP_ORDER)
+    assert set(B.CROP_ORDER) == set(CROPS) - INTERNAL_CROPS - B.CATALOG_ONLY_CROPS
+    assert not (INTERNAL_CROPS | B.CATALOG_ONLY_CROPS) & set(B.CROP_ORDER)
     labels = [B._crop_label(k) for k in B.CROP_ORDER]
     assert len(set(labels)) == len(labels)
     # У внутренних ключей есть эмодзи и имя: карточка поля их печатает.

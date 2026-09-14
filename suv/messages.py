@@ -29,6 +29,7 @@ REASON_UZ = {
     "rain_expected": "Yaqin kunlarda yomg'ir kutilmoqda.",
     "soil_still_wet": "Tuproq hali yetarlicha nam.",
     "season_over": "Ang'iz bo'yicha suv hisoblanmaydi.",
+    "rice_flooded": "Suv qatlami ostida tuproq namligi hisoblanmaydi.",
 }
 REASON_RU = {
     "harvest_hold": "Идёт съём: налитый водой плод хуже лежит в хранении.",
@@ -39,6 +40,7 @@ REASON_RU = {
     "rain_expected": "В ближайшие дни ожидается дождь.",
     "soil_still_wet": "Почва ещё достаточно влажная.",
     "season_over": "По убранному полю воду не считаем.",
+    "rice_flooded": "Под слоем воды баланс почвенной влаги не считается.",
 }
 
 
@@ -95,6 +97,29 @@ def recommendation_text(rec, lang: str = "uz", pump=None) -> str:
     """
     f = rec.field
     snap = snapshot_line(rec, lang)
+    if rec.reason_key == "rice_flooded":
+        # Не «полив не требуется» и не расчёт: под слоем воды неверно
+        # каждое число. Честный отказ с выходом — безводный рис (капля,
+        # дождевание) движок считает по-настоящему.
+        if lang == "uz":
+            return (f"{f.name}\n\n"
+                    "Sholingiz suv bostirib sug'oriladi — dala ustida suv "
+                    "qatlami turadi. Bot tuproqdagi namlikni hisoblaydi; "
+                    "suv qatlami ostida bu hisob ishlamaydi. Noto'g'ri "
+                    "raqam aytishdan ko'ra ochiq aytamiz: bu dala bo'yicha "
+                    "maslahat bermaymiz.\n\n"
+                    "Sholi suv bostirmasdan — tomchilatib yoki "
+                    "yomg'irlatib — sug'orilsa, yozing: usulni "
+                    "o'zgartiramiz, maslahatlar ishlaydi.")
+        return (f"{f.name}\n\n"
+                "Рис на этом поле поливается затоплением — на чеке стоит "
+                "слой воды. Движок считает баланс влаги в почве и не "
+                "моделирует затопленный чек: фильтрацию под постоянным "
+                "зеркалом и испарение с открытой воды. Честный отказ "
+                "вместо неверного расчёта.\n\n"
+                "Если рис выращивается без слоя воды — капля или "
+                "дождевание, — напишите: сменим способ полива, и расчёт "
+                "заработает.")
     if rec.reason_key == "season_over":
         # Не «полив не требуется»: требоваться нечему. Раньше поле с
         # кончившимся сезоном получало ровно ту же успокаивающую строку,
@@ -222,6 +247,15 @@ def why_text(rec, last_irr, lang: str = "uz", degraded: bool = False) -> str:
     альтернатива AI-чату: объяснение не умеет приукрасить.
     """
     uz = lang == "uz"
+    if rec.reason_key == "rice_flooded":
+        # Чисел нет и быть не должно: под слоем воды неверно каждое.
+        # «Почему» повторяет отказ, а не цитирует пустую симуляцию —
+        # иначе ниже печатались бы «дождь ~0 мм» и вывод про якорь.
+        return (f"{rec.field.name}\n\n"
+                + (REASON_UZ if uz else REASON_RU)["rice_flooded"] + "\n"
+                + ("Xulosa: bostirib sug'oriladigan sholi bo'yicha "
+                   "maslahat bermaymiz." if uz else
+                   "Вывод: по рису под затоплением совет не даём."))
     p = rec.plan[0] if rec.plan else None
     lines = [rec.field.name, ""]
 

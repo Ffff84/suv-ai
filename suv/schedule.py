@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from .crop import (Crop, blended_kc, kc_from_ndvi, root_depth, season_is_over,
-                   season_start, stage_and_kc)
+from .crop import (PADDY_CROPS, Crop, blended_kc, kc_from_ndvi, root_depth,
+                   season_is_over, season_start, stage_and_kc)
 from .et0 import DailyWeather, et0
 from .soil import (
     MAX_APPLICATION_MM,
@@ -237,6 +237,11 @@ def harvest_hold_window(fld: Field) -> tuple[date, date] | None:
     return start, fld.harvest_start + timedelta(days=OPEN_HARVEST_MAX_DAYS)
 
 
+# Единственные методы, при которых рис (PADDY_CROPS) считается: заведомо
+# безводные. Остальное — затопленный чек, отказ rice_flooded.
+RICE_UPLAND_METHODS = frozenset({"sprinkler", "drip"})
+
+
 def recommend(
     fld: Field,
     forecast: list[DailyWeather],
@@ -253,6 +258,23 @@ def recommend(
     Uzumzor, где расхода никто не называл. Не передали baseline —
     baseline_m3 и saved_m3 остаются None, и напечатать их нечем.
     """
+    # Рис под затоплением — отказ ДО симуляции, с пустым планом. В
+    # отличие от season_over (числа по стерне физически осмысленны и
+    # уходят в журнал) под слоем воды неверно КАЖДОЕ число: plan=[] не
+    # даёт «почему» и журналу процитировать неверную физику. ALLOW-list,
+    # не блок-лист: furrow и furrow_improved у риса в Узбекистане — это
+    # чек (лазерная планировка делается именно под затопление), а
+    # незнакомая строка метода из скриптов/БД молча посчиталась бы как
+    # борозда (у движка умолчания .get) — разрешены только два заведомо
+    # безводных метода.
+    if (fld.crop.key in PADDY_CROPS
+            and fld.irrigation_method not in RICE_UPLAND_METHODS):
+        return Recommendation(
+            field=fld, generated_on=today, action_day=None,
+            gross_mm=0.0, gross_m3=0.0, reason_key="rice_flooded",
+            days_until=-1, plan=[], baseline_m3=None, saved_m3=None,
+        )
+
     plan = simulate(fld, forecast, start_state, today)
 
     # Сезон однолетней культуры кончился — и об этом надо СКАЗАТЬ. За
