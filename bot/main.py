@@ -39,7 +39,7 @@ load_env()
 from suv import __version__
 from suv.climate import STATIONS, nearest_station, season
 from suv.clock import today as today_tashkent
-from suv.crop import CROPS, sowing_from_month
+from suv.crop import CROPS, INTERNAL_CROPS, resolve_cycle, sowing_from_month
 from suv.field_shape import MAX_VERTICES
 from suv.field_shape import area_ha as polygon_area_ha
 from suv.field_photo import can_show_photo
@@ -90,14 +90,38 @@ _ALLOWED: set[int] = _ids_from_env("ALLOWED_CHAT_IDS")
 # дисциплина фермера. Отмечать поливы наблюдатель тоже не может.
 _OBSERVERS: set[int] = _ids_from_env("OBSERVER_CHAT_IDS")
 
+# Эмодзи дублируются сознательно (🌾 у пшеницы и ячменя, 🍑 у абрикоса
+# и персика — другого персикового эмодзи в Юникоде нет): уникальна
+# подпись целиком, «эмодзи + название», и тест это держит. У граната
+# своего эмодзи нет вовсе — 🔴 повторяет форму и цвет, не выдавая себя
+# за чужой плод.
 CROP_EMOJI = {"cotton": "🌱", "winter_wheat": "🌾", "onion": "🧅",
               "tomato": "🍅", "apple": "🍎", "grape": "🍇",
-              "apricot": "🍑", "alfalfa": "🌿", "barley": "🌾"}
+              "apricot": "🍑", "alfalfa": "🌿", "barley": "🌾",
+              "maize": "🌽", "beans": "🫘", "mung": "🫛",
+              "potato": "🥔", "carrot": "🥕", "cucumber": "🥒",
+              "melon": "🍈", "watermelon": "🍉", "peach": "🍑",
+              "cherry": "🍒", "pomegranate": "🔴",
+              # 🥬 — капустного эмодзи нет, листовая зелень свободна;
+              # 🟣/🟠 — конвенция цветного круга задана гранатом (🍊 —
+              # чужой цитрус, третий 🍑 слил бы три косточковых в одну
+              # иконку). Внутренние ключи повторных циклов носят эмодзи
+              # родителя: кнопки у них нет, но карточка поля есть.
+              "soybean": "🫘", "cabbage": "🥬", "plum": "🟣",
+              "persimmon": "🟠", "maize_second": "🌽",
+              "potato_summer": "🥔"}
 # Все культуры движка, включая многолетники: сад и виноградник раньше
 # заводились только агрономом, и садовод из жюри был вынужден выбирать
 # чужую культуру — совет получался неверным от Kc до корней.
-CROP_ORDER = ("cotton", "winter_wheat", "barley", "onion", "tomato",
-              "alfalfa", "apple", "grape", "apricot")
+# Порядок — под клавиатуру по 3 в ряд, 8 полных рядов: зерновые и
+# бобовые, овощи, бахча, люцерна как мост к многолетникам, сад
+# (косточковые подряд). Внутренних ключей (INTERNAL_CROPS) здесь нет:
+# повторный цикл выбирается месяцем сева, не кнопкой.
+CROP_ORDER = ("cotton", "winter_wheat", "barley", "maize", "soybean",
+              "beans", "mung", "onion", "tomato", "potato", "carrot",
+              "cabbage", "cucumber", "melon", "watermelon", "alfalfa",
+              "apple", "grape", "apricot", "peach", "plum", "cherry",
+              "pomegranate", "persimmon")
 
 
 def _crop_label(key: str) -> str:
@@ -422,6 +446,13 @@ async def got_planting(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             await update.message.reply_text("Iltimos, oyni ro'yxatdan tanlang.")
             return PLANTING
         month = MONTHS_UZ.index(name) + 1
+        # Летний месяц у кукурузы/картофеля — повторный цикл: другая
+        # кривая под тем же названием. Развилка по месяцу, не кнопкой:
+        # фермер выбирает культуру, а не наш внутренний ключ.
+        resolved = resolve_cycle(ctx.user_data["crop"], month)
+        if resolved != ctx.user_data["crop"]:
+            ctx.user_data["crop"] = resolved
+            crop = CROPS[resolved]
         # Перевод месяца в дату уехал в suv.crop: там лежат typical_sowing
         # и длины стадий, по которым видно, что сев не бывает в будущем, а
         # «Oktabr», выбранный в сентябре, — это прошлый, уже убранный
@@ -1222,7 +1253,9 @@ async def import_doc(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     warn = ""
     if problems:
         warn = "\n\n⚠️ " + "\n⚠️ ".join(problems[:3])
-    keys = list(CROPS)
+    # CROP_ORDER, не list(CROPS): внутренние ключи повторных циклов —
+    # не кнопки, их выбирает месяц сева (resolve_cycle).
+    keys = list(CROP_ORDER)
     kb = InlineKeyboardMarkup(
         [[InlineKeyboardButton(_imp_label(k), callback_data=f"impc:{k}")
           for k in keys[i:i + 2]] for i in range(0, len(keys), 2)])
@@ -1243,7 +1276,7 @@ async def import_flow_callback(update: Update,
     kind, value = query.data.split(":", 1)
 
     if kind == "impc":
-        if value not in CROPS:
+        if value not in CROPS or value in INTERNAL_CROPS:
             return
         pend["crop"] = value
         crop = CROPS[value]
@@ -1272,6 +1305,12 @@ async def import_flow_callback(update: Update,
             month, day = crop.typical_sowing
             pend["planting"] = date(today.year - years, month, day)
         else:
+            # Та же развилка повторного цикла, что в мастере: летний
+            # месяц у кукурузы/картофеля — внутренний ключ двойника.
+            resolved = resolve_cycle(pend["crop"], int(value))
+            if resolved != pend["crop"]:
+                pend["crop"] = resolved
+                crop = CROPS[resolved]
             # Та же формула, что стояла в мастере, была скопирована сюда
             # дословно — и дефект вместе с ней: «Sentabr» 12.09.2026 давал
             # сев на три дня вперёд, «Oktabr» — прошлогодний убранный

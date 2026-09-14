@@ -1,10 +1,12 @@
 """
-Три культуры фазы 1: абрикос, люцерна, ячмень — и многолетники в мастере.
+Новые культуры. Фаза 1 (11.09.2026): абрикос, люцерна, ячмень — и
+многолетники в мастере. Фаза 2 (14.09.2026): фасоль, маш, кукуруза,
+картофель, дыня, арбуз, огурец, морковь, персик, черешня, гранат.
 
-По структуре посевов страны (память проекта: косточковые, люцерна,
-ячмень — очередь покрытия) и под клинья гиганта. Значения — FAO-56
-табл. 11/12/22, не полевые измерения: тесты держат форму кривых и
-санитарные диапазоны сезона, а не «правильные» кубометры.
+По структуре посевов страны и под клинья гиганта. Значения — FAO-56
+табл. 11/12/22 (гранат — литература, в FAO-56 его нет), не полевые
+измерения: тесты держат форму кривых и санитарные диапазоны сезона,
+а не «правильные» кубометры.
 """
 
 from datetime import date
@@ -20,13 +22,15 @@ from suv.soil import SOILS, WaterBalanceState
 
 # ------------------------------------------------------------- справочник
 
-def test_nine_crops_with_sane_envelopes():
-    assert len(CROPS) == 9
+def test_all_crops_have_sane_envelopes():
+    assert len(CROPS) == 26
     for c in CROPS.values():
         assert 0.2 <= c.kc_ini < c.kc_mid <= 1.2, c.key
         assert 0.4 <= c.root_depth_m <= 2.0, c.key
         assert 0.2 <= c.depletion_fraction <= 0.7, c.key
-        assert 140 <= sum(c.stages) <= 290, c.key
+        # Нижняя граница 85, не 140: короткосезонные бобовые и бахча по
+        # FAO-56 законно живут 90-130 дней (маш 90 — самый короткий).
+        assert 85 <= sum(c.stages) <= 290, c.key
 
 
 def test_new_crop_models_are_deliberate():
@@ -85,12 +89,168 @@ def test_apricot_on_drip_is_comparable_to_apple():
     assert abs(apricot - apple) / apple < 0.6     # соседние культуры, не близнецы
 
 
+# --------------------------------------- волна фазы 2: модели и санитария
+
+def test_phase2_crop_models_are_deliberate():
+    for key in ("peach", "cherry", "pomegranate"):
+        assert CROPS[key].perennial, key
+        assert CROPS[key].ndvi_kc_model == "cover", key      # крона над междурядьем
+        assert CROPS[key].canopy_height_m > 0, key
+    for key in ("beans", "mung", "maize", "potato", "melon", "watermelon",
+                "cucumber", "carrot"):
+        assert not CROPS[key].perennial, key
+        assert CROPS[key].ndvi_kc_model == "linear", key     # травяной полог — Calera
+    # Повторные культуры сеются летом — это их основной клин, не весна.
+    assert CROPS["mung"].typical_sowing[0] == 7
+    assert CROPS["beans"].typical_sowing[0] == 6
+    assert CROPS["carrot"].typical_sowing[0] == 6
+    # Гранат: сухая пауза КОРОЧЕ яблочной — кожуру рвёт дождь по
+    # водно-стрессовому дереву (Galindo 2014), а не «налитый» плод.
+    assert CROPS["pomegranate"].preharvest_hold_days < CROPS["apple"].preharvest_hold_days
+
+
+def test_summer_mung_finishes_before_frost():
+    """Июльский повторный сев доживает до конца сентября, не до ноября:
+    строка табл. 11 сжата до 90 дней ровно ради этого."""
+    from datetime import timedelta
+    m = CROPS["mung"]
+    end = date(2026, 7, 1) + timedelta(days=sum(m.stages))
+    assert end.month == 9
+    total = _season_total("mung", "furrow", date(2026, 7, 1), sum(m.stages))
+    assert 2500 < total < 9000, f"{total:.0f} m3/ha за сезон маша"
+
+
+def test_maize_is_the_thirstiest_annual_but_not_absurd():
+    # Санитария, не норма: борозда (КПД 0,55), без грунтовых вод.
+    total = _season_total("maize", "furrow", date(2026, 4, 20), 150)
+    assert 5000 < total < 15000, f"{total:.0f} m3/ha за сезон кукурузы"
+
+
+def test_peach_twins_apricot_on_drip():
+    """Одна строка табл. 12 — сезоны обязаны почти совпадать; расходятся
+    они только датой распускания."""
+    peach = _season_total("peach", "drip", date(2026, 3, 20), 210)
+    apricot = _season_total("apricot", "drip", date(2026, 3, 15), 210)
+    assert abs(peach - apricot) / apricot < 0.15
+
+
+def test_pomegranate_is_thriftier_than_apple():
+    """kc_mid 0.85 — самый низкий среди садов, и сезон обязан быть
+    скромнее яблоневого; если гранат вдруг обогнал яблоню — в записи
+    ошибка, а не «особенность»."""
+    pom = _season_total("pomegranate", "drip", date(2026, 4, 10), 210)
+    apple = _season_total("apple", "drip", date(2026, 3, 20), 210)
+    assert pom < apple
+    assert 3000 < pom < 12000, f"{pom:.0f} m3/ha за сезон граната"
+
+
+# ------------------------- волна 3: повторные циклы, соя, капуста, сад
+
+def test_wave3_crop_models_are_deliberate():
+    from suv.crop import INTERNAL_CROPS
+    for key in ("plum", "persimmon"):
+        assert CROPS[key].perennial and CROPS[key].ndvi_kc_model == "cover", key
+    for key in ("soybean", "cabbage", "maize_second", "potato_summer"):
+        assert not CROPS[key].perennial, key
+        assert CROPS[key].ndvi_kc_model == "linear", key
+    # Повторные циклы — июльский сев, и оба ключа внутренние.
+    assert CROPS["maize_second"].typical_sowing[0] == 7
+    assert CROPS["potato_summer"].typical_sowing[0] == 7
+    assert INTERNAL_CROPS == {"maize_second", "potato_summer"}
+    # Капуста: дата — ВЫСАДКА рассады, кривая стартует с поля.
+    assert CROPS["cabbage"].typical_sowing == (3, 10)
+    # Летний картофель кончается сноской «убитая ботва», не зелёной копкой.
+    assert CROPS["potato_summer"].kc_end < CROPS["potato"].kc_end
+
+
+def test_month_resolves_the_second_cycle_not_a_button():
+    """«Makkajo'xori, iyul» и «Makkajo'xori, aprel» — разные кривые под
+    одной кнопкой: развилка живёт в resolve_cycle, а не в клавиатуре."""
+    from suv.crop import resolve_cycle
+    assert resolve_cycle("maize", 7) == "maize_second"
+    assert resolve_cycle("maize", 6) == "maize_second"
+    assert resolve_cycle("maize", 4) == "maize"
+    assert resolve_cycle("potato", 7) == "potato_summer"
+    assert resolve_cycle("potato", 3) == "potato"
+    # Культуры без двойника проходят как есть — любым месяцем.
+    for month in range(1, 13):
+        assert resolve_cycle("cotton", month) == "cotton"
+        assert resolve_cycle("maize_second", month) == "maize_second"
+
+
+def test_wizard_month_answer_switches_the_cycle(monkeypatch):
+    """Живой хендлер мастера: июль превращает кукурузу в повторную,
+    апрель оставляет весеннюю (образец — тест озимых выше)."""
+    import asyncio
+    from types import SimpleNamespace
+
+    class _Msg:
+        def __init__(self, text):
+            self.text = text
+
+        async def reply_text(self, *a, **k):
+            return None
+
+    class _Upd:
+        def __init__(self, text):
+            self.message = _Msg(text)
+
+    today = date(2026, 9, 12)
+    monkeypatch.setattr(B, "today_tashkent", lambda: today)
+
+    ctx = SimpleNamespace(user_data={"crop": "maize"}, bot=None)
+    asyncio.run(B.got_planting(_Upd("Iyul"), ctx))
+    assert ctx.user_data["crop"] == "maize_second"
+    assert ctx.user_data["planting"] == date(2026, 7, 1)
+
+    ctx = SimpleNamespace(user_data={"crop": "maize"}, bot=None)
+    asyncio.run(B.got_planting(_Upd("Aprel"), ctx))
+    assert ctx.user_data["crop"] == "maize"
+
+
+def test_second_cycles_fit_before_frost_and_cost_less():
+    """110/115 дней от 1 июля кончаются в октябре, до заморозка, и
+    повторная кукуруза обязана стоить заметно дешевле весенней —
+    полсезона против полного."""
+    from datetime import timedelta
+    for key in ("maize_second", "potato_summer"):
+        end = date(2026, 7, 1) + timedelta(days=sum(CROPS[key].stages))
+        assert end.month == 10, key
+    second = _season_total("maize_second", "furrow", date(2026, 7, 1), 110)
+    spring = _season_total("maize", "furrow", date(2026, 4, 20), 150)
+    assert second < spring * 0.75
+    assert 2500 < second < 9000, f"{second:.0f} m3/ha повторной кукурузы"
+
+
+def test_soybean_and_cabbage_seasons_are_plausible():
+    soy = _season_total("soybean", "furrow", date(2026, 5, 1), 135)
+    assert 6000 < soy < 16000, f"{soy:.0f} m3/ha за сезон сои"
+    cab = _season_total("cabbage", "furrow", date(2026, 3, 10), 95)
+    assert 2000 < cab < 8000, f"{cab:.0f} m3/ha за сезон капусты"
+
+
+def test_plum_twins_apricot_and_persimmon_is_thrifty():
+    plum = _season_total("plum", "drip", date(2026, 3, 20), 210)
+    apricot = _season_total("apricot", "drip", date(2026, 3, 15), 210)
+    assert abs(plum - apricot) / apricot < 0.15  # одна строка табл. 12
+    pers = _season_total("persimmon", "drip", date(2026, 4, 10), 220)
+    apple = _season_total("apple", "drip", date(2026, 3, 20), 210)
+    assert pers < apple  # kc_mid 0.85 обязан быть скромнее яблони
+
+
 # ----------------------------------------------------------------- мастер
 
 def test_wizard_offers_every_engine_crop_with_unique_labels():
-    assert set(B.CROP_ORDER) == set(CROPS)
+    """Каждая культура движка — кнопка, КРОМЕ внутренних ключей
+    повторных циклов: их выбирает месяц сева, не фермер."""
+    from suv.crop import INTERNAL_CROPS
+    assert set(B.CROP_ORDER) == set(CROPS) - INTERNAL_CROPS
+    assert not INTERNAL_CROPS & set(B.CROP_ORDER)
     labels = [B._crop_label(k) for k in B.CROP_ORDER]
     assert len(set(labels)) == len(labels)
+    # У внутренних ключей есть эмодзи и имя: карточка поля их печатает.
+    for key in INTERNAL_CROPS:
+        assert key in B.CROP_EMOJI and CROPS[key].name_uz
 
 
 def test_perennial_ages_map_to_sane_planting_years():
