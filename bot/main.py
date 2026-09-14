@@ -39,7 +39,8 @@ load_env()
 from suv import __version__
 from suv.climate import STATIONS, nearest_station, season
 from suv.clock import today as today_tashkent
-from suv.crop import CROPS, INTERNAL_CROPS, resolve_cycle, sowing_from_month
+from suv.crop import (CROPS, INTERNAL_CROPS, resolve_cycle, season_start,
+                      sowing_from_month)
 from suv.field_shape import MAX_VERTICES
 from suv.field_shape import area_ha as polygon_area_ha
 from suv.field_photo import can_show_photo
@@ -158,6 +159,7 @@ BTN_TEJALDI = "📊 Tejaldi"
 BTN_YORDAM = "❓ Yordam"
 BTN_DALA = "🌾 Dala holati"
 BTN_KABINET = "🖥 Kabinet"
+BTN_ORIM = "🌿 Beda o'rildi"
 
 MAIN_MENU = ReplyKeyboardMarkup(
     [[BTN_SUV, BTN_BAJARDIM], [BTN_TEJALDI, BTN_YORDAM]],
@@ -178,6 +180,13 @@ _FIELD_STATUS: set[int] = _ids_from_env("FIELD_STATUS_CHAT_IDS")
 # их независимо дешевле, чем чинить оба сразу.
 CABINET_URL = os.environ.get("CABINET_URL", "").strip()
 _CABINET: set[int] = _ids_from_env("CABINET_CHAT_IDS")
+
+# Отметка укоса беды — сырая поверхность, и список читается КАК У
+# КАБИНЕТА: пусто = закрыто ВСЕМ (см. _cabinet_open — задокументированное
+# сознательное исключение из конвенции «пусто = открыто»). Выровнять к
+# «пусто = открыто» означало бы выкатить сырую пилу Kc Фарруху одной
+# пустой строкой в .env.
+_ORIM: set[int] = _ids_from_env("ORIM_CHAT_IDS")
 
 # Куда пересылать вопросы фермеров. Пусто = вопрос всё равно получает
 # ответ, просто не уезжает никуда: молчание в ответ на живой вопрос —
@@ -212,6 +221,10 @@ def _menu(chat_id: int) -> ReplyKeyboardMarkup:
     # запуска несёт подпись на всех клиентах.
     if CABINET_URL and _cabinet_open(chat_id):
         extra.append(BTN_KABINET)
+    # Кнопку укоса видит только гейт-чат, у которого есть живая беда:
+    # кнопка без поля — дверь в пустую комнату (прецедент кабинета).
+    if _orim_open(chat_id) and _alfalfa_fields(chat_id):
+        extra.append(BTN_ORIM)
     if extra:
         rows.append(extra)
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
@@ -255,7 +268,13 @@ DALA_FILTER = (_DALA_TEXT if not _FIELD_STATUS
 # и засеять полями живой журнал.
 DRAW_FILTER = (filters.ALL if not _FIELD_STATUS
                else filters.Chat(_FIELD_STATUS))
-MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$") | DALA_FILTER
+# Укос: filters.Chat(пустое множество) не совпадает ни с кем — при
+# пустом _ORIM (гейт закрыт всем) кнопка остаётся для мастера обычным
+# текстом, ровно как до фичи. Семантика противоположна DALA_FILTER
+# сознательно: там пусто = открыто, тут пусто = закрыто.
+ORIM_FILTER = (filters.Regex(f"^{re.escape(BTN_ORIM)}$")
+               & filters.Chat(_ORIM))
+MENU_FILTER = filters.Regex(f"^({_MENU_PATTERN})$") | DALA_FILTER | ORIM_FILTER
 
 
 def _authorized(update: Update) -> bool:
@@ -305,6 +324,21 @@ def _cabinet_open(chat_id: int) -> bool:
                     chat_id, exc)
         return False
     return bool(rows)
+
+
+def _orim_open(chat_id: int) -> bool:
+    """Может ли чат отмечать укосы беды.
+
+    Пусто = закрыто всем — семантика кабинета, не allowlist'а (см.
+    комментарий у _ORIM). Проверка одна на все места: меню, фильтр и
+    хендлеры — кабинетный багфикс показал, что две проверки с разным
+    прочтением разъезжаются."""
+    return chat_id in _ORIM
+
+
+def _alfalfa_fields(chat_id: int) -> list:
+    """Живые поля беды владельца — укос отмечает тот, кто косил."""
+    return [r for r in _owner_fields(chat_id) if r["crop_key"] == "alfalfa"]
 
 
 async def _reject(update: Update) -> None:
@@ -728,6 +762,13 @@ def _compute_rec(row, today: date, out: dict | None = None):
     прямо, а журнал KPI такую рекомендацию не записывает.
     """
     fld = _build_field(row)
+
+    # Укосы сезона — вход пилы Kc. Только для укосных культур: лишний
+    # запрос по каждому полю на каждый /suv и автопуш ни к чему.
+    if fld.crop.cutting_cycle:
+        fld.cut_dates = LEDGER.cuts(
+            fld.field_id,
+            since=season_start(fld.crop, fld.planting_date, today))
 
     from suv.enrich import attach_ndvi
     # Обведённый контур сразу идёт в дело: без него спутник усредняет
@@ -1763,6 +1804,115 @@ async def bajardim_hours_callback(update: Update,
         await query.edit_message_text("Avval /suv buyrug'ini yuboring.")
         return
     await query.edit_message_text(_log_one(ctx, fid, ids[fid], hours))
+
+
+# ------------------------------------------------------------------- o'rim
+#
+# Отметка укоса беды: замыкает пилу Kc (suv/crop.cutting_cycle_kc) на
+# реальное событие. Закрытое демо (_ORIM), запись — только владельцем.
+
+ORIM_CLOSED = ("Bu funksiya hozircha yopiq sinovda.\n"
+               "Savol bo'lsa — shu yerga yozing, javob beramiz.")
+# Два укоса чаще, чем раз в две недели, — почти наверняка опечатка или
+# не то поле: межукосный интервал в практике 25-45 дней.
+MIN_CUT_GAP_DAYS = 14
+# Первый укос сезона раньше ~45 дней от отрастания — подозрителен: у
+# FAO-56 первый цикл 60-75 дней. Отказ, не молчаливая запись.
+FIRST_CUT_MIN_DAP = 45
+
+
+def _log_cut_for(fid: str, chat: int, days_ago: int, today: date) -> str:
+    """Проверить и записать укос; вернуть текст ответа фермеру."""
+    cut_on = today - timedelta(days=days_ago)
+    row = _field_row(fid)
+    start = season_start(CROPS[row["crop_key"]],
+                         date.fromisoformat(row["planting_date"]), today)
+    cuts = LEDGER.cuts(fid, since=start)
+    if cut_on in cuts:
+        return "Bu kun uchun o'rim allaqachon yozib olingan."
+    if cuts and (cut_on - cuts[-1]).days < MIN_CUT_GAP_DAYS:
+        return (f"Oxirgi o'rim {cuts[-1].day:02d}.{cuts[-1].month:02d} "
+                f"kuni yozilgan — orasi {MIN_CUT_GAP_DAYS} kundan kam "
+                "bo'lmaydi. Adashgan bo'lsangiz, egasiga yozing.")
+    if not cuts and (cut_on - start).days < FIRST_CUT_MIN_DAP:
+        return ("Mavsumning birinchi o'rimi uchun juda erta ko'rinadi. "
+                "Adashmagan bo'lsangiz, egasiga yozing.")
+    LEDGER.log_cut(fid, chat, cut_on)
+    n = len(cuts) + 1
+    when = " (kecha)" if days_ago else ""
+    return (f"«{row['name']}»: o'rim yozib olindi{when}. Bu mavsumda "
+            f"{n}-o'rim. Endi hisob qayta o'sish bo'yicha yuriladi.")
+
+
+async def orim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/orim — «беда скошена». Кнопка и команда; в set_my_commands НЕ
+    добавляется (прецедент /dala — закрытое демо не рекламируется)."""
+    if not _authorized(update):
+        await _reject(update)
+        return
+    chat = update.effective_chat.id
+    if not _orim_open(chat):
+        await update.message.reply_text(ORIM_CLOSED,
+                                        reply_markup=_menu(chat))
+        return
+    rows = _alfalfa_fields(chat)
+    if not rows:
+        await update.message.reply_text("Sizda beda dalasi yo'q.",
+                                        reply_markup=_menu(chat))
+        return
+    if len(rows) == 1:
+        fid = rows[0]["field_id"]
+        await update.message.reply_text(
+            "Qachon o'rdingiz?", reply_markup=_orim_day_keyboard(fid))
+        return
+    kb = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(r["name"], callback_data=f"orimfld:{r['field_id']}")]
+         for r in rows])
+    await update.message.reply_text("Qaysi dalada beda o'rildi?",
+                                    reply_markup=kb)
+
+
+def _orim_day_keyboard(fid: str) -> InlineKeyboardMarkup:
+    # Фермер нередко отмечает наутро — якорь пилы обязан встать на день
+    # самого укоса (то же рассуждение, что у bajardim_day_callback).
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("Bugun", callback_data=f"orimday:{fid}:0"),
+        InlineKeyboardButton("Kecha", callback_data=f"orimday:{fid}:1")]])
+
+
+async def orim_field_callback(update: Update,
+                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    fid = query.data.split(":", 1)[1]
+    # callback_data приходит от клиента: владение и гейт проверяются
+    # заново (образец bajardim_hours_callback).
+    if not _orim_open(chat) or fid not in {
+            r["field_id"] for r in _alfalfa_fields(chat)}:
+        await query.edit_message_text(ORIM_CLOSED)
+        return
+    await query.edit_message_text("Qachon o'rdingiz?",
+                                  reply_markup=_orim_day_keyboard(fid))
+
+
+async def orim_day_callback(update: Update,
+                            ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    chat = update.effective_chat.id
+    try:
+        _, fid, off = query.data.split(":", 2)
+        days_ago = int(off)
+    except ValueError:
+        await query.edit_message_text("Tushunarsiz javob. /orim ni qayta bosing.")
+        return
+    if days_ago not in (0, 1) or not _orim_open(chat) or fid not in {
+            r["field_id"] for r in _alfalfa_fields(chat)}:
+        await query.edit_message_text(ORIM_CLOSED)
+        return
+    await query.edit_message_text(
+        _log_cut_for(fid, chat, days_ago, today_tashkent()))
 
 
 # ---------------------------------------------------------------- dala holati
@@ -3042,6 +3192,11 @@ async def _escape_to_dala(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
     return ConversationHandler.END
 
 
+async def _escape_to_orim(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    await orim(update, ctx)
+    return ConversationHandler.END
+
+
 SAVOL_UZ = ("Savolingizni oldim — Amir javob beradi.\n"
             "Shoshilinch bo'lsa, tavsiyani “{btn}” tugmasi bilan oling.")
 SAVOL_RU = ("Вопрос получен — Амир ответит.\n"
@@ -3151,6 +3306,7 @@ def main() -> None:
             # Только демо-чаты: у остальных этот текст остаётся обычным
             # ответом на вопрос мастера, как и до появления экрана.
             MessageHandler(DALA_FILTER, _escape_to_dala),
+            MessageHandler(ORIM_FILTER, _escape_to_orim),
         ],
     ))
     app.add_handler(ConversationHandler(
@@ -3180,6 +3336,10 @@ def main() -> None:
     app.add_handler(CommandHandler("dala", dala_holati))
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_DALA)}$"), dala_holati))
     app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_KABINET)}$"), kabinet))
+    # Укос — тоже без фильтра по чату: залипшая кнопка у выведенного из
+    # демо чата обязана получить внятный отказ, а не тишину (см. /dala).
+    app.add_handler(CommandHandler("orim", orim))
+    app.add_handler(MessageHandler(filters.Regex(f"^{re.escape(BTN_ORIM)}$"), orim))
     # Обводка контура. Все три текстовые кнопки живут только в режиме
     # рисования: их хендлеры молча выходят, если режим не включён, —
     # поэтому в MENU_FILTER они не добавляются и мастер не задевают.
@@ -3216,6 +3376,8 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(bajardim_field_callback, pattern=r"^bajfld:"))
     app.add_handler(CallbackQueryHandler(bajardim_hours_callback, pattern=r"^bajardim:"))
     app.add_handler(CallbackQueryHandler(bajardim_day_callback, pattern=r"^bajday:"))
+    app.add_handler(CallbackQueryHandler(orim_field_callback, pattern=r"^orimfld:"))
+    app.add_handler(CallbackQueryHandler(orim_day_callback, pattern=r"^orimday:"))
     app.add_handler(CallbackQueryHandler(draw_confirm_callback, pattern=r"^fsdraw:"))
     app.add_handler(CallbackQueryHandler(inlet_callback, pattern=r"^fsin:"))
     app.add_handler(CallbackQueryHandler(photo_callback, pattern=r"^fs:map:"))
@@ -3227,7 +3389,8 @@ def main() -> None:
     # как раньше — молча выйти, а не превратиться в вопрос Амиру.
     _handled = "|".join(re.escape(b) for b in (
         BTN_SUV, BTN_BAJARDIM, BTN_TEJALDI, BTN_YORDAM, BTN_DALA,
-        BTN_KABINET, BTN_DRAW_DONE, BTN_DRAW_UNDO, BTN_DRAW_CANCEL))
+        BTN_KABINET, BTN_ORIM, BTN_DRAW_DONE, BTN_DRAW_UNDO,
+        BTN_DRAW_CANCEL))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND
         & ~filters.Regex(f"^({_handled})$"), savol))
@@ -3250,6 +3413,11 @@ def main() -> None:
         log.info("Dala holati: ОТКРЫТ ВСЕМ (FIELD_STATUS_CHAT_IDS пуст) — "
                  "экран поля, обводка контура, снимок, заметки, "
                  "окна опрыскивания и «почему такой совет»")
+    if _ORIM:
+        log.info("O'rim (beda): закрытое демо, чаты %s", sorted(_ORIM))
+    else:
+        log.info("O'rim: ВЫКЛЮЧЕН (ORIM_CHAT_IDS пуст) — многоукосная "
+                 "люцерна считается по усреднённому Kc")
     # Каждый гейт называет себя при старте — иначе из журнала не понять,
     # взведён он или нет. У запасного источника снимков это особенно
     # важно: он срабатывает только в облачный день, и без строки на
