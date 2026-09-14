@@ -23,7 +23,7 @@ from suv.soil import SOILS, WaterBalanceState
 # ------------------------------------------------------------- справочник
 
 def test_all_crops_have_sane_envelopes():
-    assert len(CROPS) == 29
+    assert len(CROPS) == 34
     for c in CROPS.values():
         assert 0.2 <= c.kc_ini < c.kc_mid <= 1.2, c.key
         assert 0.4 <= c.root_depth_m <= 2.0, c.key
@@ -301,6 +301,69 @@ def test_flooded_rice_refusal_survives_the_missing_anchor():
         assert marker in msg, msg
         assert "ayta olmayman" not in msg and "не отвечаю" not in msg
         assert B.BTN_BAJARDIM not in msg
+
+
+# ------------------- волна 5: перец, орех, семечковые, вишня-близнец
+
+def test_wave5_crop_models_are_deliberate():
+    p = CROPS["pepper"]
+    assert not p.perennial and p.ndvi_kc_model == "linear"
+    assert p.typical_sowing == (5, 1)          # ВЫСАДКА рассады
+    assert p.preharvest_hold_days == 3         # сбор волнами, как огурец
+    for key in ("walnut", "pear", "quince", "sour_cherry"):
+        c = CROPS[key]
+        assert c.perennial and c.ndvi_kc_model == "cover", key
+        assert c.canopy_height_m > 0, key
+    # Орех сохнет в скорлупе — наливать его перед съёмом незачем.
+    assert CROPS["walnut"].preharvest_hold_days < CROPS["apple"].preharvest_hold_days
+    # Айва: карликовый подвой — корни мельче грушевых, распускание позже.
+    assert CROPS["quince"].root_depth_m < CROPS["pear"].root_depth_m
+    assert CROPS["quince"].typical_sowing > CROPS["pear"].typical_sowing
+
+
+def test_sour_cherry_is_a_locked_twin_of_cherry():
+    """Вишня — сознательный почти-близнец черешни; без замка правка
+    одной из двух записей молча разведёт их. Различия — ТОЛЬКО крона
+    и дата распускания."""
+    a, b = CROPS["sour_cherry"], CROPS["cherry"]
+    for f in ("stages", "kc_ini", "kc_mid", "kc_end", "root_depth_m",
+              "depletion_fraction", "ndvi_kc_model", "canopy_ml",
+              "preharvest_hold_days"):
+        assert getattr(a, f) == getattr(b, f), f
+    assert a.canopy_height_m < b.canopy_height_m   # вишня мельче
+    assert a.typical_sowing > b.typical_sowing     # распускается позже
+
+
+def test_pepper_curve_covers_the_picking_season():
+    """Растяжка средней стадии 40 -> 75 — самое слабое число волны;
+    форма заперта: Kc_mid и в начале сбора (конец июня), и в сентябре."""
+    p = CROPS["pepper"]
+    assert stage_and_kc(p, 60).kc == p.kc_mid
+    assert stage_and_kc(p, 134).kc == p.kc_mid
+    total = _season_total("pepper", "furrow", date(2026, 5, 1), 155)
+    assert 7000 < total < 18000, f"{total:.0f} m3/ha за сезон перца"
+
+
+def test_walnut_is_the_thirstiest_orchard():
+    """Kc_mid 1.10 — самый высокий среди садов; если орех вдруг не
+    самый водоёмкий сад, в записи ошибка, а не «особенность»."""
+    from datetime import timedelta
+    walnut = _season_total("walnut", "drip", date(2026, 4, 10), 200)
+    apple = _season_total("apple", "drip", date(2026, 3, 20), 210)
+    assert walnut > apple
+    assert 6000 < walnut < 16000, f"{walnut:.0f} m3/ha за сезон ореха"
+    end = date(2026, 4, 10) + timedelta(days=sum(CROPS["walnut"].stages))
+    assert end.month == 10  # листопад до ноября
+
+
+def test_pear_twins_apple_and_quince_band_only():
+    pear = _season_total("pear", "drip", date(2026, 3, 20), 210)
+    apple = _season_total("apple", "drip", date(2026, 3, 20), 210)
+    assert abs(pear - apple) / apple < 0.15  # одна строка семечковых
+    # Айве только полоса, БЕЗ сравнения с грушей: «меньше дерево —
+    # меньше воды» опровергнуто замером (мелкие корни учащают поливы).
+    quince = _season_total("quince", "drip", date(2026, 4, 1), 225)
+    assert 5000 < quince < 14000, f"{quince:.0f} m3/ha за сезон айвы"
 
 
 def test_upland_rice_and_minor_annuals_seasons_are_plausible():
