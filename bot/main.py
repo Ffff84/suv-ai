@@ -38,6 +38,7 @@ load_env()
 
 from suv import __version__
 from suv.climate import STATIONS, nearest_station, season
+from suv.clock import now as now_tashkent
 from suv.clock import today as today_tashkent
 from suv.crop import (CROPS, INTERNAL_CROPS, resolve_cycle, season_start,
                       sowing_from_month)
@@ -56,6 +57,9 @@ from suv.field_status import (DRAW_ACTION_UZ, LIST_HEADER, PHOTO_BLOCKED,
                               water_section, weather_section)
 from suv.boundary_import import parse_file as parse_boundaries
 from suv.boundary_import import seed as seed_boundaries
+from suv.disease import DISEASE_CROPS, REPORT_FORECAST_DAYS, REPORT_PAST_DAYS
+from suv.disease import build_report as disease_report
+from suv.disease import build_section as disease_section
 from suv.landsat import enabled as landsat_enabled
 from suv.ledger import Ledger
 from suv.messages import (recommendation_text, salinity_warning,
@@ -63,7 +67,8 @@ from suv.messages import (recommendation_text, salinity_warning,
 from suv.schedule import Field, recommend, simulate
 from suv.soil import SOILS, WaterBalanceState
 from suv.spray import build_section as spray_build_section
-from suv.weather import fetch_elevation, fetch_forecast, fetch_hourly
+from suv.weather import (fetch_elevation, fetch_forecast, fetch_hourly,
+                         fetch_hourly_span)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -187,6 +192,13 @@ _CABINET: set[int] = _ids_from_env("CABINET_CHAT_IDS")
 # «пусто = открыто» означало бы выкатить сырую пилу Kc Фарруху одной
 # пустой строкой в .env.
 _ORIM: set[int] = _ids_from_env("ORIM_CHAT_IDS")
+
+# Отчёт о болезнях сада — сырая поверхность, список читается КАК У
+# КАБИНЕТА И УКОСА: пусто = закрыто ВСЕМ. Модели дают риск, не диагноз
+# (эксперимент «Диагноз по дождю», 19.08.2026), и до обкатки формулировок
+# на Амире секция не должна дойти до Фарруха: «условия заражения
+# выполнились» без контекста читается как «сад болен».
+_KASALLIK: set[int] = _ids_from_env("KASALLIK_CHAT_IDS")
 
 # Куда пересылать вопросы фермеров. Пусто = вопрос всё равно получает
 # ответ, просто не уезжает никуда: молчание в ответ на живой вопрос —
@@ -339,6 +351,16 @@ def _orim_open(chat_id: int) -> bool:
 def _alfalfa_fields(chat_id: int) -> list:
     """Живые поля беды владельца — укос отмечает тот, кто косил."""
     return [r for r in _owner_fields(chat_id) if r["crop_key"] == "alfalfa"]
+
+
+def _kasallik_open(chat_id: int) -> bool:
+    """Видит ли чат секцию болезней и полный отчёт по ним.
+
+    Пусто = закрыто всем — семантика кабинета и укоса, не allowlist'а.
+    Проверка одна на все места: сборка секций и колбэк отчёта. Кнопки в
+    меню у фичи нет — она живёт внутри карточки поля, поэтому фильтров
+    мастера регистрации этот гейт не касается."""
+    return chat_id in _KASALLIK
 
 
 async def _reject(update: Update) -> None:
@@ -1928,12 +1950,18 @@ async def orim_day_callback(update: Update,
 FS_CACHE_TTL_S = 600.0
 
 
-def _fs_data(row, ctx):
-    """(rec, pump, anchored, degraded, forecast) по полю, с TTL на чат.
+def _fs_data(row, ctx, with_disease: bool = False):
+    """(rec, pump, anchored, degraded, forecast, hourly, dhours) по полю,
+    с TTL на чат.
 
     Прогноз для секции погоды берётся отдельным быстрым запросом, а не
     протаскивается через _compute_rec: общий путь /suv и автопуша
     трогать ради новой секции нельзя.
+
+    dhours — почасовой ряд с архивным хвостом для секции болезней;
+    тянется ТОЛЬКО по просьбе (гейт-чат, покрытая культура): лишний
+    поход в Open-Meteo на каждой карточке каждого чата — цена, которую
+    закрытое демо платить не должно.
     """
     cache = ctx.user_data.setdefault("fs_cache", {})
     hit = cache.get(row["field_id"])
@@ -1945,7 +1973,13 @@ def _fs_data(row, ctx):
              and ctx.application.bot_data.get("fs_dirty", {})
                  .get(row["field_id"], 0.0)) or 0.0
     if hit and time.monotonic() - hit[0] < FS_CACHE_TTL_S and hit[0] >= dirty:
-        return hit[1]
+        data = hit[1]
+        if with_disease and data[6] is None:
+            # Кэш собран без ряда болезней (или тот не пришёл) — донести
+            # только его, не пересчитывая остальную карточку.
+            data = data[:6] + (_disease_hours(row),)
+            cache[row["field_id"]] = (hit[0], data)
+        return data
     # warm-start внутри _compute_rec уже привёз 14 дней живого прогноза
     # с того же Open-Meteo и с той же точки. Отдельный запрос на 3 дня
     # был вторым походом за теми же числами: на экране с двумя полями —
@@ -1975,9 +2009,23 @@ def _fs_data(row, ctx):
         log.warning("dala: почасовой прогноз для %s не пришёл: %s",
                     row["field_id"], exc)
         hourly = None
-    data = (rec, pump, anchored, degraded, forecast, hourly)
+    dhours = _disease_hours(row) if with_disease else None
+    data = (rec, pump, anchored, degraded, forecast, hourly, dhours)
     cache[row["field_id"]] = (time.monotonic(), data)
     return data
+
+
+def _disease_hours(row):
+    """Почасовой ряд с архивом для болезней. None — не пришёл: секция
+    по None просто не выходит на сцену (правило spray)."""
+    try:
+        return fetch_hourly_span(row["lat"], row["lon"],
+                                 past_days=REPORT_PAST_DAYS,
+                                 days=REPORT_FORECAST_DAYS)
+    except Exception as exc:  # noqa: BLE001 — болезни не роняют карточку
+        log.warning("dala: ряд болезней для %s не пришёл: %s",
+                    row["field_id"], exc)
+        return None
 
 
 # Замер равномерности живёт в базе (собирает scripts/build_uniformity.py):
@@ -2037,8 +2085,15 @@ def _uniformity_payload(row) -> dict | None:
     return payload
 
 
-def _fs_sections(row, ctx, lang: str) -> list:
-    rec, pump, _anchored, degraded, forecast, hourly = _fs_data(row, ctx)
+def _fs_sections(row, ctx, lang: str, viewer: int | None = None) -> list:
+    # Болезни — закрытое демо: секция собирается только для гейт-чата и
+    # только на покрытой культуре. viewer=None (веб-кабинет, тесты) =
+    # секции нет; список и карточка передают зрителя оба, иначе эмодзи
+    # в списке разошлось бы с карточкой внутри.
+    with_disease = (viewer is not None and _kasallik_open(viewer)
+                    and row["crop_key"] in DISEASE_CROPS)
+    rec, pump, _anchored, degraded, forecast, hourly, dhours = \
+        _fs_data(row, ctx, with_disease)
     last_irr = _last_irrigation(row["field_id"],
                                 row["last_irrigation_date"])
     try:
@@ -2056,6 +2111,10 @@ def _fs_sections(row, ctx, lang: str) -> list:
         photo_section(row["area_ha"], row["irrigation_method"],
                       photo=_photo_verdict(row, today_tashkent()), lang=lang),
         weather_section(forecast, lang),
+        # Ряд Open-Meteo наивный ташкентский — «сейчас» приводится к нему.
+        disease_section(dhours, row["crop_key"],
+                        now_tashkent().replace(tzinfo=None), lang)
+        if with_disease else None,
         spray_build_section(hourly, today_tashkent(), lang),
         cost_section(season_m3, pump, lang),
     )
@@ -2085,7 +2144,7 @@ def _may_setup(chat: int, row) -> bool:
 
 def _fs_card(row, chat: int, ctx, lang: str,
              many: bool) -> tuple[str, InlineKeyboardMarkup]:
-    sections = _fs_sections(row, ctx, lang)
+    sections = _fs_sections(row, ctx, lang, viewer=chat)
     text = render_card(row["name"], row["hectares"], _crop_name(row, lang),
                        sections, lang)
     owner = row["owner_chat_id"] == chat
@@ -2098,12 +2157,17 @@ def _fs_card(row, chat: int, ctx, lang: str,
     fid = row["field_id"]
     kb: list[list[InlineKeyboardButton]] = []
     actions: list[InlineKeyboardButton] = []
-    if _may_setup(chat, row):
-        # Кнопки настройки поля — контур, сторона входа, карта.
-        for s in sections:
-            if s.action is not None:
-                actions.append(InlineKeyboardButton(
-                    s.action.label, callback_data=f"{s.action.callback}:{fid}"))
+    for s in sections:
+        if s.action is None:
+            continue
+        # Кнопки настройки поля — контур, сторона входа, карта — только
+        # тем, кто вправе настраивать. Отчёт о болезнях — не настройка:
+        # его видит любой, кому собрана секция (гейт отработал при
+        # сборке секций, второй раз он стоит в самом колбэке).
+        if s.key != "disease" and not _may_setup(chat, row):
+            continue
+        actions.append(InlineKeyboardButton(
+            s.action.label, callback_data=f"{s.action.callback}:{fid}"))
     if owner:
         # А вот отметка полива — только хозяину: полил тот, кто полил,
         # и наблюдатель не вправе расписаться за него в KPI-журнале.
@@ -2122,13 +2186,15 @@ def _fs_card(row, chat: int, ctx, lang: str,
     return text, InlineKeyboardMarkup(kb)
 
 
-def _fs_list(rows, ctx, lang: str) -> tuple[str, InlineKeyboardMarkup]:
+def _fs_list(rows, ctx, lang: str,
+             viewer: int | None = None) -> tuple[str, InlineKeyboardMarkup]:
     """Список полей: статус считается по тем же секциям, что и карточка,
-    поэтому эмодзи в списке не может разойтись с карточкой внутри."""
+    поэтому эмодзи в списке не может разойтись с карточкой внутри —
+    зритель передаётся и сюда, гейт болезней у обоих один."""
     kb = []
     for row in rows:
         try:
-            status = overall_status(_fs_sections(row, ctx, lang))
+            status = overall_status(_fs_sections(row, ctx, lang, viewer))
         except Exception as exc:  # noqa: BLE001 — одно упавшее поле
             log.warning("dala: статус %s не посчитался: %s",  # не прячет список
                         row["field_id"], exc)
@@ -2140,6 +2206,20 @@ def _fs_list(rows, ctx, lang: str) -> tuple[str, InlineKeyboardMarkup]:
     return LIST_HEADER[lang], InlineKeyboardMarkup(kb)
 
 
+def _kasallik_report_text(row, ctx, lang: str) -> str:
+    """Полный отчёт о болезнях. Ряд — тот же, что у секции карточки
+    (кэш _fs_data): отчёт обязан объяснять ту строку, которую фермер
+    только что видел, а не спорить с ней свежим запросом."""
+    *_rest, dhours = _fs_data(row, ctx, with_disease=True)
+    if not dhours:
+        return ("Ob-havo arxivi kelmadi — hisobot hozircha yo'q, "
+                "keyinroq urinib ko'ring." if lang == "uz" else
+                "Метеоархив не пришёл — отчёта пока нет, попробуйте позже.")
+    return disease_report(dhours, row["crop_key"],
+                          now_tashkent().replace(tzinfo=None), lang,
+                          crop_name=_crop_name(row, lang))
+
+
 def _fs_screen(rows, chat: int, ctx, lang: str):
     """Первый экран: одно поле — сразу карточка, несколько — список.
 
@@ -2149,7 +2229,7 @@ def _fs_screen(rows, chat: int, ctx, lang: str):
     """
     if len(rows) == 1:
         return _fs_card(rows[0], chat, ctx, lang, many=False)
-    return _fs_list(rows, ctx, lang)
+    return _fs_list(rows, ctx, lang, viewer=chat)
 
 
 # Кнопку «Yangilash» жмут подряд; без паузы каждое нажатие — новый поход
@@ -2212,15 +2292,32 @@ async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     lang = "ru" if observer else "uz"
     many = len(rows) > 1
 
-    parts = query.data.split(":", 2)  # fs:list | fs:card:<id> | fs:re:<id> | fs:baj:<id>
+    # fs:list | fs:card:<id> | fs:re:<id> | fs:baj:<id> | fs:kasal:<id>
+    parts = query.data.split(":", 2)
     verb = parts[1] if len(parts) > 1 else ""
     fid = parts[2] if len(parts) > 2 else None
     row = by_id.get(fid)
 
     if verb == "list" and many:
         await query.answer()
-        text, kb = await asyncio.to_thread(_fs_list, rows, ctx, lang)
+        text, kb = await asyncio.to_thread(_fs_list, rows, ctx, lang, chat)
         await _fs_edit(query, text, kb)
+        return
+
+    if verb == "kasal" and row is not None:
+        # Гейт и здесь, не только при сборке кнопки: колбэк переживает
+        # вывод чата из демо в залипшей карточке (правило: гейт в
+        # хендлере, а не только в меню).
+        if not _kasallik_open(chat):
+            await query.answer()
+            return
+        await query.answer("Hisobot tayyorlanmoqda…" if lang == "uz"
+                           else "Готовлю отчёт…")
+        await ctx.bot.send_chat_action(chat, ChatAction.TYPING)
+        text = await asyncio.to_thread(_kasallik_report_text, row, ctx, lang)
+        # Отдельным сообщением, не правкой карточки: отчёт длинный, а
+        # карточка должна остаться на месте со своими кнопками.
+        await ctx.bot.send_message(chat, text)
         return
 
     if verb in ("card", "re") and row is not None:
@@ -3418,6 +3515,12 @@ def main() -> None:
     else:
         log.info("O'rim: ВЫКЛЮЧЕН (ORIM_CHAT_IDS пуст) — многоукосная "
                  "люцерна считается по усреднённому Kc")
+    if _KASALLIK:
+        log.info("Kasallik (болезни сада): закрытое демо, чаты %s",
+                 sorted(_KASALLIK))
+    else:
+        log.info("Kasallik: ВЫКЛЮЧЕН (KASALLIK_CHAT_IDS пуст) — секции "
+                 "болезней и отчёта в карточке нет ни у кого")
     # Каждый гейт называет себя при старте — иначе из журнала не понять,
     # взведён он или нет. У запасного источника снимков это особенно
     # важно: он срабатывает только в облачный день, и без строки на

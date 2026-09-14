@@ -432,7 +432,7 @@ def test_card_asks_open_meteo_once_per_field(tmp_path, monkeypatch):
                      water_table_depth_m=0.0)
 
     ctx = SimpleNamespace(user_data={})
-    _rec, _pump, _anch, degraded, forecast, _hourly = B._fs_data(
+    _rec, _pump, _anch, degraded, forecast, _hourly, _dh = B._fs_data(
         B._field_row("TG-1"), ctx)
 
     assert degraded is False, "погода отдана, расчёт не должен быть по нормам"
@@ -477,7 +477,7 @@ def test_card_still_asks_for_the_forecast_when_warm_start_fell_back(
                      water_table_depth_m=0.0)
 
     ctx = SimpleNamespace(user_data={})
-    *_, degraded, forecast, _hourly = B._fs_data(B._field_row("TG-1"), ctx)
+    *_, degraded, forecast, _hourly, _dh = B._fs_data(B._field_row("TG-1"), ctx)
 
     assert degraded is True
     assert calls == [(14, 0), (3, 0)], f"прогноз не переспросили: {calls}"

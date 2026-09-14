@@ -140,7 +140,13 @@ def fetch_hourly(lat: float, lon: float, hours: int = 48,
     }
     r = requests.get(BASE, params=params, timeout=timeout)
     r.raise_for_status()
-    d = r.json()["hourly"]
+    out = _parse_hourly(r.json()["hourly"])
+    if not out:
+        raise ValueError("Open-Meteo вернул пустой почасовой ряд")
+    return out
+
+
+def _parse_hourly(d: dict) -> list[HourlyWeather]:
     out: list[HourlyWeather] = []
     for i, iso in enumerate(d["time"]):
         t, rh = d["temperature_2m"][i], d["relative_humidity_2m"][i]
@@ -151,6 +157,33 @@ def fetch_hourly(lat: float, lon: float, hours: int = 48,
             time=datetime.strptime(iso, "%Y-%m-%dT%H:%M"),
             temp=t, rh=rh if rh is not None else 50.0,
             wind_2m=wind_10m_to_2m(w), rain_mm=p or 0.0))
+    return out
+
+
+def fetch_hourly_span(lat: float, lon: float, past_days: int = 7,
+                      days: int = 7, timeout: int = 20
+                      ) -> list[HourlyWeather]:
+    """Почасовой ряд: past_days архива + days прогноза, целыми сутками.
+
+    Отдельная функция, а не флаг у fetch_hourly: та кормит окна
+    опрыскивания и считает от текущего часа, а окна заражения болезней
+    начинаются во вчерашнем дожде — им нужен хвост назад. Смешать одно
+    с другим значило бы предлагать опрыскивание во вчерашнем окне.
+
+    Архивные часы здесь — тоже модель (ассимиляция Open-Meteo), не
+    станция: потребитель обязан говорить «по метеомодели»."""
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": ",".join(HOURLY_VARS),
+        "past_days": min(past_days, 92),
+        "forecast_days": min(days, 16),
+        "timezone": "Asia/Tashkent",
+        "wind_speed_unit": "ms",
+    }
+    r = requests.get(BASE, params=params, timeout=timeout)
+    r.raise_for_status()
+    out = _parse_hourly(r.json()["hourly"])
     if not out:
         raise ValueError("Open-Meteo вернул пустой почасовой ряд")
     return out
