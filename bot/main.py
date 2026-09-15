@@ -3543,6 +3543,13 @@ def main() -> None:
     else:
         log.info("Kasallik: ВЫКЛЮЧЕН (KASALLIK_CHAT_IDS пуст) — секции "
                  "болезней и отчёта в карточке нет ни у кого")
+    if _KASALLIK_YANGI:
+        log.info("Kasallik, yangi ekinlar (15.09): закрытое демо, чаты %s",
+                 sorted(_KASALLIK_YANGI))
+    else:
+        log.info("Kasallik yangi ekinlar: ВЫКЛЮЧЕНЫ (KASALLIK_YANGI_"
+                 "CHAT_IDS пуст) — болезни новых культур не видит никто; "
+                 "яблоня работает по KASALLIK_CHAT_IDS как раньше")
     # Каждый гейт называет себя при старте — иначе из журнала не понять,
     # взведён он или нет. У запасного источника снимков это особенно
     # важно: он срабатывает только в облачный день, и без строки на
