@@ -81,14 +81,16 @@ def test_hutton_one_cold_hour_breaks_min_temp():
     assert hutton_days(hours) == []
 
 
-def test_potato_section_warns_and_names_the_model():
+def test_potato_section_warns_in_farmer_language():
+    """Карточка говорит погодой и действием; имя модели — в отчёте."""
     hours = (_day(date(2026, 9, 12), temp=14, rh90_h=6)
              + _day(date(2026, 9, 13), temp=14, rh90_h=6))
     s = build_section(hours, "potato", NOW)
     assert s.status is Status.WARN
-    assert "Fitoftoroz" in s.line and "Hutton" in s.line
+    assert "Fitoftoroz" in s.line and "Hutton" not in s.line
+    assert "tekshiring" in s.hint
     s_ru = build_section(hours, "tomato", NOW, lang="ru")
-    assert "Фитофтороз" in s_ru.line
+    assert "Фитофтороз" in s_ru.line and "Хаттон" not in s_ru.line
 
 
 def test_potato_quiet_week_is_ok():
@@ -113,12 +115,13 @@ def test_rule_10_10_10_needs_rain_warmth_and_season():
     assert rule_10_10_10_days(autumn, 2026) == []
 
 
-def test_grape_section_event_warns():
+def test_grape_section_event_warns_without_jargon():
     hours = (_day(date(2026, 7, 7), temp=16, rain_h=6)
              + _day(date(2026, 7, 8), temp=16, rain_h=6))
     s = build_section(hours, "grape", NOW_JUL)
     assert s.status is Status.WARN
-    assert "10-10-10" in s.line
+    assert "Mildyu" in s.line and "10-10-10" not in s.line
+    assert "tekshiring" in s.hint
 
 
 # ------------------------------------------------------------ индекс GT
@@ -136,14 +139,16 @@ def test_gt_index_climbs_with_hot_runs_and_floors_at_zero():
     assert gt_index(cool, NOW)[0] == 0
 
 
-def test_gt_high_pressure_alone_warns_without_event():
+def test_gt_high_pressure_alone_warns_in_words_not_numbers():
+    """Число индекса — для отчёта; карточка говорит словом «yuqori»."""
     d0 = date(2026, 9, 8)
     hours = []
     for i in range(5):
         hours += _day(d0 + timedelta(days=i), temp=18, hot_h=7)
     s = build_section(hours, "grape", NOW)
     assert s.status is Status.WARN
-    assert "100" in s.line or "80" in s.line
+    assert "Oidium" in s.line and "yuqori" in s.line
+    assert not any(ch.isdigit() for ch in s.line)
 
 
 # ---------------------------------------------------------------- фон
@@ -177,12 +182,16 @@ def test_humid_days_threshold_is_six_hours():
 
 # ------------------------------------------------------------- отчёты
 
-def test_tomato_report_names_model_and_honesty_lines():
+def test_tomato_report_has_farmer_floor_and_agronomist_basement():
+    """Отчёт двухэтажный: сверху «что случилось/что делать» простыми
+    словами, внизу «Модель (для агронома)» с именами и порогами."""
     hours = (_day(date(2026, 9, 12), temp=14, rh90_h=6)
              + _day(date(2026, 9, 13), temp=14, rh90_h=6))
     r = build_report(hours, "tomato", NOW, lang="ru")
-    assert "Хаттон" in r and "P. infestans" in r
-    assert "TOMCAST" in r and "статус не красим" in r
+    assert "Что случилось" in r and "Что делать" in r
+    assert "Модель (для агронома)" in r and "Хаттон" in r
+    assert "P. infestans" in r
+    assert "TOMCAST" in r and "статус" in r
     assert "не диагноз" in r
 
 

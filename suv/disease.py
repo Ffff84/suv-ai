@@ -462,27 +462,31 @@ def _section_hutton(hours: list[HourlyWeather], now: datetime, uz: bool,
     horizon = now.date() - timedelta(days=SECTION_LOOKBACK_DAYS)
     done = [d for d in days if horizon <= d < now.date()]
     ahead = [d for d in days if d >= now.date()]
+    # Карточка говорит языком фермера: что за погода была и куда
+    # смотреть глазами. Имя модели живёт в полном отчёте.
     if done:
         stamp = ", ".join(_dm(d) for d in done[-3:])
         status = Status.ALERT if len(done) >= 2 else Status.WARN
-        line = (f"Fitoftoroz: {stamp} — Hutton mezoni bajarildi" if uz
-                else f"Фитофтороз: {stamp} — критерии Хаттона выполнились")
-        hint = ("Meteo-model bo'yicha — barg va poyani tekshiring" if uz
-                else "По метеомодели — проверьте листья и стебли")
+        line = (f"Fitoftoroz: {stamp} — kasallik uchun qulay nam ob-havo "
+                "bo'ldi" if uz else
+                f"Фитофтороз: {stamp} — погода была благоприятной для "
+                "болезни")
+        hint = ("Barg va poyada qo'ng'ir dog' bormi — tekshiring" if uz
+                else "Проверьте бурые пятна на листьях и стеблях")
     elif ahead:
         status = Status.WARN
-        line = (f"Fitoftoroz: {_dm(ahead[0])} — Hutton mezoni prognoz "
-                "bo'yicha" if uz else
-                f"Фитофтороз: {_dm(ahead[0])} — критерии Хаттона по "
-                "прогнозу")
-        hint = ("Namlik kelsa shart bajariladi — kuzating" if uz
-                else "Если влага придёт — условие выполнится, следите")
+        line = (f"Fitoftoroz: {_dm(ahead[0])} kuni qulay nam ob-havo "
+                "kutilmoqda" if uz else
+                f"Фитофтороз: {_dm(ahead[0])} ожидается благоприятная "
+                "для болезни погода")
+        hint = ("Hozircha prognoz — dalani kuzating" if uz
+                else "Пока это прогноз — наблюдайте за полем")
     else:
         status = Status.OK
-        line = (f"So'nggi {SECTION_LOOKBACK_DAYS} kunda fitoftoroz sharti "
-                "bajarilmadi" if uz else
-                f"За {SECTION_LOOKBACK_DAYS} дней критерии фитофтороза не "
-                "выполнялись")
+        line = (f"So'nggi {SECTION_LOOKBACK_DAYS} kunda fitoftoroz uchun "
+                "qulay ob-havo bo'lmadi" if uz else
+                f"За {SECTION_LOOKBACK_DAYS} дней погоды, благоприятной "
+                "для фитофтороза, не было")
         hint = "Meteo-model bo'yicha" if uz else "По метеомодели"
     return Section(key="disease", order=33, title=title, status=status,
                    line=line, hint=hint, action=action)
@@ -496,34 +500,45 @@ def _section_grape(hours: list[HourlyWeather], now: datetime, uz: bool,
     done = [d for d in events if horizon <= d < now.date()]
     ahead = [d for d in events if d >= now.date()]
     idx, _n = gt_index(hours, now)
+    # Число индекса — в отчёте; карточка говорит словом: bosim
+    # past/o'rtacha/yuqori — как погода, а не как приборная шкала.
     cat = (("yuqori" if uz else "высокое") if idx >= GT_HIGH else
            ("o'rtacha" if uz else "среднее") if idx >= GT_MODERATE else
            ("past" if uz else "низкое"))
-    oid = (f"oidium indeksi {idx} — bosim {cat}" if uz
-           else f"индекс оидиума {idx} — давление {cat}")
     if done:
         stamp = ", ".join(_dm(d) for d in done[-3:])
         status = Status.ALERT if idx >= GT_HIGH else Status.WARN
-        line = (f"Mildyu: {stamp} — «10-10-10» sharti bajarildi" if uz
-                else f"Милдью: {stamp} — правило «10-10-10» выполнилось")
-        hint = oid[0].upper() + oid[1:] + (
-            " · barglarni tekshiring" if uz else " · проверьте листья")
+        line = (f"Mildyu: {stamp} — issiq yomg'ir o'tdi, yuqish mumkin"
+                if uz else
+                f"Милдью: {stamp} — прошёл тёплый дождь, возможно "
+                "заражение")
+        hint = ("Barg ostida oq g'ubor bormi — tekshiring" if uz
+                else "Проверьте белый налёт с нижней стороны листа")
+        if idx >= GT_HIGH:
+            hint = ("Barg ostida oq g'ubor va kulrang un kabi g'uborni "
+                    "tekshiring" if uz else
+                    "Проверьте белый налёт снизу листа и серый мучнистый "
+                    "налёт")
     elif ahead:
         status = Status.WARN
-        line = (f"Mildyu: {_dm(ahead[0])} — «10-10-10» prognoz bo'yicha"
+        line = (f"Mildyu: {_dm(ahead[0])} kuni issiq yomg'ir kutilmoqda"
                 if uz else
-                f"Милдью: {_dm(ahead[0])} — «10-10-10» по прогнозу")
-        hint = oid[0].upper() + oid[1:]
+                f"Милдью: {_dm(ahead[0])} ожидается тёплый дождь")
+        hint = ("Yomg'irdan keyin barg ostini tekshiring" if uz
+                else "После дождя проверьте низ листьев")
     elif idx >= GT_HIGH:
         status = Status.WARN
-        line = ("Oidium indeksi " + str(idx) + " — bosim yuqori" if uz
-                else "Индекс оидиума " + str(idx) + " — давление высокое")
-        hint = ("Mildyu sharti kuzatilmadi · meteo-model" if uz
-                else "Условий милдью не было · по метеомодели")
+        line = ("Oidium: issiq kunlar ko'p — kasallik bosimi yuqori" if uz
+                else "Оидиум: жарких дней много — давление болезни "
+                "высокое")
+        hint = ("Barg va g'ujumda kulrang-oq g'uborni tekshiring" if uz
+                else "Проверьте серо-белый налёт на листьях и гроздях")
     else:
         status = Status.OK
-        line = ("Mildyu sharti yo'q · " + oid if uz
-                else "Условий милдью нет · " + oid)
+        line = (f"Kasallik uchun qulay ob-havo bo'lmadi · oidium bosimi "
+                f"{cat}" if uz else
+                f"Погоды, благоприятной для болезней, не было · давление "
+                f"оидиума {cat}")
         hint = "Meteo-model bo'yicha" if uz else "По метеомодели"
     return Section(key="disease", order=33, title=title, status=status,
                    line=line, hint=hint, action=action)
@@ -842,67 +857,89 @@ def _report_other(hours: list[HourlyWeather], crop_key: str, now: datetime,
         days = hutton_days(hours)
         done = [d for d in days if d < now.date()]
         ahead = [d for d in days if d >= now.date()]
-        blk = ["🥀 Fitoftoroz — Hutton mezoni (2017, Smith Periods "
-               "o'rniga):" if uz else
-               "🥀 Фитофтороз — критерии Хаттона (2017, сменили Smith "
-               "Periods):"]
+        blk = ["🥀 Fitoftoroz" if uz else "🥀 Фитофтороз"]
         if done:
             days_s = ", ".join(_dm(d) for d in done[-REPORT_MAX_DONE:])
             blk.append(
-                f"Mezon bajarilgan kunlar: {days_s} — ikki kun ketma-ket "
-                "min T≥10° va ≥6 soat RH≥90%." if uz else
-                f"Дни выполнения: {days_s} — два дня подряд min T≥10° и "
-                "≥6 ч RH≥90%.")
+                f"Nima bo'ldi: {days_s} kunlari ikki kun ketma-ket iliq "
+                "va juda nam bo'ldi — kasallik yuqishi uchun qulay "
+                "ob-havo." if uz else
+                f"Что случилось: {days_s} два дня подряд было тепло и "
+                "очень влажно — благоприятная для заражения погода.")
         else:
-            blk.append("Mezon bajarilgan kun yo'q." if uz
-                       else "Дней с выполненным критерием не было.")
+            blk.append("Kasallik uchun qulay ob-havo kuzatilmadi." if uz
+                       else "Погоды, благоприятной для болезни, не было.")
         for d in ahead[:REPORT_MAX_AHEAD]:
-            blk.append(f"Prognozda {_dm(d)}: mezon bajarilishi mumkin."
-                       if uz else
-                       f"По прогнозу {_dm(d)}: критерий может выполниться.")
+            blk.append(f"Prognoz: {_dm(d)} kuni ham shunday ob-havo "
+                       "kutilmoqda." if uz else
+                       f"Прогноз: {_dm(d)} ожидается такая же погода.")
+        blk.append(
+            "Nima qilish: barg va poyada qo'ng'ir dog'larni qidiring; "
+            "nam kunda barg ostida oq g'ubor bo'lishi mumkin. Topsangiz "
+            "— rasmga olib agronomga ko'rsating." if uz else
+            "Что делать: ищите бурые пятна на листьях и стеблях; во "
+            "влажный день снизу листа может быть белый налёт. Нашли — "
+            "сфотографируйте и покажите агроному.")
+        blk.append(
+            "Model (agronom uchun): Hutton mezoni (2017): ikki kun "
+            "ketma-ket min T≥10° va ≥6 soat RH≥90%." if uz else
+            "Модель (для агронома): критерии Хаттона (2017): два дня "
+            "подряд min T≥10° и ≥6 ч RH≥90%.")
         if crop_key == "tomato":
             blk.append(
-                "Model kartoshka uchun tuzilgan; qo'zg'atuvchi o'sha — "
-                "P. infestans, buni ochiq aytamiz." if uz else
-                "Модель разработана для картофеля; возбудитель тот же — "
-                "P. infestans, говорим это открыто.")
+                "Model kartoshka uchun tuzilgan; pomidorda qo'zg'atuvchi "
+                "o'sha — P. infestans." if uz else
+                "Модель разработана для картофеля; возбудитель на томате "
+                "тот же — P. infestans.")
         parts.append("\n".join(blk))
         if crop_key == "tomato":
             parts.append(
-                "🍂 Alternarioz: faqat fon — TOMCAST jadvalini birlamchi "
-                "manba bilan solishtirolmadik, holat bo'yalmaydi. Uzoq "
-                "nam oynalar 15–27°da qulay." if uz else
-                "🍂 Альтернариоз: только фон — таблицу TOMCAST не удалось "
-                "сверить с первоисточником, статус не красим. Благоприятны "
-                "длинные мокрые окна при 15–27°.")
+                "🍂 Alternarioz: belgisi — pastki barglarda halqali "
+                "qo'ng'ir dog'lar. Ob-havo bo'yicha faqat fon beramiz: "
+                "ishonchli jadvalni (TOMCAST) birlamchi manba bilan "
+                "solishtirolmadik, holat bo'yalmaydi." if uz else
+                "🍂 Альтернариоз: признак — кольцевые бурые пятна на "
+                "нижних листьях. По погоде даём только фон: таблицу "
+                "TOMCAST не удалось сверить с первоисточником, статус "
+                "не красим.")
 
     elif crop_key == "grape":
         events = rule_10_10_10_days(hours, year)
         done = [d for d in events if d < now.date()]
         ahead = [d for d in events if d >= now.date()]
         (sm, sd), (em, ed) = GRAPE_SEASON
-        blk = ["🍇 Mildyu — «10-10-10» qoidasi (Baldacci, 1947):" if uz
-               else "🍇 Милдью — правило «10-10-10» (Baldacci, 1947):"]
+        blk = ["🍇 Mildyu" if uz else "🍇 Милдью"]
         if done:
             days_s = ", ".join(_dm(d) for d in done[-REPORT_MAX_DONE:])
-            blk.append(f"Sharti bajarilgan kunlar: {days_s} — 24–48 "
-                       "soatda ≥10 mm yomg'ir, T≥10°." if uz else
-                       f"Дни выполнения: {days_s} — ≥10 мм дождя за "
-                       "24–48 ч при T≥10°.")
-        else:
-            blk.append("Sharti bajarilgan kun yo'q." if uz
-                       else "Дней с выполненным условием не было.")
-        for d in ahead[:REPORT_MAX_AHEAD]:
-            blk.append(f"Prognozda {_dm(d)}: shart bajarilishi mumkin."
+            blk.append(f"Nima bo'ldi: {days_s} kunlari issiq yomg'ir "
+                       "o'tdi — kasallik aynan shunday kunlarda yuqadi."
                        if uz else
-                       f"По прогнозу {_dm(d)}: условие может выполниться.")
+                       f"Что случилось: {days_s} прошёл тёплый дождь — "
+                       "болезнь заражает именно в такие дни.")
+        else:
+            blk.append("Issiq yomg'irli kun bo'lmadi — yuqish sharoiti "
+                       "kuzatilmadi." if uz else
+                       "Тёплых дождливых дней не было — условий для "
+                       "заражения не наблюдалось.")
+        for d in ahead[:REPORT_MAX_AHEAD]:
+            blk.append(f"Prognoz: {_dm(d)} kuni issiq yomg'ir kutilmoqda."
+                       if uz else
+                       f"Прогноз: {_dm(d)} ожидается тёплый дождь.")
         blk.append(
-            f"Qoida ehtiyotkor — xavfni oshirib ko'rsatishi mumkin. Novda "
-            f"uzunligini bot bilmaydi: mavsum oynasi kalendar bo'yicha "
-            f"({sd:02d}.{sm:02d}–{ed:02d}.{em:02d})." if uz else
-            f"Правило перестраховывается — может показать риск без "
-            f"заражения. Длину побега бот не знает: окно сезона по "
-            f"календарю ({sd:02d}.{sm:02d}–{ed:02d}.{em:02d}).")
+            "Nima qilish: barg ustida yog'li sariq dog', ostida oq "
+            "g'ubor — shu belgilarni qidiring. Topsangiz — agronomga "
+            "rasm ko'rsating." if uz else
+            "Что делать: ищите маслянистые жёлтые пятна сверху листа и "
+            "белый налёт снизу. Нашли — покажите фото агроному.")
+        blk.append(
+            f"Model (agronom uchun): «10-10-10» qoidasi (Baldacci, "
+            f"1947): 24–48 soatda ≥10 mm yomg'ir, T≥10°, novda ≥10 sm "
+            f"(kalendar: {sd:02d}.{sm:02d}–{ed:02d}.{em:02d}). Qoida "
+            "ehtiyotkor — ortiqcha ogohlantirishi mumkin." if uz else
+            f"Модель (для агронома): правило «10-10-10» (Baldacci, "
+            f"1947): ≥10 мм дождя за 24–48 ч при T≥10°, побег ≥10 см "
+            f"(календарь: {sd:02d}.{sm:02d}–{ed:02d}.{em:02d}). Правило "
+            "перестраховывается — может предупредить без заражения.")
         parts.append("\n".join(blk))
 
         idx, n = gt_index(hours, now)
@@ -910,17 +947,28 @@ def _report_other(hours: list[HourlyWeather], crop_key: str, now: datetime,
                ("o'rtacha" if uz else "среднее") if idx >= GT_MODERATE
                else ("past" if uz else "низкое"))
         parts.append(
-            f"🌫 Oidium — Gubler–Thomas indeksining yadrosi (UC Davis): "
-            f"indeks {idx} ({cat} bosim), {n} kun bo'yicha. Kun ichida "
-            f"≥6 soat 21–29° bo'lsa +20, bo'lmasa −10. Indeks qator "
-            f"boshida noldan boshlanadi — dastlab pasaytirib baholaydi; "
-            f"askospora fazasi va issiqlik sbrosisiz indeks ehtiyot "
+            f"🌫 Oidium\n"
+            f"Kasallik bosimi: {cat}. Bu ob-havo o'lchovi, kasallikning "
+            f"o'zi emas: issiq (21–29°) kunlar ko'paysa bosim o'sadi, "
+            f"salqin va yomg'irda pasayadi.\n"
+            f"Nima qilish: barg va g'ujumda kulrang-oq, un sepilganday "
+            f"g'uborni tekshiring.\n"
+            f"Model (agronom uchun): Gubler–Thomas indeksining yadrosi "
+            f"(UC Davis), indeks {idx}/100 {n} kun bo'yicha: kunda ≥6 "
+            f"soat 21–29° bo'lsa +20, bo'lmasa −10; qator boshida noldan "
+            f"boshlanadi, askospora fazasi va issiqlik sbrosisiz ehtiyot "
             f"tomonga yuqori." if uz else
-            f"🌫 Оидиум — ядро индекса Gubler–Thomas (UC Davis): индекс "
-            f"{idx} ({cat} давление), по {n} дням. День с ≥6 ч при "
-            f"21–29° даёт +20, иначе −10. Индекс стартует с нуля в "
-            f"начале ряда — поначалу занижен; без фазы аскоспор и "
-            f"жаро-сброса индекс смещён в сторону предупреждения.")
+            f"🌫 Оидиум\n"
+            f"Давление болезни: {cat}. Это мера погоды, а не сама "
+            f"болезнь: чем больше жарких (21–29°) дней, тем выше "
+            f"давление; в прохладу и дождь оно падает.\n"
+            f"Что делать: проверьте серо-белый, как присыпанный мукой, "
+            f"налёт на листьях и гроздях.\n"
+            f"Модель (для агронома): ядро индекса Gubler–Thomas "
+            f"(UC Davis), индекс {idx}/100 по {n} дням: день с ≥6 ч при "
+            f"21–29° даёт +20, иначе −10; стартует с нуля в начале ряда, "
+            f"без фазы аскоспор и жаро-сброса смещён в сторону "
+            f"предупреждения.")
 
     elif crop_key in ("peach", "apricot", "cherry"):
         (bm, bd), (em, ed) = BLOOM[crop_key]
@@ -942,10 +990,18 @@ def _report_other(hours: list[HourlyWeather], crop_key: str, now: datetime,
                        "Цветение прошло; гниль на плодах — повод показать "
                        "агроному.")
         blk.append(
-            "20–25°da 3–5 soat namlik yetishi mumkin, ammo yagona "
-            "jadval manbalarda yo'q — shuning uchun holat bo'yalmaydi." if uz
-            else "При 20–25° может хватить 3–5 ч влажности, но единой "
-            "таблицы в источниках нет — поэтому статус не красится.")
+            "Belgisi: gullar va yosh novdalar qo'ng'irlashib quriydi va "
+            "daraxtda osilib qoladi — ko'rsangiz, agronomga ko'rsating."
+            if uz else
+            "Признак: цветки и молодые побеги буреют, усыхают и остаются "
+            "висеть на дереве — увидите, покажите агроному.")
+        blk.append(
+            "Model (agronom uchun): 20–25°da 3–5 soat namlik yetishi "
+            "mumkin, ammo yagona jadval manbalarda yo'q — shuning uchun "
+            "holat bo'yalmaydi." if uz
+            else "Модель (для агронома): при 20–25° может хватить 3–5 ч "
+            "влажности, но единой таблицы в источниках нет — поэтому "
+            "статус не красится.")
         parts.append("\n".join(blk))
         if crop_key == "peach" and now.month in (2, 3):
             parts.append(
@@ -970,6 +1026,10 @@ def _report_other(hours: list[HourlyWeather], crop_key: str, now: datetime,
                        "kalendar) qator bilan kesishmadi." if uz else
                        f"Окно колошения ({_dm(lo)}–{_dm(hi)}, календарь) "
                        "с рядом не пересеклось.")
+        blk.append("Belgisi: oqargan boshoqlar yoki boshoqchalarda "
+                   "pushti g'ubor." if uz else
+                   "Признак: белёсые колосья или розоватый налёт на "
+                   "колосках.")
         blk.append("Modellar chegaralari manbalarda farq qiladi — holat "
                    "bo'yalmaydi." if uz else
                    "Пороги моделей в источниках расходятся — статус не "
@@ -980,21 +1040,26 @@ def _report_other(hours: list[HourlyWeather], crop_key: str, now: datetime,
         wet, total = wet_nights(hours, now)
         parts.append(
             f"🧅 Peronosporoz — faqat fon: nam tunlar {wet}/{total} "
-            f"(tunda ≥3 soat RH≥95%). To'liq DOWNCAST modeli "
+            f"(tunda ≥3 soat RH≥95%). Belgisi: patlarda kulrang-binafsha "
+            "g'ubor, rangi o'chgan dog'lar. To'liq DOWNCAST modeli "
             "solishtirilmagan." if uz else
             f"🧅 Пероноспороз — только фон: влажных ночей {wet}/{total} "
-            f"(ночью ≥3 ч RH≥95%). Полную модель DOWNCAST не сверяли.")
+            f"(ночью ≥3 ч RH≥95%). Признак: серо-фиолетовый налёт и "
+            "блёклые пятна на перьях. Полную модель DOWNCAST не сверяли.")
 
     else:  # cucumber, melon, watermelon
         wet, total = wet_nights(hours, now)
         parts.append(
             f"🥒 Peronosporoz — faqat fon: nam tunlar {wet}/{total}. "
-            "Asosiy omil — sporalarning shamol bilan kelishi; mahalliy "
-            "ob-havo uni ko'rmaydi, shuning uchun holat bo'yalmaydi." if uz
+            "Belgisi: bargda burchakli sariq dog'lar, ostida kulrang "
+            "g'ubor. Asosiy omil — sporalarning shamol bilan kelishi; "
+            "mahalliy ob-havo uni ko'rmaydi, shuning uchun holat "
+            "bo'yalmaydi." if uz
             else
             f"🥒 Пероноспороз — только фон: влажных ночей {wet}/{total}. "
-            "Главный фактор — прилёт спор с ветром; локальная погода его "
-            "не видит, поэтому статус не красится.")
+            "Признак: угловатые жёлтые пятна на листе, серый налёт "
+            "снизу. Главный фактор — прилёт спор с ветром; локальная "
+            "погода его не видит, поэтому статус не красится.")
 
     parts.append(_final_disclaimer(uz))
     return "\n\n".join(parts)
