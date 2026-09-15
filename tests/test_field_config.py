@@ -234,11 +234,11 @@ def test_redrawn_contour_loses_the_inlet_and_checker_says_so(tmp_path):
 
 
 def test_int_in_config_matches_real_in_db(tmp_path):
-    """700 в конфиге и 700.0 в базе — одна и та же высота."""
+    """791 в конфиге и 791.0 в базе — одна и та же высота."""
     cfg = _load(ROOT / "fields" / "uzum.json")
     led = _seed(tmp_path, cfg)
     assert isinstance(cfg["elevation_m"], int)
-    assert _row(led, cfg["field_id"])["elevation_m"] == 700.0
+    assert _row(led, cfg["field_id"])["elevation_m"] == 791.0
     assert diff_row(cfg, _row(led, cfg["field_id"])) == []
 
 
