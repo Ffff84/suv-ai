@@ -31,7 +31,7 @@ pitch.
 | Telegram bot | **In use by a farmer** | Farrukh, the pilot farmer, runs it on his own two fields and confirms the advice arrives and reads correctly |
 | Savings actually measured | **Not yet** | Until `/bajardim` confirmations accumulate, every saving figure is a back-test, not a measured result |
 
-559 tests, all passing: `python -m pytest tests/ -q`
+578 tests, all passing: `python -m pytest tests/ -q`
 
 **Pilot status, August 2026.** The bot runs 24/7 on a VPS and serves one
 real farm in Samarkand province: an apple orchard (2 ha, drip, pumped)
@@ -76,7 +76,7 @@ salinity warning built on it — is next in line, not on the shelf.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q            # 559 tests, no network needed
+python -m pytest tests/ -q            # 578 tests, no network needed
 
 cp .env.example .env                  # then fill it in — .env is gitignored
 python -m bot.main

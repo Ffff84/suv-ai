@@ -200,6 +200,13 @@ _ORIM: set[int] = _ids_from_env("ORIM_CHAT_IDS")
 # выполнились» без контекста читается как «сад болен».
 _KASALLIK: set[int] = _ids_from_env("KASALLIK_CHAT_IDS")
 
+# Болезни культур, добавленных 15.09.2026 (виноград, картофель, томат,
+# косточковые, зерновые, лук, тыквенные), — формулировки ещё не обкатаны.
+# Свой список, та же семантика «пусто = закрыто всем»: KASALLIK уже
+# открыт Фарруху ради яблони, и без второго гейта необкатанный текст про
+# милдью пришёл бы прямо в его виноградник.
+_KASALLIK_YANGI: set[int] = _ids_from_env("KASALLIK_YANGI_CHAT_IDS")
+
 # Куда пересылать вопросы фермеров. Пусто = вопрос всё равно получает
 # ответ, просто не уезжает никуда: молчание в ответ на живой вопрос —
 # худшее из двух зол, и терять сообщение из-за незаполненной переменной
@@ -361,6 +368,20 @@ def _kasallik_open(chat_id: int) -> bool:
     меню у фичи нет — она живёт внутри карточки поля, поэтому фильтров
     мастера регистрации этот гейт не касается."""
     return chat_id in _KASALLIK
+
+
+def _kasallik_crop_open(chat_id: int, crop_key: str) -> bool:
+    """Гейт болезней с учётом культуры.
+
+    Яблоня — обкатанные тексты, достаточно KASALLIK_CHAT_IDS. Культуры,
+    добавленные 15.09.2026, — сырые формулировки: нужен ещё и
+    KASALLIK_YANGI_CHAT_IDS (пусто = закрыто всем). Оба условия, чтобы
+    вывод чата из основного гейта закрывал и новое."""
+    if not _kasallik_open(chat_id):
+        return False
+    if crop_key == "apple":
+        return True
+    return chat_id in _KASALLIK_YANGI
 
 
 async def _reject(update: Update) -> None:
@@ -2090,7 +2111,8 @@ def _fs_sections(row, ctx, lang: str, viewer: int | None = None) -> list:
     # только на покрытой культуре. viewer=None (веб-кабинет, тесты) =
     # секции нет; список и карточка передают зрителя оба, иначе эмодзи
     # в списке разошлось бы с карточкой внутри.
-    with_disease = (viewer is not None and _kasallik_open(viewer)
+    with_disease = (viewer is not None
+                    and _kasallik_crop_open(viewer, row["crop_key"])
                     and row["crop_key"] in DISEASE_CROPS)
     rec, pump, _anchored, degraded, forecast, hourly, dhours = \
         _fs_data(row, ctx, with_disease)
@@ -2307,8 +2329,8 @@ async def fs_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if verb == "kasal" and row is not None:
         # Гейт и здесь, не только при сборке кнопки: колбэк переживает
         # вывод чата из демо в залипшей карточке (правило: гейт в
-        # хендлере, а не только в меню).
-        if not _kasallik_open(chat):
+        # хендлере, а не только в меню). Гейт — по культуре поля.
+        if not _kasallik_crop_open(chat, row["crop_key"]):
             await query.answer()
             return
         await query.answer("Hisobot tayyorlanmoqda…" if lang == "uz"
