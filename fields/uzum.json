@@ -6,7 +6,7 @@
   "hectares": 1.5,
   "lat": 39.558516,
   "lon": 66.996956,
-  "_высота": "Подтверждено 15.09.2026 двумя независимыми источниками по точке поля: Copernicus DEM GLO-30 и Open-Meteo elevation API (GLO-90) — оба дают 791. Прежние 700 были вписаны руками в первом коммите, до появления fetch_elevation; см. тот же комментарий в olma.json.",
+  "_высота": "Подтверждено 15.09.2026 двумя независимыми источниками по точке поля: Copernicus DEM GLO-30 (suv/terrain.py: fetch_dem + fit_plane, elev_mean по пикселям поля 791,1) и Open-Meteo elevation API (GLO-90) — оба дают 791. Прежние 700 были вписаны руками в первом коммите, до появления fetch_elevation; см. тот же комментарий в olma.json.",
   "elevation_m": 791,
   "station": "samarkand",
   "crop": "grape",
