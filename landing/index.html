@@ -482,10 +482,30 @@ header.top{
 /* наука + пилот */
 .sci{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:44px;align-items:start}
 @media(max-width:860px){.sci{grid-template-columns:1fr}}
-.sci .bars{display:flex;flex-direction:column;gap:14px}
-.sci .brow{font-size:.85rem;color:var(--mut)}
-.sci .brow .track{background:var(--panel);border-radius:6px;height:34px;position:relative;margin-top:6px;overflow:hidden}
-.sci .brow .fill{position:absolute;inset:0 auto 0 0;border-radius:6px;display:flex;align-items:center;padding-left:12px;font-family:"JetBrains Mono",monospace;font-size:.8rem;color:var(--deep);white-space:nowrap}
+.sci-meter{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;margin:0;
+  display:grid;grid-template-columns:1fr auto;gap:13px 18px;align-content:start;font-size:.9rem}
+.sci-meter dt{color:var(--mut)}
+.sci-meter dd{margin:0;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;color:var(--ink);text-align:right;white-space:nowrap}
+.sci-meter .msr{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;margin-top:6px;
+  font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.06em;color:var(--mut);line-height:1.6}
+
+/* под капотом */
+.hood-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+@media(max-width:960px){.hood-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.hood-grid{grid-template-columns:1fr}}
+.hcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;
+  display:flex;flex-direction:column;gap:10px;margin:0}
+.hcard.lead{grid-column:span 2}
+@media(max-width:640px){.hcard.lead{grid-column:auto}}
+.hcard h3{font-size:1.02rem;font-weight:500}
+.hcard p{font-size:.9rem;color:var(--mut);flex:1;margin:0}
+.hcard .src{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.06em;color:var(--mut);
+  border-top:1px solid var(--line);padding-top:12px}
+.hcard .src b{color:var(--ink);font-weight:400}
+.hood-nums{display:flex;gap:36px;flex-wrap:wrap;margin:2px 0 4px}
+.hood-nums b{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;font-weight:400;
+  font-size:clamp(1.5rem,2.6vw,2.1rem);color:var(--ink);display:block}
+.hood-nums span{font-size:.8rem;color:var(--mut)}
 .pilot-cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
 @media(max-width:760px){.pilot-cards{grid-template-columns:1fr}}
 .pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px}
@@ -612,7 +632,8 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:foc
 <div class="ticker" aria-hidden="true">
   <div class="rail" id="rail">
     <span data-i18n="tick.1">Sentinel-2 · снимок каждые <b>5 дней</b></span>
-    <span data-i18n="tick.2">движок FAO-56 · <b>517</b> автотестов</span>
+    <span data-i18n="tick.2">движок FAO-56 · <b>559</b> автотестов</span>
+    <span data-i18n="tick.7"><b>34 культуры</b> · 92,7% орошаемых площадей</span>
     <span data-i18n="tick.3">контур поля — <b>пальцем за 30 секунд</b></span>
     <span data-i18n="tick.4">карта влажности · клетка <b>20 м</b></span>
     <span data-i18n="tick.5">совет — <b>часами насоса</b>, не миллиметрами</span>
@@ -735,6 +756,72 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:foc
 
 
 
+<!-- ПОД КАПОТОМ -->
+<section class="sect" id="hood">
+  <div class="shell">
+    <div class="eyebrow reveal" data-i18n="hood.eyebrow">Под капотом</div>
+    <h2 class="reveal" data-i18n="hood.h2">Сильные стороны — у каждой адрес в коде</h2>
+    <p class="lede reveal" data-i18n="hood.lede">Витринных обещаний здесь нет: каждая карточка — работающий модуль движка,
+      закрытый автотестами (<span class="mono">559</span> на сегодня). Строка внизу карточки — настоящее имя файла:
+      у любой способности можно спросить, как она устроена.</p>
+    <div class="hood-grid">
+      <article class="hcard lead reveal">
+        <h3 data-i18n="hood.t1">34 культуры — почти вся орошаемая страна</h3>
+        <div class="hood-nums">
+          <div><b data-i18n="hood.b1">92,7 %</b><span data-i18n="hood.n1">орошаемых площадей Узбекистана</span></div>
+          <div><b data-i18n="hood.b2">90,8 %</b><span data-i18n="hood.n2">оросительной воды страны</span></div>
+        </div>
+        <p data-i18n="hood.p1">От хлопка и озимой пшеницы до люцерны с укосами и граната: коэффициенты культур по FAO-56,
+          многолетники — по возрасту. Доля покрытия пересчитывается скриптом по национальной структуре посевов —
+          цифру можно воспроизвести, а не поверить на слово.</p>
+        <div class="src"><b>suv/crop.py</b> · scripts/water_share.py</div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t2">Сотни полей одним файлом</h3>
+        <p data-i18n="hood.p2">KML, KMZ, GeoJSON или shapefile — прямо в чат. Хозяйству с сотней полей не нужно обводить
+          каждое: границы встают пакетом, поля получают имена и архив.</p>
+        <div class="src"><b>suv/boundary_import.py</b></div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t3">Опыт на своём поле</h3>
+        <p data-i18n="hood.p3">Половина поля живёт по совету, половина — по привычке. Парные снимки одного дня показывают
+          разницу без нашего вердикта: поле спорит само.</p>
+        <div class="src"><b>suv/trial.py</b></div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t4">Равномерность полива</h3>
+        <p data-i18n="hood.p4">Многолетний композит NDVI показывает, куда вода систематически не доходит. Пороги применимости
+          бот называет вслух — карта без основания не рисуется.</p>
+        <div class="src"><b>suv/uniformity.py</b></div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t5">Рельеф — без выезда в поле</h3>
+        <p data-i18n="hood.p5">Высота и средний уклон поля считаются по открытому рельефу Copernicus DEM GLO-30 — триаж
+          «пойдёт ли самотёк» до первого визита.</p>
+        <div class="src"><b>suv/terrain.py</b> · GLO-30</div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t6">Второй глаз на орбите</h3>
+        <p data-i18n="hood.p6">Когда Sentinel-2 закрыт облаками, поле подхватывает Landsat 8/9. Два независимых спутника —
+          меньше слепых недель.</p>
+        <div class="src"><b>suv/landsat.py</b></div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t7">Окна опрыскивания</h3>
+        <p data-i18n="hood.p7">Движок считает часы, когда химию не сдует ветром и не смоет дождём, — по тому же прогнозу,
+          что кормит расчёт полива.</p>
+        <div class="src"><b>suv/spray.py</b></div>
+      </article>
+      <article class="hcard reveal">
+        <h3 data-i18n="hood.t8">Деньги, а не миллиметры</h3>
+        <p data-i18n="hood.p8">Кубы превращаются в киловатты и сумы, совет — в часы насоса. Под каждым советом 👍/👎:
+          голос фермера ложится в журнал рядом с расчётом.</p>
+        <div class="src"><b>suv/economics.py</b></div>
+      </article>
+    </div>
+  </div>
+</section>
+
 <!-- ПОЛЯ С ВЫСОТЫ -->
 <section class="sect" id="fields">
   <div class="shell">
@@ -790,32 +877,31 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:foc
   </div>
 </section>
 
-<!-- НАУКА -->
+<!-- ТОЧНОСТЬ -->
 <section class="sect creed">
   <div class="shell">
-    <div class="eyebrow reveal" data-i18n="sci.eyebrow">Наука</div>
-    <h2 class="reveal" data-i18n="sci.h2">Западный калькулятор здесь ошибается почти вдвое</h2>
-    <p class="lede reveal" data-i18n="sci.lede">В Ферганской и Зарафшанской долинах грунтовые воды стоят в 1–3 метрах и
-      подпаивают корни снизу. Мировые реализации FAO-56 этот член уравнения отбрасывают.
-      Мы вернули капиллярный подъём — и сезонная норма сошлась с реальными хозяйствами.</p>
+    <div class="eyebrow reveal" data-i18n="sci.eyebrow">Точность</div>
+    <h2 class="reveal" data-i18n="sci.h2">Мы замерили собственную точность — и называем её сами</h2>
+    <p class="lede reveal" data-i18n="sci.lede">Пока на поле нет датчика и счётчика, «точность 99%» — выдумка.
+      Поэтому вместо процентов попадания мы публикуем измеренные границы: где расчёт твёрд, а где честно плывёт.</p>
     <div class="sci">
-      <div class="bars reveal">
-        <div class="brow" data-i18n="sci.b1">агрономическая норма · хлопок
-          <div class="track"><div class="fill" style="width:62%;background:var(--line);color:var(--ink)">5 000–7 000 м³/га</div></div>
-        </div>
-        <div class="brow" data-i18n="sci.b2">FAO-56 без грунтовых вод
-          <div class="track"><div class="fill" style="width:97%;background:var(--dry)" data-i18n="sci.f2">9 700 м³/га — вдвое больше фактического расхода</div></div>
-        </div>
-        <div class="brow" data-i18n="sci.b3">SUV AI с капиллярным подъёмом
-          <div class="track"><div class="fill" style="width:55%;background:var(--wet)" data-i18n="sci.f3">5 455 м³/га — близко к факту</div></div>
-        </div>
-      </div>
+      <dl class="sci-meter reveal">
+        <dt data-i18n="sci.k1">Прогноз испаряемости ET0 · на сутки</dt><dd data-i18n="sci.v1">2 %</dd>
+        <dt data-i18n="sci.k2">Прогноз испаряемости ET0 · на неделю</dt><dd data-i18n="sci.v2">7 %</dd>
+        <dt data-i18n="sci.k3">Дата совета «сегодня/завтра»</dt><dd data-i18n="sci.v3">±1–2 дня</dd>
+        <dt data-i18n="sci.k4">Дата совета на неделю вперёд</dt><dd data-i18n="sci.v4">±3–4 дня</dd>
+        <dt data-i18n="sci.k5">Объём полива без калибровки</dt><dd data-i18n="sci.v5">до ±30 %</dd>
+        <div class="msr" data-i18n="sci.msr">замер 23.08.2026 · живая погода двух полей пилота · совет на неделю бот уточняет каждое утро</div>
+      </dl>
       <div class="reveal">
-        <p style="color:var(--mut);font-size:.95rem" data-i18n="sci.p2">Тот же механизм — причина засоления половины орошаемых
-          земель: перелив поднимает соль в корневую зону. Из этой поправки родилось
-          предупреждение о засолении, которое бот шлёт фермеру вместе с рекомендацией.</p>
-        <p style="color:var(--mut);font-size:.95rem;margin-top:12px" data-i18n="sci.p3">Физика проверена по контрольным примерам
-          самого справочника FAO-56 — <span class="mono" style="color:var(--ink)">517</span> автотест проходит при каждом изменении.</p>
+        <p style="color:var(--mut);font-size:.95rem" data-i18n="sci.p2">Слабые места называем сами: объём без калибровки
+          гуляет до ±30 %, перелив спутник не видит вовсе. Зато у недолива есть подпись — вода в листе (NDMI) падает
+          раньше зелени (NDVI), — и именно её продукт ловит.</p>
+        <p style="color:var(--mut);font-size:.95rem;margin-top:12px" data-i18n="sci.p3">Грунтовые воды в долинах стоят в 1–3 метрах
+          и подпаивают корни снизу — мировые реализации FAO-56 этот член отбрасывают. Мы над ним работаем, но в советы
+          фермеру он войдёт только после ввода глубины и проверки: обещать раньше запрещает §6.</p>
+        <p style="color:var(--mut);font-size:.95rem;margin-top:12px" data-i18n="sci.p4">Физика движка сверена с контрольными
+          примерами справочника FAO-56 — <span class="mono" style="color:var(--ink)">559</span> автотестов проходит при каждом изменении.</p>
       </div>
     </div>
   </div>
@@ -949,7 +1035,7 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input[type=range]:foc
       <div class="tcard reveal"><img src="img/amir.webp" alt="Амир Негматуллаев">
         <div><h3>Амир Негматуллаев</h3><p data-i18n="team.r1">Автор идеи · владелец продукта. Довёл SUV AI от уравнения FAO-56 до бота, который каждое утро пишет реальному фермеру.</p></div></div>
       <div class="tcard reveal"><img src="img/husan.webp" alt="Хусан Негматуллаев">
-        <div><h3>Хусан Негматуллаев</h3><p data-i18n="team.r2">Главный разработчик. Движок, спутниковый слой, инфраструктура: 517 автотестов, физика сверена со справочником FAO-56.</p></div></div>
+        <div><h3>Хусан Негматуллаев</h3><p data-i18n="team.r2">Главный разработчик. Движок, спутниковый слой, инфраструктура: 559 автотестов, физика сверена со справочником FAO-56.</p></div></div>
       <div class="tcard reveal"><img src="img/farux.webp" alt="Фаррух Урунов">
         <div><h3>Фаррух Урунов</h3><p data-i18n="team.r3">Фермер-партнёр пилота. Два поля, на которых продукт проверяется ежедневно. Его насос научил бота говорить часами, а не кубами.</p></div></div>
     </div>
@@ -1019,7 +1105,8 @@ uz: {
 "hero.btn2":"Qanday ishlashini ko'rish ↓",
 "hero.hint":"varaqlang — suv oqadi",
 "tick.1":"Sentinel-2 · har <b>5 kunda</b> surat",
-"tick.2":"FAO-56 dvigateli · <b>517</b> avtotest",
+"tick.2":"FAO-56 dvigateli · <b>559</b> avtotest",
+"tick.7":"<b>34 ekin</b> · sug'oriladigan maydonlarning 92,7%",
 "tick.3":"dala chegarasi — <b>30 soniyada barmoq bilan</b>",
 "tick.4":"namlik xaritasi · katak <b>20 m</b>",
 "tick.5":"maslahat — millimetr emas, <b>nasos soatlarida</b>",
@@ -1084,13 +1171,39 @@ uz: {
 "kpi.w4":"«bugun sug'oraymi?» degan savoldan javobgacha — chatda, agronomsiz",
 "kpi.labL":"pilot · 3,5 ga","kpi.labR":"maqsad 2028 · 30 000 ga",
 "kpi.note":"Halol to'ldirilgan: biz yo'lning eng boshidamiz — 0,01%. Ammo bu gektarlarning har biri har tong hisoblanadi va har bir tavsiya jurnalga yozilgan. Oraliq maqsad — 2027-yil mavsumida 1&nbsp;500&nbsp;ga, shundan 500 gektarda sug'orish fermer va hisoblagich bilan tasdiqlangan bo'ladi.",
-"sci.eyebrow":"Ilm",
-"sci.h2":"G'arb kalkulyatori bu yerda deyarli ikki barobar adashadi",
-"sci.lede":"Farg'ona va Zarafshon vodiylarida sizot suvlari 1–3 metrda turadi va ildizlarni pastdan sug'oradi. FAO-56 ning jahon tatbiqlari bu hadni tashlab yuboradi. Biz kapillyar ko'tarilishni qaytardik — mavsumiy norma haqiqiy xo'jaliklar bilan mos tushdi.",
-"sci.b1":"agronomik norma · paxta","sci.b2":"FAO-56 sizot suvisiz","sci.b3":"SUV AI kapillyar ko'tarilish bilan",
-"sci.f2":"9 700 m³/ga — haqiqiy sarfdan ikki barobar ko'p","sci.f3":"5 455 m³/ga — haqiqatga yaqin",
-"sci.p2":"Xuddi shu mexanizm — sug'oriladigan yerlarning yarmi sho'rlanishining sababi: ortiqcha suv tuzni ildiz zonasiga ko'taradi. Shu tuzatishdan bot tavsiya bilan birga yuboradigan sho'rlanish ogohlantirishi tug'ildi.",
-"sci.p3":"Fizika FAO-56 ma'lumotnomasining nazorat misollari bilan tekshirilgan — har o'zgarishda <span class=\"mono\" style=\"color:var(--ink)\">517</span> avtotest o'tadi.",
+"sci.eyebrow":"Aniqlik",
+"sci.h2":"O'z aniqligimizni o'zimiz o'lchadik — va ochiq aytamiz",
+"sci.lede":"Dalada datchik ham, hisoblagich ham yo'q ekan, «99% aniqlik» — to'qima. Shuning uchun biz tegish foizlari emas, o'lchangan chegaralarni e'lon qilamiz: hisob qayerda qat'iy, qayerda halol suzadi.",
+"sci.k1":"ET0 bug'lanish prognozi · bir kunga","sci.v1":"2 %",
+"sci.k2":"ET0 bug'lanish prognozi · bir haftaga","sci.v2":"7 %",
+"sci.k3":"«Bugun/ertaga» maslahat sanasi","sci.v3":"±1–2 kun",
+"sci.k4":"Bir hafta oldinga maslahat sanasi","sci.v4":"±3–4 kun",
+"sci.k5":"Kalibrovkasiz suv hajmi","sci.v5":"±30 % gacha",
+"sci.msr":"o'lchov 23.08.2026 · pilot ikki dalasining jonli ob-havosi · haftalik sanani bot har tong aniqlashtiradi",
+"sci.p2":"Zaif joylarni o'zimiz aytamiz: kalibrovkasiz hajm ±30 % gacha suzadi, ortiqcha sug'orishni sun'iy yo'ldosh umuman ko'rmaydi. Ammo suv yetishmasligining imzosi bor — bargdagi suv (NDMI) ko'klikdan (NDVI) oldin tushadi — mahsulot aynan shuni ushlaydi.",
+"sci.p3":"Vodiylarda sizot suvlari 1–3 metrda turadi va ildizlarni pastdan sug'oradi — FAO-56 ning jahon tatbiqlari bu hadni tashlab yuboradi. Biz u ustida ishlayapmiz, lekin maslahatlarga u chuqurlik kiritilib, tekshirilgandan keyingina kiradi: undan oldin va'da berishni §6 taqiqlaydi.",
+"sci.p4":"Dvigatel fizikasi FAO-56 ma'lumotnomasining nazorat misollari bilan solishtirilgan — har o'zgarishda <span class=\"mono\" style=\"color:var(--ink)\">559</span> avtotest o'tadi.",
+"hood.eyebrow":"Kaput ostida",
+"hood.h2":"Kuchli tomonlar — har birining kodda manzili bor",
+"hood.lede":"Bu yerda vitrina va'dalari yo'q: har bir kartochka — avtotestlar bilan yopilgan ishlaydigan modul (bugun <span class=\"mono\">559</span> ta). Kartochka pastidagi qator — haqiqiy fayl nomi: istalgan qobiliyatdan qanday ishlashini so'rash mumkin.",
+"hood.t1":"34 ekin — sug'oriladigan mamlakatning deyarli hammasi",
+"hood.b1":"92,7 %","hood.b2":"90,8 %",
+"hood.n1":"O'zbekiston sug'oriladigan maydonlaridan","hood.n2":"mamlakat sug'orish suvidan",
+"hood.p1":"Paxta va kuzgi bug'doydan tortib o'rimli beda va anorgacha: FAO-56 bo'yicha ekin koeffitsiyentlari, ko'p yilliklar — yoshi bo'yicha. Qamrov ulushi ekinlarning milliy tuzilmasi bo'yicha skript bilan qayta hisoblanadi — raqamni ishonib emas, qayta chiqarib ko'rish mumkin.",
+"hood.t2":"Yuzlab dala — bitta fayl",
+"hood.p2":"KML, KMZ, GeoJSON yoki shapefile — to'g'ridan-to'g'ri chatga. Yuz dalali xo'jalik har birini chizib o'tirmaydi: chegaralar paket bo'lib tushadi, dalalar nom va arxiv oladi.",
+"hood.t3":"O'z dalangizdagi tajriba",
+"hood.p3":"Dalaning yarmi maslahat bo'yicha, yarmi odat bo'yicha yashaydi. Bir kunning juft suratlari farqni bizning hukmimizsiz ko'rsatadi: dala o'zi bahslashadi.",
+"hood.t4":"Sug'orish tekisligi",
+"hood.p4":"Ko'p yillik NDVI kompoziti suv muntazam yetib bormaydigan joylarni ko'rsatadi. Qo'llanish chegaralarini bot ochiq aytadi — asossiz xarita chizilmaydi.",
+"hood.t5":"Relyef — dalaga bormasdan",
+"hood.p5":"Dala balandligi va o'rtacha nishabligi ochiq Copernicus DEM GLO-30 bo'yicha hisoblanadi — birinchi tashrifgacha «o'zi oqar suv yuradimi» saralovi.",
+"hood.t6":"Orbitadagi ikkinchi ko'z",
+"hood.p6":"Sentinel-2 bulut ostida qolganda dalani Landsat 8/9 ilib oladi. Ikki mustaqil sun'iy yo'ldosh — ko'r haftalar kamroq.",
+"hood.t7":"Purkash oynalari",
+"hood.p7":"Dvigatel kimyoni shamol uchirmaydigan va yomg'ir yuvmaydigan soatlarni hisoblaydi — sug'orishni boqadigan o'sha prognoz bo'yicha.",
+"hood.t8":"Millimetr emas — pul",
+"hood.p8":"Kublar kilovatt va so'mga, maslahat nasos soatlariga aylanadi. Har maslahat ostida 👍/👎: fermer ovozi jurnalga hisob yoniga yoziladi.",
 "pil.eyebrow":"Pilot · Samarqand viloyati",
 "pil.h2":"Mahsulot haqiqiy fermerning cho'ntagida yashaydi",
 "pil.lede":"Har tong 06:00 da bot Farrux xo'jaligining ikki dalasini hisoblaydi. Bu sug'orishning ikki xil olami — mahsulot ularning iqtisodini halol farqlaydi.",
@@ -1108,7 +1221,7 @@ uz: {
 "team.eyebrow":"Jamoa",
 "team.h2":"Ishlayotgan mahsuloti bor uch kishi",
 "team.r1":"G'oya muallifi · mahsulot egasi. SUV AI ni FAO-56 tenglamasidan har tong haqiqiy fermerga yozadigan botgacha olib keldi.",
-"team.r2":"Bosh dasturchi. Dvigatel, sun'iy yo'ldosh qatlami, infratuzilma: 517 avtotest, fizika FAO-56 ma'lumotnomasi bilan solishtirilgan.",
+"team.r2":"Bosh dasturchi. Dvigatel, sun'iy yo'ldosh qatlami, infratuzilma: 559 avtotest, fizika FAO-56 ma'lumotnomasi bilan solishtirilgan.",
 "team.r3":"Pilotning fermer-hamkori. Mahsulot har kuni sinovdan o'tadigan ikki dala. Uning nasosi botni kub emas, soat bilan gapirishga o'rgatdi.",
 "fin.h2":"Dalaga ovoz bering — qachon suv ichishini o'zi aytadi",
 "fin.p":"Ulanish — chatdagi oltita savol. Anketasiz, ilovasiz, o'qitishsiz.",
@@ -1156,7 +1269,8 @@ en: {
 "hero.btn2":"See how it works ↓",
 "hero.hint":"scroll — the water will flow",
 "tick.1":"Sentinel-2 · a scene every <b>5 days</b>",
-"tick.2":"FAO-56 engine · <b>517</b> tests",
+"tick.2":"FAO-56 engine · <b>559</b> tests",
+"tick.7":"<b>34 crops</b> · 92.7% of irrigated area",
 "tick.3":"field boundary — <b>traced by finger in 30 s</b>",
 "tick.4":"moisture map · <b>20 m</b> cell",
 "tick.5":"advice in <b>pump hours</b>, not millimetres",
@@ -1221,13 +1335,39 @@ en: {
 "kpi.w4":"from “water today?” to the answer — in chat, no agronomist",
 "kpi.labL":"pilot · 3.5 ha","kpi.labR":"goal 2028 · 30,000 ha",
 "kpi.note":"Filled honestly: we are at the very start — 0.01%. But every one of those hectares is computed each morning, and every recommendation is on the ledger. Interim goal: 1,500&nbsp;ha in the 2027 season, 500 of them with irrigation confirmed by the farmer and a water meter.",
-"sci.eyebrow":"Science",
-"sci.h2":"The Western calculator is off by almost half here",
-"sci.lede":"In the Fergana and Zarafshan valleys the water table sits 1–3 metres down and feeds roots from below. World implementations of FAO-56 drop this term. We put capillary rise back — and the seasonal norm matched real farms.",
-"sci.b1":"agronomic norm · cotton","sci.b2":"FAO-56 without groundwater","sci.b3":"SUV AI with capillary rise",
-"sci.f2":"9,700 m³/ha — double what the farmer applies","sci.f3":"5,455 m³/ha — close to actual practice",
-"sci.p2":"The same mechanism is why half the irrigated land is saline: over-watering lifts salt into the root zone. That correction is where the salinity warning the bot sends alongside its advice was born.",
-"sci.p3":"The physics is checked against the FAO-56 handbook's own worked examples — <span class=\"mono\" style=\"color:var(--ink)\">517</span> tests run on every change.",
+"sci.eyebrow":"Accuracy",
+"sci.h2":"We measured our own accuracy — and state it ourselves",
+"sci.lede":"With no sensor or meter in the field, “99% accuracy” is fiction. So instead of hit rates we publish measured bounds: where the calculation is firm, and where it honestly drifts.",
+"sci.k1":"ET0 forecast error · one day ahead","sci.v1":"2 %",
+"sci.k2":"ET0 forecast error · one week ahead","sci.v2":"7 %",
+"sci.k3":"Advice date · “today/tomorrow”","sci.v3":"±1–2 days",
+"sci.k4":"Advice date · a week ahead","sci.v4":"±3–4 days",
+"sci.k5":"Water volume · uncalibrated","sci.v5":"up to ±30 %",
+"sci.msr":"measured 23.08.2026 · live weather on both pilot fields · the week-ahead date is re-sharpened every morning",
+"sci.p2":"We name the weak spots ourselves: uncalibrated volume drifts up to ±30 %, and the satellite cannot see over-watering at all. Under-watering, though, leaves a signature — leaf water (NDMI) drops before greenness (NDVI) — and that is exactly what the product catches.",
+"sci.p3":"In these valleys the water table sits 1–3 metres down and feeds roots from below — world implementations of FAO-56 drop this term. We are working on it, but it enters the farmer's advice only after depth input and verification: promising earlier is forbidden by §6.",
+"sci.p4":"The engine's physics is checked against the FAO-56 handbook's own worked examples — <span class=\"mono\" style=\"color:var(--ink)\">559</span> tests run on every change.",
+"hood.eyebrow":"Under the hood",
+"hood.h2":"Strengths — each with an address in the code",
+"hood.lede":"No showcase promises here: every card is a working engine module locked by automated tests (<span class=\"mono\">559</span> today). The line at the bottom of each card is a real file name — you can ask any capability how it works.",
+"hood.t1":"34 crops — nearly the whole irrigated country",
+"hood.b1":"92.7 %","hood.b2":"90.8 %",
+"hood.n1":"of Uzbekistan's irrigated area","hood.n2":"of the country's irrigation water",
+"hood.p1":"From cotton and winter wheat to multi-cut alfalfa and pomegranate: FAO-56 crop coefficients, perennials by age. The coverage share is recomputed by a script against the national crop structure — a number you can reproduce, not take on faith.",
+"hood.t2":"Hundreds of fields in one file",
+"hood.p2":"KML, KMZ, GeoJSON or shapefile — straight into the chat. A farm with a hundred fields doesn't trace each one: boundaries land as a batch, fields get names and an archive.",
+"hood.t3":"A trial on your own field",
+"hood.p3":"Half the field lives by the advice, half by habit. Paired same-day images show the difference without our verdict: the field argues for itself.",
+"hood.t4":"Irrigation uniformity",
+"hood.p4":"A multi-year NDVI composite shows where water systematically falls short. The bot states its applicability thresholds out loud — no map is drawn without grounds.",
+"hood.t5":"Terrain — no site visit needed",
+"hood.p5":"Field elevation and mean slope come from the open Copernicus DEM GLO-30 — a “will gravity flow work here” triage before the first visit.",
+"hood.t6":"A second eye in orbit",
+"hood.p6":"When Sentinel-2 is clouded out, Landsat 8/9 picks the field up. Two independent satellites — fewer blind weeks.",
+"hood.t7":"Spray windows",
+"hood.p7":"The engine computes the hours when chemicals won't be blown off by wind or washed away by rain — from the same forecast that feeds irrigation.",
+"hood.t8":"Money, not millimetres",
+"hood.p8":"Cubic metres become kilowatts and soums, advice becomes pump hours. Every piece of advice carries 👍/👎 — the farmer's voice lands in the ledger next to the calculation.",
 "pil.eyebrow":"Pilot · Samarkand region",
 "pil.h2":"The product lives in a real farmer's pocket",
 "pil.lede":"Every morning at 06:00 the bot computes two fields of Farrukh's farm. Two different worlds of irrigation — and the product honestly tells their economics apart.",
@@ -1245,7 +1385,7 @@ en: {
 "team.eyebrow":"Team",
 "team.h2":"Three people who already have a working product",
 "team.r1":"Idea author · product owner. Took SUV AI from the FAO-56 equation to a bot that writes to a real farmer every morning.",
-"team.r2":"Lead developer. Engine, satellite layer, infrastructure: 517 tests, physics checked against the FAO-56 handbook.",
+"team.r2":"Lead developer. Engine, satellite layer, infrastructure: 559 tests, physics checked against the FAO-56 handbook.",
 "team.r3":"The pilot's partner farmer. Two fields where the product is tested daily. His pump taught the bot to speak in hours, not cubic metres.",
 "fin.h2":"Give the field a voice — it will say when it is thirsty",
 "fin.p":"Onboarding is six questions in a chat. No forms, no apps, no training.",

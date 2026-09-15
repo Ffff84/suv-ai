@@ -31,7 +31,7 @@ pitch.
 | Telegram bot | **In use by a farmer** | Farrukh, the pilot farmer, runs it on his own two fields and confirms the advice arrives and reads correctly |
 | Savings actually measured | **Not yet** | Until `/bajardim` confirmations accumulate, every saving figure is a back-test, not a measured result |
 
-517 tests, all passing: `python -m pytest tests/ -q`
+559 tests, all passing: `python -m pytest tests/ -q`
 
 **Pilot status, August 2026.** The bot runs 24/7 on a VPS and serves one
 real farm in Samarkand province: an apple orchard (2 ha, drip, pumped)
@@ -53,12 +53,13 @@ sits 1–3 m below the surface and feeds the root zone directly. Standard
 textbook implementations drop this term because most of the world has a
 deep table. Uzbekistan does not.
 
-Adding capillary rise brought seasonal use from ~9,700 to 5,455 m³/ha —
-an order of magnitude closer to what the pilot farmer actually applies.
-Whether 5,455 is *right* is still an open question: the band we used to
-call “the norm” is uncited, and published Uzbek figures appear higher. The same shallow table is the mechanism
-behind the salinity damage on half the country's irrigated land, so the
-correction also produced the salinity warning the bot now sends.
+Capillary rise is implemented in the engine — but we say this carefully:
+the bot has no way yet to ask a farmer for water-table depth, so every
+live field runs with the term switched off, and the old “~9,700 → 5,455
+m³/ha” comparison did not survive our own audit (12.09.2026) — we no
+longer quote it. The same shallow table drives the salinity damage on
+half the country's irrigated land, which is why depth input — and the
+salinity warning built on it — is next in line, not on the shelf.
 
 **Two consequences for the pitch:**
 
@@ -75,7 +76,7 @@ correction also produced the salinity warning the bot now sends.
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests/ -q            # 517 tests, no network needed
+python -m pytest tests/ -q            # 559 tests, no network needed
 
 cp .env.example .env                  # then fill it in — .env is gitignored
 python -m bot.main
